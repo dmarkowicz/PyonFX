@@ -16,16 +16,18 @@
 # along with this program. If not, see http://www.gnu.org/licenses/.
 
 from __future__ import annotations
-import re
+
+import copy
 import os
+import re
+import subprocess
 import sys
 import time
-import copy
-import subprocess
-from typing import Dict, List, Tuple, Union, Optional
+from abc import ABC, abstractmethod
+from typing import Dict, List, Tuple, cast
 
-from .font_utility import Font
 from .convert import Convert
+from .font_utility import Font
 
 
 class Meta:
