@@ -459,26 +459,26 @@ class Convert:
                 io.write_line(line)
         """
         # Obtaining information and editing values of style if requested
-        original_scale_x = obj.styleref.scale_x
-        original_scale_y = obj.styleref.scale_y
+        original_scale_x = obj.style.scale_x
+        original_scale_y = obj.style.scale_y
 
         # Editing temporary the style to properly get the shape
         if fscx is not None:
-            obj.styleref.scale_x = fscx
+            obj.style.scale_x = fscx
         if fscy is not None:
-            obj.styleref.scale_y = fscy
+            obj.style.scale_y = fscy
 
         # Obtaining font information from style and obtaining shape
-        font = Font(obj.styleref)
+        font = Font(obj.style)
         shape = font.text_to_shape(obj.text)
         # Clearing resources to not let overflow errors take over
         del font
 
         # Restoring values of style and returning the shape converted
         if fscx is not None:
-            obj.styleref.scale_x = original_scale_x
+            obj.style.scale_x = original_scale_x
         if fscy is not None:
-            obj.styleref.scale_y = original_scale_y
+            obj.style.scale_y = original_scale_y
         return shape
 
     @staticmethod
@@ -517,9 +517,9 @@ class Convert:
 
         # Setting default values
         if fscx is None:
-            fscx = obj.styleref.scale_x
+            fscx = obj.style.scale_x
         if fscy is None:
-            fscy = obj.styleref.scale_y
+            fscy = obj.style.scale_y
 
         # Obtaining text converted to shape
         shape = Convert.text_to_shape(obj, fscx, fscy)
@@ -543,11 +543,11 @@ class Convert:
         # Calculating offsets
         cx = (
             obj.left
-            - obj.width * mult_x * (fscx - obj.styleref.scale_x) / obj.styleref.scale_x
+            - obj.width * mult_x * (fscx - obj.style.scale_x) / obj.style.scale_x
         )
         cy = (
             obj.top
-            - obj.height * mult_y * (fscy - obj.styleref.scale_y) / obj.styleref.scale_y
+            - obj.height * mult_y * (fscy - obj.style.scale_y) / obj.style.scale_y
         )
 
         return shape.move(cx, cy)
