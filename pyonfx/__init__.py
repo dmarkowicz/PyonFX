@@ -2,7 +2,7 @@
 # flake8: noqa
 
 from .font_utility import Font
-from .ass_core import Ass, Meta, Style, Line, Word, Syllable, Char
+from .ass_core import *
 from .convert import Convert, ColorModel
 from .shape import Shape
 from .utils import Utils, FrameUtility, ColorUtility
