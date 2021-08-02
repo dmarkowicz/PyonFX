@@ -23,379 +23,319 @@ import re
 import subprocess
 import sys
 import time
+import warnings
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, cast
+from pathlib import Path
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 
 from .convert import Convert
 from .font_utility import Font
 
+__all__ = [
+    'Meta', 'Style',
+    'Line', 'Word', 'Syllable', 'Char',
+    'Ass'
+]
 
-class Meta:
+
+class DataCore(ABC):
+    """Abstract DataCore object"""
+
+    def __str__(self) -> str:
+        return self._pretty_print(self)
+
+    @classmethod
+    def _pretty_print(cls, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
+        if not name:
+            out = " " * indent + f'{obj.__class__.__name__}:\n'
+        else:
+            out = " " * indent + f'{name}: ({obj.__class__.__name__}):\n'
+
+        # Let's print all this object fields
+        indent += 4
+        for k, v in obj.__dict__.items():
+            if isinstance(v, DataCore):
+                # Work recursively to print another object
+                out += cls._pretty_print(v, indent, k)
+            elif isinstance(v, Color):
+                out += " " * indent + f"{k}: {v.pprint()}\n"
+            elif isinstance(v, list):
+                v = cast(List[DataCore], v)
+                for el in v:
+                    # Work recursively to print other objects inside a list
+                    out += cls._pretty_print(el, indent, k)
+            else:
+                # Just print a field of this object
+                out += " " * indent + f"{k}: {str(v)}\n"
+
+        return out
+
+
+class Meta(DataCore):
     """Meta object contains informations about the Ass.
 
     More info about each of them can be found on http://docs.aegisub.org/manual/Styles
-
-    Attributes:
-        wrap_style (int): Determines how line breaking is applied to the subtitle line
-        scaled_border_and_shadow (bool): Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow
-        play_res_x (int): Video Width
-        play_res_y (int): Video Height
-        audio (str): Loaded audio path (absolute)
-        video (str): Loaded video path (absolute)
     """
-
     wrap_style: int
+    """Determines how line breaking is applied to the subtitle line"""
     scaled_border_and_shadow: bool
+    """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
     play_res_x: int
+    """Video width"""
     play_res_y: int
-    audio: str
-    video: str
+    """Video height"""
+    audio: Union[Path, str]
+    """Loaded audio path (absolute)"""
+    video: Union[Path, str]
+    """Loaded video path (absolute)"""
 
-    def __str__(self):
-        return pretty_print(self)
+
+class Color(str):
+    alpha: str
+
+    def __new__(cls, x: str, alpha: str) -> Color:
+        color = super().__new__(cls, x)
+        color.alpha = alpha
+        return color
+
+    def pprint(self) -> str:
+        return super().__str__() + f' | Alpha: {self.alpha}'
 
 
-class Style:
+class Style(DataCore):
     """Style object contains a set of typographic formatting rules that is applied to dialogue lines.
 
     More info about styles can be found on http://docs.aegisub.org/3.2/ASS_Tags/.
-
-    Attributes:
-        fontname (str): Font name
-        fontsize (float): Font size in points
-        color1 (str): Primary color (fill)
-        alpha1 (str): Transparency of color1
-        color2 (str): Secondary color (secondary fill, for karaoke effect)
-        alpha2 (str): Transparency of color2
-        color3 (str): Outline (border) color
-        alpha3 (str): Transparency of color3
-        color4 (str): Shadow color
-        alpha4 (str): Transparency of color4
-        bold (bool): Font with bold
-        italic (bool): Font with italic
-        underline (bool): Font with underline
-        strikeout (bool): Font with strikeout
-        scale_x (float): Text stretching in the horizontal direction
-        scale_y (float): Text stretching in the vertical direction
-        spacing (float): Horizontal spacing between letters
-        angle (float): Rotation of the text
-        border_style (bool): *True* for opaque box, *False* for standard outline
-        outline (float): Border thickness value
-        shadow (float): How far downwards and to the right a shadow is drawn
-        alignment (int): Alignment of the text
-        margin_l (int): Distance from the left of the video frame
-        margin_r (int): Distance from the right of the video frame
-        margin_v (int): Distance from the bottom (or top if alignment >= 7) of the video frame
-        encoding (int): Codepage used to map codepoints to glyphs
     """
-
+    name: str
+    """Style name"""
     fontname: str
+    """Font name"""
     fontsize: float
-    color1: str
-    alpha1: str
-    color2: str
-    alpha2: str
-    color3: str
-    alpha3: str
-    color4: str
-    alpha4: str
+    """Font size in points"""
+    color1: Color
+    """Primary color (fill) and transparency"""
+    color2: Color
+    """Secondary color (secondary fill, for karaoke effect) and transparency"""
+    color3: Color
+    """Outline (border) color and transparency"""
+    color4: Color
+    """Shadow color and transparency"""
     bold: bool
+    """Font with bold"""
     italic: bool
+    """Font with italic"""
     underline: bool
+    """Font with underline"""
     strikeout: bool
+    """Font with strikeout"""
     scale_x: float
+    """Text stretching in the horizontal direction"""
     scale_y: float
+    """Text stretching in the vertical direction"""
     spacing: float
+    """Horizontal spacing between letters"""
     angle: float
+    """Rotation of the text"""
     border_style: bool
+    """*True* for opaque box, *False* for standard outline"""
     outline: float
+    """Border thickness value"""
     shadow: float
-    alignment: int
+    """How far downwards and to the right a shadow is drawn"""
+    _alignment: int
+    """Alignment of the text"""
     margin_l: int
+    """Distance from the left of the video frame"""
     margin_r: int
+    """Distance from the right of the video frame"""
     margin_v: int
+    """Distance from the bottom (or top if alignment >= 7) of the video frame"""
     encoding: int
+    """Codepage used to map codepoints to glyphs"""
 
-    def __str__(self):
-        return pretty_print(self)
+    @property
+    def alignment(self) -> int:
+        return self._alignment
+
+    @alignment.setter
+    def alignment(self, an: int) -> None:
+        if 1 <= an <= 9:
+            self._alignment = an
+        else:
+            raise ValueError('Alignment of the text must be <= 9 or >= 1')
+
+    def an_is_left(self) -> bool:
+        return self.alignment in {1, 4, 7}
+
+    def an_is_center(self) -> bool:
+        return self.alignment in {2, 5, 8}
+
+    def an_is_right(self) -> bool:
+        return self.alignment in {3, 6, 9}
+
+    def an_is_top(self) -> bool:
+        return self.alignment in {7, 8, 9}
+
+    def an_is_middle(self) -> bool:
+        return self.alignment in {4, 5, 6}
+
+    def an_is_bottom(self) -> bool:
+        return self.alignment in {1, 2, 3}
 
 
-class Char:
-    """Char object contains informations about a single char of a line in the Ass.
-
-    A char is defined by some text between two karaoke tags (k, ko, kf).
-
-    Attributes:
-        i (int): Char index number
-        word_i (int): Char word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2).
-        syl_i (int): Char syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "F" will have syl_i=3).
-        syl_char_i (int): Char invidual syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "e" of "users" will have syl_char_i=2).
-        start_time (int): Char start time (in milliseconds).
-        end_time (int): Char end time (in milliseconds).
-        duration (int): Char duration (in milliseconds).
-        styleref (obj): Reference to the Style object of this object original line.
-        text (str): Char text.
-        inline_fx (str): Char inline effect (marked as \\-EFFECT in karaoke-time).
-        prespace (int): Char free space before text.
-        postspace (int): Char free space after text.
-        width (float): Char text width.
-        height (float): Char text height.
-        ascent (float): Line font ascent (*).
-        descent (float): Line font descent (*).
-        internal_leading (float): Line font internal lead (*).
-        external_leading (float): Line font external lead (*).
-        x (float): Char text position horizontal (depends on alignment).
-        y (float): Char text position vertical (depends on alignment).
-        left (float): Char text position left.
-        center (float): Char text position center.
-        right (float): Char text position right.
-        top (float): Char text position top.
-        middle (float): Char text position middle.
-        bottom (float): Char text position bottom.
-    """
-
+class AssText(DataCore, ABC):
+    """Abstract AssText object"""
     i: int
-    word_i: int
-    syl_i: int
-    syl_char_i: int
+    """Index number"""
     start_time: int
+    """Start time (in milliseconds)"""
     end_time: int
+    """End time (in milliseconds)"""
     duration: int
-    styleref: Style
+    """Duration (in milliseconds)"""
     text: str
-    inline_fx: str
-    prespace: int
-    postspace: int
+    """Text"""
+    style: Style
+    """Reference to the Style object"""
     width: float
+    """Text width"""
     height: float
+    """Text height"""
     ascent: float
+    """Font ascent"""
     descent: float
+    """Font descent"""
     internal_leading: float
+    """Internal leading"""
     external_leading: float
+    """External leading"""
     x: float
+    """Text position horizontal (depends on alignment)"""
     y: float
+    """Text position vertical (depends on alignment)."""
     left: float
+    """Text position left"""
     center: float
+    """Text position center"""
     right: float
+    """Text position right"""
     top: float
+    """Text position top"""
     middle: float
+    """Text position middle"""
     bottom: float
+    """Text position bottom"""
 
-    def __str__(self):
-        return pretty_print(self)
-
-
-class Syllable:
-    """Syllable object contains informations about a single syl of a line in the Ass.
-
-    A syl can be defined as some text after a karaoke tag (k, ko, kf)
-    (e.g.: In ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, "Pyon" and "FX" are distinct syllables),
-
-    Attributes:
-        i (int): Syllable index number
-        word_i (int): Syllable word index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, syl "Pyon" will have word_i=1).
-        start_time (int): Syllable start time (in milliseconds).
-        end_time (int): Syllable end time (in milliseconds).
-        duration (int): Syllable duration (in milliseconds).
-        styleref (obj): Reference to the Style object of this object original line.
-        text (str): Syllable text.
-        tags (str): All the remaining tags before syl text apart \\k ones.
-        inline_fx (str): Syllable inline effect (marked as \\-EFFECT in karaoke-time).
-        prespace (int): Syllable free space before text.
-        postspace (int): Syllable free space after text.
-        width (float): Syllable text width.
-        height (float): Syllable text height.
-        ascent (float): Line font ascent (*).
-        descent (float): Line font descent (*).
-        internal_leading (float): Line font internal lead (*).
-        external_leading (float): Line font external lead (*).
-        x (float): Syllable text position horizontal (depends on alignment).
-        y (float): Syllable text position vertical (depends on alignment).
-        left (float): Syllable text position left.
-        center (float): Syllable text position center.
-        right (float): Syllable text position right.
-        top (float): Syllable text position top.
-        middle (float): Syllable text position middle.
-        bottom (float): Syllable text position bottom.
-    """
-
-    i: int
-    word_i: int
-    start_time: int
-    end_time: int
-    duration: int
-    styleref: Style
-    text: str
-    tags: str
-    inline_fx: str
-    prespace: int
-    postspace: int
-    width: float
-    height: float
-    ascent: float
-    descent: float
-    internal_leading: float
-    external_leading: float
-    x: float
-    y: float
-    left: float
-    center: float
-    right: float
-    top: float
-    middle: float
-    bottom: float
-
-    def __str__(self):
-        return pretty_print(self)
-
-
-class Word:
-    """Word object contains informations about a single word of a line in the Ass.
-
-    A word can be defined as some text with some optional space before or after
-    (e.g.: In the string "What a beautiful world!", "beautiful" and "world" are both distinct words).
-
-    Attributes:
-        i (int): Word index number
-        start_time (int): Word start time (same as line start time) (in milliseconds).
-        end_time (int): Word end time (same as line end time) (in milliseconds).
-        duration (int): Word duration (same as line duration) (in milliseconds).
-        styleref (obj): Reference to the Style object of this object original line.
-        text (str): Word text.
-        prespace (int): Word free space before text.
-        postspace (int): Word free space after text.
-        width (float): Word text width.
-        height (float): Word text height.
-        ascent (float): Line font ascent (*).
-        descent (float): Line font descent (*).
-        internal_leading (float): Line font internal lead (*).
-        external_leading (float): Line font external lead (*).
-        x (float): Word text position horizontal (depends on alignment).
-        y (float): Word text position vertical (depends on alignment).
-        left (float): Word text position left.
-        center (float): Word text position center.
-        right (float): Word text position right.
-        top (float): Word text position top.
-        middle (float): Word text position middle.
-        bottom (float): Word text position bottom.
-    """
-
-    i: int
-    start_time: int
-    end_time: int
-    duration: int
-    styleref: Style
-    text: str
-    prespace: int
-    postspace: int
-    width: float
-    height: float
-    ascent: float
-    descent: float
-    internal_leading: float
-    external_leading: float
-    x: float
-    y: float
-    left: float
-    center: float
-    right: float
-    top: float
-    middle: float
-    bottom: float
-
-    def __str__(self):
-        return pretty_print(self)
-
-
-class Line:
-    """Line object contains informations about a single line in the Ass.
-
-    Note:
-        (*) = This field is available only if :class:`extended<Ass>` = True
-
-    Attributes:
-        i (int): Line index number
-        comment (bool): If *True*, this line will not be displayed on the screen.
-        layer (int): Layer for the line. Higher layer numbers are drawn on top of lower ones.
-        start_time (int): Line start time (in milliseconds).
-        end_time (int): Line end time (in milliseconds).
-        duration (int): Line duration (in milliseconds) (*).
-        leadin (float): Time between this line and the previous one (in milliseconds; first line = 1000.1) (*).
-        leadout (float): Time between this line and the next one (in milliseconds; first line = 1000.1) (*).
-        style (str): Style name used for this line.
-        styleref (obj): Reference to the Style object of this line (*).
-        actor (str): Actor field.
-        margin_l (int): Left margin for this line.
-        margin_r (int): Right margin for this line.
-        margin_v (int): Vertical margin for this line.
-        effect (str): Effect field.
-        raw_text (str): Line raw text.
-        text (str): Line stripped text (no tags).
-        width (float): Line text width (*).
-        height (float): Line text height (*).
-        ascent (float): Line font ascent (*).
-        descent (float): Line font descent (*).
-        internal_leading (float): Line font internal lead (*).
-        external_leading (float): Line font external lead (*).
-        x (float): Line text position horizontal (depends on alignment) (*).
-        y (float): Line text position vertical (depends on alignment) (*).
-        left (float): Line text position left (*).
-        center (float): Line text position center (*).
-        right (float): Line text position right (*).
-        top (float): Line text position top (*).
-        middle (float): Line text position middle (*).
-        bottom (float): Line text position bottom (*).
-        words (list): List containing objects :class:`Word` in this line (*).
-        syls (list): List containing objects :class:`Syllable` in this line (if available) (*).
-        chars (list): List containing objects :class:`Char` in this line (*).
-    """
-
-    i: int
-    comment: bool
-    layer: int
-    start_time: int
-    end_time: int
-    duration: int
-    leadin: float
-    leadout: float
-    style: str
-    styleref: Style
-    actor: str
-    margin_l: int
-    margin_r: int
-    margin_v: int
-    effect: str
-    raw_text: str
-    text: str
-    width: float
-    height: float
-    ascent: float
-    descent: float
-    internal_leading: float
-    external_leading: float
-    x: float
-    y: float
-    left: float
-    center: float
-    right: float
-    top: float
-    middle: float
-    bottom: float
-    words: List[Word]
-    syls: List[Syllable]
-    chars: List[Char]
-
-    def __str__(self):
-        return pretty_print(self)
-
-    def copy(self) -> Line:
+    @abstractmethod
+    def deep_copy(self) -> AssText:
         """
         Returns:
-            A deep copy of this object (line)
+            A deep copy of this object
         """
         return copy.deepcopy(self)
 
 
+class Line(AssText):
+    """
+    Line object contains informations about a single line in the Ass.
+
+    Note:
+        (*) = This field is available only if :class:`extended<Ass>` = True
+    """
+    comment: bool
+    """If *True*, this line will not be displayed on the screen"""
+    layer: int
+    """Layer for the line. Higher layer numbers are drawn on top of lower ones"""
+    leadin: float
+    """Time between this line and the previous one (in milliseconds; first line = 1000.1) (*)"""
+    leadout: float
+    """Time between this line and the next one (in milliseconds; first line = 1000.1) (*)"""
+    actor: str
+    """Actor field"""
+    margin_l: int
+    """Left margin for this line"""
+    margin_r: int
+    """Right margin for this line"""
+    margin_v: int
+    """Vertical margin for this line"""
+    effect: str
+    """Effect field"""
+    raw_text: str
+    """Line raw text"""
+    words: List[Word]
+    """List containing objects :class:`Word` in this line (*)"""
+    syls: List[Syllable]
+    """List containing objects :class:`Syllable` in this line (if available) (*)"""
+    chars: List[Char]
+    """List containing objects :class:`Char` in this line (*)"""
+
+    def deep_copy(self) -> Line:
+        return cast(Line, super().deep_copy())
+
+    def compose_ass_line(self) -> str:
+        return (
+            "Comment" if self.comment else "Dialogue"
+            + str(self.layer)
+            + str(Convert.time(max(0, int(self.start_time))))
+            + str(Convert.time(max(0, int(self.end_time))))
+            + self.style.name + self.actor
+            + str(self.margin_l) + str(self.margin_r) + str(self.margin_v)
+            + self.effect + self.text
+        )
+
+
+class Word(AssText):
+    """
+    Word object contains informations about a single word of a line in the Ass.
+
+    A word can be defined as some text with some optional space before or after.
+    (e.g.: In the string "What a beautiful world!", "beautiful" and "world" are both distinct words).
+    """
+    prespace: int
+    """Word free space before text"""
+    postspace: int
+    """Word free space after text"""
+
+    def deep_copy(self) -> Word:
+        return cast(Word, super().deep_copy())
+
+
+class WordElement(Word, ABC):
+    """Abstract WordElement class"""
+    word_i: int
+    """Word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2)"""
+    inline_fx: str
+    """Inline effect (marked as \\-EFFECT in karaoke-time)"""
+
+
+class Syllable(WordElement):
+    """
+    Syllable object contains informations about a single syl of a line in the Ass.
+
+    A syl can be defined as some text after a karaoke tag (k, ko, kf)
+    (e.g.: In ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, "Pyon" and "FX" are distinct syllables),
+    """
+    tags: str
+    """All the remaining tags before syl text apart \\k ones"""
+
+    def deep_copy(self) -> Syllable:
+        return cast(Syllable, super().deep_copy())
+
+
+class Char(WordElement):
+    """
+    Char object contains informations about a single char of a line in the Ass.
+
+    A char is defined by some text between two karaoke tags (k, ko, kf).
+    """
+    syl_i: int
+    """Char syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "F" will have syl_i=3)"""
+    syl_char_i: int
+    """Char invidual syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "e" of "users" will have syl_char_i=2)"""
+
+    def deep_copy(self) -> Char:
+        return cast(Char, super().deep_copy())
 class Ass:
     """Contains all the informations about a file in the ASS format and the methods to work with it for both input and output.
 
