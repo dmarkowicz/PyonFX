@@ -1049,28 +1049,9 @@ class Ass:
         will not actually write anything until :func:`save` will be called.
 
         Parameters:
-            line (:class:`Line`): A line object. If not valid, TypeError is raised.
+            line (:class:`Line`): A line object.
         """
-        if isinstance(line, Line):
-            self.__output.append(
-                "\n%s: %d,%s,%s,%s,%s,%04d,%04d,%04d,%s,%s"
-                % (
-                    "Comment" if line.comment else "Dialogue",
-                    line.layer,
-                    Convert.time(max(0, int(line.start_time))),
-                    Convert.time(max(0, int(line.end_time))),
-                    line.style,
-                    line.actor,
-                    line.margin_l,
-                    line.margin_r,
-                    line.margin_v,
-                    line.effect,
-                    line.text,
-                )
-            )
-            self.__plines += 1
-        else:
-            raise TypeError("Expected Line object, got %s." % type(line))
+        self._output_lines += [line.compose_ass_line()]
 
     def save(self, quiet: bool = False) -> None:
         """Write everything inside the private output list to a file.
@@ -1080,18 +1061,16 @@ class Ass:
         """
 
         # Writing to file
-        with open(self.path_output, "w", encoding="utf-8-sig") as f:
-            f.writelines(self.__output + ["\n"])
-            if self.__output_extradata:
-                f.write("\n[Aegisub Extradata]\n")
-                f.writelines(self.__output_extradata)
-
-        self.__saved = True
+        with open(self.path_output, "w", encoding="utf-8-sig") as file:
+            file.writelines(self._output + self._output_lines + ["\n"])
+            if self._output_extradata:
+                file.write("\n[Aegisub Extradata]\n")
+                file.writelines(self._output_extradata)
 
         if not quiet:
             print(
-                "Produced lines: %d\nProcess duration (in seconds): %.3f"
-                % (self.__plines, time.time() - self.__ptime)
+                f"Produced lines: {len(self._output_lines)}\n"
+                f"Process duration (in seconds): {round(time.time() - self._ptime, ndigits=3)}"
             )
 
     def open_aegisub(self) -> int:
@@ -1104,25 +1083,23 @@ class Ass:
         """
 
         # Check if it was saved
-        if not self.__saved:
-            print(
-                "[WARNING] You've tried to open the output with Aegisub before having saved. Check your code."
-            )
+        if self.path_input.exists():
+            warnings.warn("You've tried to open the output with Aegisub before having saved. Check your code.", Warning)
             return -1
 
         if sys.platform == "win32":
             os.startfile(self.path_output)
         else:
             try:
-                subprocess.call(["aegisub", os.path.abspath(self.path_output)])
+                subprocess.call(["aegisub", self.path_output])
             except FileNotFoundError:
-                print("[WARNING] Aegisub not found.")
+                warnings.warn("Aegisub not found.", Warning)
                 return -1
 
         return 0
 
     def open_mpv(
-        self, video_path: str = "", video_start: str = "", full_screen: bool = False
+        self, video_path: Optional[str] = None, video_start: Optional[str] = None, full_screen: bool = False
     ) -> int:
         """Open the output (specified in self.path_output) in softsub with the MPV player.
         To utilize this function, MPV player is required. Additionally if you're on Windows,
@@ -1137,17 +1114,16 @@ class Ass:
         """
 
         # Check if it was saved
-        if not self.__saved:
-            print(
-                "[ERROR] You've tried to open the output with MPV before having saved. Check your code."
-            )
+        if self.path_input.exists():
+            warnings.warn("You've tried to open the output with MPV before having saved. Check your code.", Warning)
             return -1
 
         # Check if mpv is usable
-        if self.meta.video.startswith("?dummy") and not video_path:
-            print(
-                "[WARNING] Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n"
-                "You can specify a new video source using video_path parameter, check the documentation of the function."
+        if str(self.meta.video).startswith("?dummy") and not video_path:
+            warnings.warn(
+                'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
+                'You can specify a new video source using video_path parameter, check the documentation of the function.',
+                Warning
             )
             return -1
 
@@ -1155,7 +1131,7 @@ class Ass:
         cmd = ["mpv"]
 
         if not video_path:
-            cmd.append(self.meta.video)
+            cmd.append(str(self.meta.video))
         else:
             cmd.append(video_path)
         if video_start:
@@ -1163,47 +1139,16 @@ class Ass:
         if full_screen:
             cmd.append("--fs")
 
-        cmd.append("--sub-file=" + self.path_output)
+        cmd.append("--sub-file=" + str(self.path_output))
 
         try:
             subprocess.call(cmd)
         except FileNotFoundError:
-            print(
-                "[WARNING] MPV not found in your environment variables.\n"
-                "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it."
+            warnings.warn(
+                "MPV not found in your environment variables.\n"
+                "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
+                Warning
             )
             return -1
 
         return 0
-
-
-def pretty_print(
-    obj: Union[Meta, Style, Line, Word, Syllable, Char], indent: int = 0, name: str = ""
-) -> str:
-    # Utility function to print object Meta, Style, Line, Word, Syllable and Char (this is a dirty solution probably)
-    if type(obj) == Line:
-        out = " " * indent + f"lines[{obj.i}] ({type(obj).__name__}):\n"
-    elif type(obj) == Word:
-        out = " " * indent + f"words[{obj.i}] ({type(obj).__name__}):\n"
-    elif type(obj) == Syllable:
-        out = " " * indent + f"syls[{obj.i}] ({type(obj).__name__}):\n"
-    elif type(obj) == Char:
-        out = " " * indent + f"chars[{obj.i}] ({type(obj).__name__}):\n"
-    else:
-        out = " " * indent + f"{name}({type(obj).__name__}):\n"
-
-    # Let's print all this object fields
-    indent += 4
-    for k, v in obj.__dict__.items():
-        if "__dict__" in dir(v):
-            # Work recursively to print another object
-            out += pretty_print(v, indent, k + " ")
-        elif type(v) == list:
-            for i, el in enumerate(v):
-                # Work recursively to print other objects inside a list
-                out += pretty_print(el, indent, f"{k}[{i}] ")
-        else:
-            # Just print a field of this object
-            out += " " * indent + f"{k}: {str(v)}\n"
-
-    return out
