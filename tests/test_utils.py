@@ -6,7 +6,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 path_ass = os.path.join(dir_path, "Ass", "in.ass")
 
 # Extract infos from ass file
-io = Ass(path_ass)
+io = Ass(path_ass, 'output.ass')
 meta, styles, lines = io.get_data()
 
 

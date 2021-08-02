@@ -1,14 +1,14 @@
 import os
 import sys
 import pytest_check as check
-from pyonfx import *
+from pyonfx import Ass, Convert
 
 # Get ass path used for tests
 dir_path = os.path.dirname(os.path.realpath(__file__))
 path_ass = os.path.join(dir_path, "Ass", "ass_core.ass")
 
 # Extract infos from ass file
-io = Ass(path_ass, vertical_kanji=True)
+io = Ass(path_ass, 'output.ass', vertical_kanji=True)
 meta, styles, lines = io.get_data()
 
 # Config
@@ -34,8 +34,8 @@ def test_line_values():
     check.equal(lines[0].layer, 42)
     check.equal(lines[1].layer, 0)
 
-    check.equal(lines[0].style, "Default")
-    check.equal(lines[1].style, "Normal")
+    check.equal(lines[0].style.name, "Default")
+    check.equal(lines[1].style.name, "Normal")
 
     check.equal(lines[0].actor, "Test")
     check.equal(lines[1].actor, "")
