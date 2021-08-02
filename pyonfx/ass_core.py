@@ -1034,15 +1034,15 @@ class Ass:
 
         return line
 
-    def get_data(self) -> Tuple[Meta, Dict[str, Style], List[Line]]:
-        """Utility function to retrieve easily meta styles and lines.
+    def get_data(self) -> Tuple[Meta, List[Style], List[Line]]:
+        """Utility function to easily retrieve meta, styles and lines.
 
         Returns:
             :attr:`meta`, :attr:`styles` and :attr:`lines`
         """
         return self.meta, self.styles, self.lines
 
-    def write_line(self, line: Line) -> Optional[TypeError]:
+    def write_line(self, line: Line) -> None:
         """Appends a line to the output list (which is private) that later on will be written to the output file when calling save().
 
         Use it whenever you've prepared a line, it will not impact performance since you
