@@ -90,16 +90,16 @@ class Meta(DataCore):
     """Loaded video path (absolute)"""
 
 
-class Color(str):
-    alpha: str
+# class Color(str):
+#     alpha: str
 
-    def __new__(cls, x: str, alpha: str) -> Color:
-        color = super().__new__(cls, x)
-        color.alpha = alpha
-        return color
+#     def __new__(cls, x: str, alpha: str) -> Color:
+#         color = super().__new__(cls, x)
+#         color.alpha = alpha
+#         return color
 
-    def pprint(self) -> str:
-        return super().__str__() + f' | Alpha: {self.alpha}'
+#     def pprint(self) -> str:
+#         return super().__str__() + f' | Alpha: {self.alpha}'
 
 
 class Style(DataCore):
@@ -113,13 +113,17 @@ class Style(DataCore):
     """Font name"""
     fontsize: float
     """Font size in points"""
-    color1: Color
+    color1: str
+    alpha1: str
     """Primary color (fill) and transparency"""
-    color2: Color
+    color2: str
+    alpha2: str
     """Secondary color (secondary fill, for karaoke effect) and transparency"""
-    color3: Color
+    color3: str
+    alpha3: str
     """Outline (border) color and transparency"""
-    color4: Color
+    color4: str
+    alpha4: str
     """Shadow color and transparency"""
     bold: bool
     """Font with bold"""
@@ -275,13 +279,14 @@ class Line(AssText):
 
     def compose_ass_line(self) -> str:
         return (
-            "Comment" if self.comment else "Dialogue"
-            + str(self.layer)
-            + str(Convert.time(max(0, int(self.start_time))))
-            + str(Convert.time(max(0, int(self.end_time))))
-            + self.style.name + self.actor
-            + str(self.margin_l) + str(self.margin_r) + str(self.margin_v)
-            + self.effect + self.text
+            "Comment: " if self.comment else "Dialogue: "
+            + str(self.layer) + ','
+            + str(Convert.time(max(0, int(self.start_time)))) + ','
+            + str(Convert.time(max(0, int(self.end_time)))) + ','
+            + self.style.name + ',' + self.actor + ','
+            + str(self.margin_l) + ',' + str(self.margin_r) + ',' + str(self.margin_v) + ','
+            + self.effect + ',' + self.text
+            + '\n'
         )
 
 
@@ -521,10 +526,15 @@ class Ass:
             nstyle.fontname = str(style[1])
             nstyle.fontsize = float(style[2])
 
-            nstyle.color1 = Color(f"&H{style[3][4:]}&", f"{style[3][:4]}&")
-            nstyle.color2 = Color(f"&H{style[4][4:]}&", f"{style[4][:4]}&")
-            nstyle.color3 = Color(f"&H{style[5][4:]}&", f"{style[5][:4]}&")
-            nstyle.color4 = Color(f"&H{style[6][4:]}&", f"{style[6][:4]}&")
+            nstyle.color1 = f"&H{style[3][4:]}&"
+            nstyle.color2 = f"&H{style[4][4:]}&"
+            nstyle.color3 = f"&H{style[5][4:]}&"
+            nstyle.color4 = f"&H{style[6][4:]}&"
+
+            nstyle.alpha1 = f"{style[3][:4]}&"
+            nstyle.alpha2 = f"{style[4][:4]}&"
+            nstyle.alpha3 = f"{style[5][:4]}&"
+            nstyle.alpha4 = f"{style[6][:4]}&"
 
             nstyle.bold = style[7] == "-1"
             nstyle.italic = style[8] == "-1"
@@ -1083,7 +1093,7 @@ class Ass:
         """
 
         # Check if it was saved
-        if self.path_input.exists():
+        if not self.path_input.exists():
             warnings.warn("You've tried to open the output with Aegisub before having saved. Check your code.", Warning)
             return -1
 
