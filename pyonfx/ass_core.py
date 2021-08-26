@@ -82,9 +82,9 @@ class Meta(DataCore):
     """Video width"""
     play_res_y: int
     """Video height"""
-    audio: Union[Path, str]
+    audio: str
     """Loaded audio path (absolute)"""
-    video: Union[Path, str]
+    video: str
     """Loaded video path (absolute)"""
 
 
@@ -586,12 +586,12 @@ class Ass:
 
             self.lines.append(nline)
 
-    def _get_media_abs_path(self, mediafile: str) -> Union[Path, str]:
+    def _get_media_abs_path(self, mediafile: str) -> str:
         """
         Internal function that tries to get the absolute path for media files in meta
         If this is not a dummy video, let's try to get the absolute path for the video
         """
-        return Path(mediafile).resolve() if not mediafile.startswith("?dummy") else mediafile
+        return str(Path(mediafile).resolve()) if not mediafile.startswith("?dummy") else mediafile
 
     def _add_data_line(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float]) -> Line:
         line.width, line.height = font.get_text_extents(line.text)
