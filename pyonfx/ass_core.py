@@ -24,18 +24,15 @@ import subprocess
 import sys
 import time
 import warnings
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
+from typing import (Dict, List, NamedTuple, Optional, Tuple, TypeVar, Union,
+                    cast)
 
 from .convert import Convert
 from .font_utility import Font
 
-__all__ = [
-    'Meta', 'Style',
-    'Line', 'Word', 'Syllable', 'Char',
-    'Ass'
-]
+AssTextT = TypeVar('AssTextT', bound='AssText')
 
 
 class DataCore(ABC):
@@ -217,8 +214,7 @@ class AssText(DataCore, ABC):
     bottom: float
     """Text position bottom"""
 
-    @abstractmethod
-    def deep_copy(self) -> AssText:
+    def deep_copy(self: AssTextT) -> AssTextT:
         """
         Returns:
             A deep copy of this object
@@ -288,9 +284,6 @@ class Word(AssText):
     postspace: int
     """Word free space after text"""
 
-    def deep_copy(self) -> Word:
-        return cast(Word, super().deep_copy())
-
 
 class WordElement(Word, ABC):
     """Abstract WordElement class"""
@@ -310,9 +303,6 @@ class Syllable(WordElement):
     tags: str
     """All the remaining tags before syl text apart \\k ones"""
 
-    def deep_copy(self) -> Syllable:
-        return cast(Syllable, super().deep_copy())
-
 
 class Char(WordElement):
     """
@@ -323,11 +313,8 @@ class Char(WordElement):
     syl_i: int
     """Char syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "F" will have syl_i=3)"""
     syl_char_i: int
-    """Char invidual syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "e" of "users" will have syl_char_i=2)"""
-
-    def deep_copy(self) -> Char:
-        return cast(Char, super().deep_copy())
-
+    """Char invidual syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "e"
+    of "users will have syl_char_i=2)"""
 
 
 class Ass:
