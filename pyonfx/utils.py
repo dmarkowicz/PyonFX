@@ -43,12 +43,7 @@ class Utils:
     #     return pct ** accelerator
 
     @staticmethod
-    def interpolate(
-        pct: float,
-        val1: Union[float, str],
-        val2: Union[float, str],
-        acc: float = 1.0,
-    ) -> Union[str, float]:
+    def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
         """
         | Interpolates 2 given values (ASS colors, ASS alpha channels or numbers) by percent value as decimal number.
         | You can also provide a http://cubic-bezier.com to accelerate based on bezier curves. (TO DO)
@@ -73,49 +68,16 @@ class Utils:
             >>> 15
             >>> &HE5E5E5&
         """
-        if pct > 1.0 or pct < 0:
-            raise ValueError(
-                f"Percent value must be a float between 0.0 and 1.0, but yours was {pct}"
-            )
+        pct = pct ** acc
 
-        # Calculating acceleration (if requested)
-        pct = Utils.accelerate(pct, acc) if acc != 1.0 else pct
-
-        def interpolate_numbers(val1, val2):
-            nonlocal pct
-            return val1 + (val2 - val1) * pct
-
-        # Interpolating
-        if type(val1) is str and type(val2) is str:
-            if len(val1) != len(val2):
-                raise ValueError(
-                    "ASS values must have the same type (either two alphas, two colors or two colors+alpha)."
-                )
-            if len(val1) == len("&HXX&"):
-                val1 = Convert.alpha_ass_to_dec(val1)
-                val2 = Convert.alpha_ass_to_dec(val2)
-                a = interpolate_numbers(val1, val2)
-                return Convert.alpha_dec_to_ass(a)
-            elif len(val1) == len("&HBBGGRR&"):
-                val1 = Convert.color_ass_to_rgb(val1)
-                val2 = Convert.color_ass_to_rgb(val2)
-                rgb = tuple(map(interpolate_numbers, val1, val2))
-                return Convert.color_rgb_to_ass(rgb)
-            elif len(val1) == len("&HAABBGGRR"):
-                val1 = Convert.color(val1, ColorModel.ASS, ColorModel.RGBA)
-                val2 = Convert.color(val2, ColorModel.ASS, ColorModel.RGBA)
-                rgba = tuple(map(interpolate_numbers, val1, val2))
-                return Convert.color(rgba, ColorModel.RGBA, ColorModel.ASS)
-            else:
-                raise ValueError(
-                    f"Provided inputs '{val1}' and '{val2}' are not valid ASS strings."
-                )
-        elif type(val1) in [int, float] and type(val2) in [int, float]:
-            return interpolate_numbers(val1, val2)
+        if isinstance(val1, (float, int)) and isinstance(val2, (float, int)):
+            return cast(I, val1 * (1 - pct) + val2 * pct)
+        elif isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
+            return cast(I, val1.interpolate(val2, pct))
         else:
-            raise TypeError(
-                "Invalid input(s) type, either pass two strings or two numbers."
-            )
+            raise ValueError('interpolate: va1 and val2 must be of the same type')
+
+
 
 
 class FrameUtility:
