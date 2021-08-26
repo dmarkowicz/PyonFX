@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import re
 from typing import (Any, Dict, Final, Iterable, Iterator, List, Optional,
-                    Tuple, cast)
+                    Tuple, TypeVar, Union, cast)
 
 from .ass_core import Line
 from .colourspace import ColourSpace
-from .types import I, Pct
+from .types import Pct
 
+I = TypeVar('I', bound=Union[float, int, ColourSpace])
 
 class Utils:
     """
