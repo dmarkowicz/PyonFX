@@ -186,7 +186,7 @@ class ColourSpace(Sequence[TCV_co], ABC):
         ...
 
     @abstractmethod
-    def to_ass(self) -> ASSColor:
+    def to_ass_color(self) -> ASSColor:
         """
         Convert current object to an ASSColor object
 
@@ -306,7 +306,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
         r, g, b = self.to_rgb(RGB)
         return HTML((r, g, b))
 
-    def to_ass(self) -> ASSColor:
+    def to_ass_color(self) -> ASSColor:
         return ASSColor(
             '&H'
             + ''.join(hex(x)[2:].zfill(2) for x in list(self.to_rgb(RGB))[::-1])
@@ -498,12 +498,12 @@ class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
     def to_html(self) -> HTML:
         return self.to_rgb(RGB).to_html()
 
-    def to_ass(self) -> ASSColor:
-        return self.to_rgb(RGB).to_ass()
+    def to_ass_color(self) -> ASSColor:
+        return self.to_rgb(RGB).to_ass_color()
 
     @classmethod
     @check_annotations
-    def from_ass(cls: Type[THSX], _x: Tup3[Nb8bit]) -> THSX:
+    def from_ass_val(cls: Type[THSX], _x: Tup3[Nb8bit]) -> THSX:
         """
         Make a Hue Saturation based object from ASS values
 
@@ -511,6 +511,14 @@ class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
         :return:            Hue Saturation based object
         """
         return cls(cast(Tup3[float], tuple(x / 255 for x in _x)))
+
+    def to_ass_val(self) -> Tup3[float]:
+        """
+        Make a tuple of float of this current object in range 0 - 255
+
+        :return:            Tuple of integer in the range 0 - 255
+        """
+        return cast(Tup3[float], tuple(round(x * 255) for x in self))
 
     def as_chromatic_circle(self) -> Tup3[float]:
         """
@@ -705,8 +713,8 @@ class HTML(HexBased):
     def to_html(self) -> HTML:
         return self
 
-    def to_ass(self) -> ASSColor:
-        return self._rgb.to_ass()
+    def to_ass_color(self) -> ASSColor:
+        return self._rgb.to_ass_color()
 
 
 class ASSColor(HexBased):
@@ -731,7 +739,7 @@ class ASSColor(HexBased):
         ...
 
     def __new__(cls, _x: str | Tup3Str | Tup3[int] | ColourSpace[TCV_co]) -> ASSColor:
-        return _x.to_ass() if not isinstance(_x, (str, tuple)) else super().__new__(cls)
+        return _x.to_ass_color() if not isinstance(_x, (str, tuple)) else super().__new__(cls)
 
     @overload
     def __init__(self, _x: str) -> None:
@@ -807,7 +815,7 @@ class ASSColor(HexBased):
     def to_html(self) -> HTML:
         return self._rgb.to_html()
 
-    def to_ass(self) -> ASSColor:
+    def to_ass_color(self) -> ASSColor:
         return self
 
 
@@ -821,8 +829,8 @@ class XYZBased(ForceFloat, ColourSpace[float], ABC):
     def to_html(self) -> HTML:
         return self.to_rgb(RGB).to_html()
 
-    def to_ass(self) -> ASSColor:
-        return self.to_rgb(RGB).to_ass()
+    def to_ass_color(self) -> ASSColor:
+        return self.to_rgb(RGB).to_ass_color()
 
 
 class XYZ(XYZBased):
