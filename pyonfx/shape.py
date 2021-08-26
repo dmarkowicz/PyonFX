@@ -16,10 +16,15 @@
 # along with this program. If not, see http://www.gnu.org/licenses/.
 
 from __future__ import annotations
+
 import math
-from typing import Any, Callable, Optional, Tuple, Union
-from pyquaternion import Quaternion
 from inspect import signature
+from typing import (Any, Callable, Dict, Iterator, MutableMapping, Optional,
+                    Tuple, Union)
+
+from pyquaternion import Quaternion
+
+
 
 
 class Shape:
@@ -153,9 +158,7 @@ class Shape:
 
         return False
 
-    def map(
-        self, fun: Callable[[float, float, Optional[str]], Tuple[float, float]]
-    ) -> Shape:
+    def map(self, fun: Callable[[float, float], Tuple[float, float]]) -> None:
         """Sends every point of a shape through given transformation function to change them.
 
         **Tips:** *Working with outline points can be used to deform the whole shape and make f.e. a wobble effect.*
@@ -188,7 +191,7 @@ class Shape:
             while i < n:
                 try:
                     # Applying transformation
-                    x, y = fun(float(cmds_and_points[i]), float(cmds_and_points[i + 1]), None)
+                    x, y = fun(float(cmds_and_points[i]), float(cmds_and_points[i + 1]))
                 except TypeError:
                     # Values weren't returned, so we don't need to modify them
                     i += 2
@@ -207,35 +210,35 @@ class Shape:
                 )
                 i += 2
         else:
-            typ = ""
-            while i < n:
-                try:
-                    # Applying transformation
-                    x, y = fun(
-                        float(cmds_and_points[i]), float(cmds_and_points[i + 1]), typ
-                    )
-                except TypeError:
-                    # Values weren't returned, so we don't need to modify them
-                    i += 2
-                    continue
-                except ValueError:
-                    # We have found a string, let's skip this
-                    typ = cmds_and_points[i]
-                    i += 1
-                    continue
-                except IndexError:
-                    raise ValueError("Unexpected end of the shape")
+            raise NotImplementedError
+        #     typ = ""
+        #     while i < n:
+        #         try:
+        #             # Applying transformation
+        #             x, y = fun(
+        #                 float(cmds_and_points[i]), float(cmds_and_points[i + 1])
+        #             )
+        #         except TypeError:
+        #             # Values weren't returned, so we don't need to modify them
+        #             i += 2
+        #             continue
+        #         except ValueError:
+        #             # We have found a string, let's skip this
+        #             typ = cmds_and_points[i]
+        #             i += 1
+        #             continue
+        #         except IndexError:
+        #             raise ValueError("Unexpected end of the shape")
 
-                # Convert back to string the results for later
-                cmds_and_points[i : i + 2] = (
-                    Shape.format_value(x),
-                    Shape.format_value(y),
-                )
-                i += 2
+        #         # Convert back to string the results for later
+        #         cmds_and_points[i : i + 2] = (
+        #             Shape.format_value(x),
+        #             Shape.format_value(y),
+        #         )
+        #         i += 2
 
         # Sew up everything back and update shape
         self.drawing_cmds = " ".join(cmds_and_points)
-        return self
 
     def bounding(self) -> Tuple[float, float, float, float]:
         """Calculates shape bounding box.
@@ -261,7 +264,7 @@ class Shape:
         y1: Optional[float] = None
 
         # Calculate minimal and maximal coordinates
-        def compute_edges(x, y, _):
+        def compute_edges(x, y):
             nonlocal x0, y0, x1, y1
             if x0 is not None:
                 x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
@@ -270,9 +273,13 @@ class Shape:
             return x, y
 
         self.map(compute_edges)
+        assert x0
+        assert y0
+        assert x1
+        assert y1
         return x0, y0, x1, y1
 
-    def move(self, x: float = None, y: float = None) -> Shape:
+    def move(self, x: Optional[float] = None, y: Optional[float] = None) -> None:
         """Moves shape coordinates in given direction.
 
         | If neither x and y are passed, it will automatically center the shape to the origin (0,0).
@@ -293,15 +300,19 @@ class Shape:
             >>> m -5 10 l 25 10 25 30 -5 30
         """
         if x is None and y is None:
-            x, y = [-1 * el for el in self.bounding()[0:2]]
-        elif x is None:
-            x = 0
-        elif y is None:
-            y = 0
+            x, y = [-1. * el for el in self.bounding()[0:2]]
+        if x is None:
+            x = 0.
+        if y is None:
+            y = 0.
+
+        def func(cx: float, cy: float) -> Tuple[float, float]:
+            assert x
+            assert y
+            return cx + x, cy + y
 
         # Update shape
-        self.map(lambda cx, cy, typ: (cx + x, cy + y))
-        return self
+        self.map(func)
 
     def flatten(self, tolerance: float = 1.0) -> Shape:
         """Splits shape's bezier curves into lines.
@@ -575,8 +586,8 @@ class Shape:
 
                 return " ".join(lines), lines[-1].split()
             else:  # No line split
-                x1, y1 = Shape.format_value(x1), Shape.format_value(y1)
-                return f"{x1} {y1}", [x1, y1]
+                x1_str, y1_str = Shape.format_value(x1), Shape.format_value(y1)
+                return f"{x1_str} {y1_str}", [x1_str, y1_str]
 
         # Getting all points and commands in a list
         cmds_and_points = self.flatten().drawing_cmds.split()
@@ -612,9 +623,7 @@ class Shape:
                         last_move
                     ):  # If we had a previous move, we need to close the previous figure before proceding
                         x0, y0 = None, None
-                        if (
-                            previous_two
-                        ):  # If I don't have previous point, I can read them on cmds_and_points, else I wil take 'em
+                        if previous_two:  # If I don't have previous point, I can read them on cmds_and_points, else I wil take 'em
                             x0, y0 = previous_two[0], previous_two[1]
                         else:
                             x0, y0 = cmds_and_points[i - 2], cmds_and_points[i - 1]
@@ -669,9 +678,7 @@ class Shape:
                     previous_two = [current, current_prev]
                     break
                 i -= 1
-        if not (
-            previous_two[0] == last_move[0] and previous_two[1] == last_move[1]
-        ):  # Split!
+        if not previous_two[0] == last_move[0] and previous_two[1] == last_move[1]:  # Split!
             cmds_and_points.append(
                 "l "
                 + line_split(
@@ -833,8 +840,8 @@ class Shape:
             )
         )
 
-    @staticmethod
-    def heart(size: float, offset: float = 0) -> Shape:
+    @classmethod
+    def heart(cls, size: float, offset: float = 0) -> Shape:
         """Returns a shape object of a heart object with given size (width&height) and vertical offset of center point, centered around (0,0).
 
         **Tips:** *An offset=size*(2/3) results in a splitted heart.*
@@ -851,14 +858,13 @@ class Shape:
         except TypeError:
             raise TypeError("Size parameter must be a number")
         # Build shape from template
-        shape = Shape(
-            "m 15 30 b 27 22 30 18 30 14 30 8 22 0 15 10 8 0 0 8 0 14 0 18 3 22 15 30"
-        ).map(lambda x, y, typ: (x * mult, y * mult))
+        shape = cls("m 15 30 b 27 22 30 18 30 14 30 8 22 0 15 10 8 0 0 8 0 14 0 18 3 22 15 30")
+        shape.map(lambda x, y: (x * mult, y * mult))
 
         # Shift mid point of heart vertically
         count = 0
 
-        def shift_mid_point(x: float, y: float, _: Any) -> Tuple[float, float]:
+        def shift_mid_point(x: float, y: float) -> Tuple[float, float]:
             nonlocal count
             count += 1
 
@@ -870,17 +876,16 @@ class Shape:
             return x, y
 
         # Return result
-        return shape.map(shift_mid_point)
+        shape.map(shift_mid_point)
+        return shape
 
-    @staticmethod
-    def __glance_or_star(
-        edges: int, inner_size: float, outer_size: float, g_or_s: str
-    ) -> Shape:
+    @classmethod
+    def __glance_or_star(cls, edges: int, inner_size: float, outer_size: float, g_or_s: str) -> Shape:
         """
         General function to create a shape object representing star or glance.
         """
         # Alias for utility functions
-        f = Shape.format_value
+        f = cls.format_value
 
         def rotate_on_axis_z(point, theta):
             # Internal function to rotate a point around z axis by a given angle.
@@ -915,10 +920,11 @@ class Shape:
                     )
                 )
 
-        shape = Shape(" ".join(shape))
+        shape = cls(" ".join(shape))
+        shape.move()
 
         # Return result centered
-        return shape.move()
+        return shape
 
     @classmethod
     def star(cls, edges: int, inner_size: float, outer_size: float) -> Shape:
@@ -965,11 +971,8 @@ class Shape:
         Returns:
             A shape object representing an rectangle.
         """
-        try:
-            f = cls.format_value
-            return Shape("m 0 0 l %s 0 %s %s 0 %s 0 0" % (f(w), f(w), f(h), f(h)))
-        except TypeError:
-            raise TypeError("Number(s) expected")
+        f = cls.format_value
+        return Shape("m 0 0 l %s 0 %s %s 0 %s 0 0" % (f(w), f(w), f(h), f(h)))
 
     @classmethod
     def triangle(cls, size: float) -> Shape:
@@ -981,14 +984,10 @@ class Shape:
         Returns:
             A shape object representing an triangle.
         """
-        try:
-            h = math.sqrt(3) * size / 2
-            base = -h / 6
-        except TypeError:
-            raise TypeError("Number expected")
-
+        h = math.sqrt(3) * size / 2
+        base = -h / 6
         f = cls.format_value
-        return Shape(
+        return cls(
             "m %s %s l %s %s 0 %s %s %s"
             % (
                 f(size / 2),
