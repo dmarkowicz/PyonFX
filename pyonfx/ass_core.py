@@ -397,25 +397,26 @@ class Ass:
 
         section = ""
         nbli = 0
-        for line in lines_file:
-            # Vardë NOTE: I don't get that
+        for line_file in lines_file:
             # Getting section
             section_pattern = re.compile(r"^\[([^\]]*)")
-            if section_pattern.match(line):
+            if section_pattern.match(line_file):
                 # Updating section
-                section = section_pattern.match(line)[1]  # type: ignore
+                section_match = section_pattern.match(line_file)
+                assert section_match
+                section = section[1]
                 # Appending line to output
                 if section != "Aegisub Extradata":
-                    self._output.append(line)
+                    self._output.append(line_file)
             elif section in {"Script Info", "Aegisub Project Garbage"}:
-                self._parse_meta_data(line)
+                self._parse_meta_data(line_file)
             elif section == "V4+ Styles":
-                self._parse_style(line)
+                self._parse_style(line_file)
             elif section == "Events":
-                self._parse_dialogue(line, nbli, comment_original)
+                self._parse_dialogue(line_file, nbli, comment_original)
                 nbli += 1
             elif section == "Aegisub Extradata":
-                self._output_extradata.append(line)
+                self._output_extradata.append(line_file)
             else:
                 raise ValueError(f"Unexpected section in the input file: [{section}]")
 
@@ -496,13 +497,13 @@ class Ass:
 
     def _parse_style(self, line: str) -> None:
         self._output.append(line)
-        style = re.match(r"Style: (.+?)$", line)
+        style_match = re.match(r"Style: (.+?)$", line)
 
-        if style:
+        if style_match:
             # Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,
             # Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle,
             # BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-            style = style[1].split(",")
+            style = style_match[1].split(",")
             nstyle = Style()
 
             nstyle.name = str(style[0])
@@ -639,7 +640,8 @@ class Ass:
 
         return line
 
-    def _add_data_words(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float], space_width: float, style_spacing: float) -> Line:
+    def _add_data_words(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float],
+                        space_width: float, style_spacing: float) -> Line:
         # Adding words
         line.words = []
 
@@ -694,7 +696,7 @@ class Ass:
                     # Updating cur_x
                     cur_x += word.width + word.postspace * (space_width + style_spacing) + style_spacing
             else:
-                max_width, sum_height = 0, 0
+                max_width, sum_height = 0.0, 0.0
                 for word in line.words:
                     max_width = max(max_width, word.width)
                     sum_height = sum_height + word.height
@@ -879,7 +881,7 @@ class Ass:
                     syl.y = line.y
 
             else:  # Kanji vertical position
-                max_width, sum_height = 0, 0
+                max_width, sum_height = 0.0, 0.0
                 for syl in line.syls:
                     max_width = max(max_width, syl.width)
                     sum_height += syl.height
@@ -919,7 +921,7 @@ class Ass:
         line.chars = []
 
         # If we have syls in line, we prefert to work with them to provide more informations
-        words_or_syls = line.syls if line.syls else line.words
+        words_or_syls: Union[List[Syllable], List[Word]] = line.syls if line.syls else line.words
 
         # Getting chars
         # char_index = 0
@@ -977,7 +979,7 @@ class Ass:
                     char.bottom = line.bottom
                     char.y = line.y
             else:
-                max_width, sum_height = 0, 0
+                max_width, sum_height = 0.0, 0.0
                 for char in line.chars:
                     max_width = max(max_width, char.width)
                     sum_height = sum_height + char.height
