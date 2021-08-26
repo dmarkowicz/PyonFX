@@ -183,12 +183,12 @@ class AssText(DataCore, ABC):
     """Abstract AssText object"""
     i: int
     """Index number"""
-    start_time: int
-    """Start time (in milliseconds)"""
-    end_time: int
-    """End time (in milliseconds)"""
-    duration: int
-    """Duration (in milliseconds)"""
+    start_time: float
+    """Start time (in seconds)"""
+    end_time: float
+    """End time (in seconds)"""
+    duration: float
+    """Duration (in seconds)"""
     text: str
     """Text"""
     style: Style
@@ -244,9 +244,9 @@ class Line(AssText):
     layer: int
     """Layer for the line. Higher layer numbers are drawn on top of lower ones"""
     leadin: float
-    """Time between this line and the previous one (in milliseconds; first line = 1000.1) (*)"""
+    """Time between this line and the previous one (in seconds; first line = 1.001) (*)"""
     leadout: float
-    """Time between this line and the next one (in milliseconds; first line = 1000.1) (*)"""
+    """Time between this line and the next one (in seconds; first line = 1.001) (*)"""
     actor: str
     """Actor field"""
     margin_l: int
