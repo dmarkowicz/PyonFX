@@ -331,11 +331,3 @@ class Convert:
                     )
 
         return pixels
-
-    @staticmethod
-    def image_to_ass(image: Any) -> NoReturn:
-        raise NotImplementedError
-
-    @staticmethod
-    def image_to_pixels(image: Any) -> NoReturn:
-        raise NotImplementedError
