@@ -3,7 +3,7 @@
 
 from .font_utility import Font
 from .ass_core import *
-from .convert import Convert, ColorModel
+from .convert import Convert
 from .shape import Shape
 from .utils import Utils, FrameUtility, ColorUtility
 
