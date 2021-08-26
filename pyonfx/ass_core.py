@@ -31,12 +31,15 @@ import sys
 import time
 import warnings
 from abc import ABC
+from fractions import Fraction
 from pathlib import Path
-from typing import (Dict, List, NamedTuple, Optional, Tuple, TypeVar, Union,
-                    cast)
+from typing import (Any, Dict, List, NamedTuple, Optional, Tuple, TypeVar,
+                    Union, cast)
 
+from .colourspace import ASSColor, Opacity
 from .convert import Convert
 from .font_utility import Font
+from .types import Alignment
 
 AssTextT = TypeVar('AssTextT', bound='AssText')
 
@@ -89,6 +92,8 @@ class Meta(DataCore):
     """Loaded audio path (absolute)"""
     video: str
     """Loaded video path (absolute)"""
+    fps: Fraction
+    """FrameRate per Second"""
 
 
 class Style(DataCore):
@@ -102,17 +107,17 @@ class Style(DataCore):
     """Font name"""
     fontsize: float
     """Font size in points"""
-    color1: str
-    alpha1: str
+    color1: ASSColor
+    alpha1: Opacity
     """Primary color (fill) and transparency"""
-    color2: str
-    alpha2: str
+    color2: ASSColor
+    alpha2: Opacity
     """Secondary color (secondary fill, for karaoke effect) and transparency"""
-    color3: str
-    alpha3: str
+    color3: ASSColor
+    alpha3: Opacity
     """Outline (border) color and transparency"""
-    color4: str
-    alpha4: str
+    color4: ASSColor
+    alpha4: Opacity
     """Shadow color and transparency"""
     bold: bool
     """Font with bold"""
@@ -152,11 +157,8 @@ class Style(DataCore):
         return self._alignment
 
     @alignment.setter
-    def alignment(self, an: int) -> None:
-        if 1 <= an <= 9:
-            self._alignment = an
-        else:
-            raise ValueError('Alignment of the text must be <= 9 or >= 1')
+    def alignment(self, an: Alignment) -> None:
+        self._alignment = an
 
     def an_is_left(self) -> bool:
         return self.alignment in {1, 4, 7}
@@ -191,6 +193,8 @@ class AssText(DataCore, ABC):
     """Text"""
     style: Style
     """Reference to the Style object"""
+    meta: Meta
+    """Reference toe the Meta object"""
     width: float
     """Text width"""
     height: float
@@ -276,16 +280,16 @@ class Line(AssText):
         return [o for o in obj if o.text.strip() and o.duration > 0]
 
     def compose_ass_line(self) -> str:
-        return (
-            "Comment: " if self.comment else "Dialogue: "
-            + str(self.layer) + ','
-            + str(Convert.time(max(0, int(self.start_time)))) + ','
-            + str(Convert.time(max(0, int(self.end_time)))) + ','
-            + self.style.name + ',' + self.actor + ','
-            + str(self.margin_l) + ',' + str(self.margin_r) + ',' + str(self.margin_v) + ','
-            + self.effect + ',' + self.text
-            + '\n'
-        )
+        ass_line = "Comment: " if self.comment else "Dialogue: "
+        elements: List[Any] = [
+            self.layer,
+            Convert.seconds2assts(self.start_time, self.meta.fps),
+            Convert.seconds2assts(self.end_time, self.meta.fps),
+            self.style.name, self.actor,
+            self.margin_l, self.margin_r, self.margin_v,
+            self.effect, self.text
+        ]
+        return ass_line + ','.join(map(str, elements)) + '\n'
 
 
 class Word(AssText):
@@ -337,6 +341,7 @@ class Ass:
     """Initialization class containing all the information about an ASS file"""
     path_input: Path
     path_output: Path
+    fps: Fraction
     vertical_kanji: bool
 
     meta: Meta
@@ -355,6 +360,7 @@ class Ass:
         word_i: Optional[int] = None
 
     def __init__(self, path_input: os.PathLike[str] | str, path_output: os.PathLike[str] | str | None = None,
+                 fps: Fraction | float = Fraction(24000, 1001),
                  comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
         """
         Args:
@@ -385,6 +391,7 @@ class Ass:
         self.path_input = Path(path_input).resolve()
         if path_output:
             self.path_output = Path(path_output).resolve()
+        self.fps = fps if isinstance(fps, Fraction) else Fraction(fps)
         self.vertical_kanji = vertical_kanji
         self._output = []
         self._output_lines = []
@@ -466,22 +473,25 @@ class Ass:
                     warnings.warn(f'Line {line.i} is using undefined style, skipping...', Warning)
 
             # Add durations between dialogs
+            fps = float(self.fps)
+            default_lead = 1 / fps * round(fps)
             for _, liness in lines_by_styles.items():
                 liness.sort(key=lambda x: x.start_time)
                 for li, line in enumerate(liness):
                     line.leadin = (
-                        1000.1
+                        default_lead
                         if li == 0
                         else line.start_time - liness[li - 1].end_time
                     )
                     line.leadout = (
-                        1000.1
+                        default_lead
                         if li == len(liness) - 1
                         else liness[li + 1].start_time - line.end_time
                     )
 
     def _parse_meta_data(self, line: str) -> None:
         # Switch
+        self.meta.fps = self.fps
         if valm := re.match(r"WrapStyle: *?(\d+)$", line):
             self.meta.wrap_style = int(valm[1].strip())
         elif valm := re.match(r"ScaledBorderAndShadow: *?(.+)$", line):
@@ -517,15 +527,15 @@ class Ass:
             nstyle.fontname = str(style[1])
             nstyle.fontsize = float(style[2])
 
-            nstyle.color1 = f"&H{style[3][4:]}&"
-            nstyle.color2 = f"&H{style[4][4:]}&"
-            nstyle.color3 = f"&H{style[5][4:]}&"
-            nstyle.color4 = f"&H{style[6][4:]}&"
+            nstyle.color1 = ASSColor(f"&H{style[3][4:]}&")
+            nstyle.color2 = ASSColor(f"&H{style[4][4:]}&")
+            nstyle.color3 = ASSColor(f"&H{style[5][4:]}&")
+            nstyle.color4 = ASSColor(f"&H{style[6][4:]}&")
 
-            nstyle.alpha1 = f"{style[3][:4]}&"
-            nstyle.alpha2 = f"{style[4][:4]}&"
-            nstyle.alpha3 = f"{style[5][:4]}&"
-            nstyle.alpha4 = f"{style[6][:4]}&"
+            nstyle.alpha1 = Opacity.from_ass_val(f"{style[3][:4]}&")
+            nstyle.alpha2 = Opacity.from_ass_val(f"{style[4][:4]}&")
+            nstyle.alpha3 = Opacity.from_ass_val(f"{style[5][:4]}&")
+            nstyle.alpha4 = Opacity.from_ass_val(f"{style[6][:4]}&")
 
             nstyle.bold = style[7] == "-1"
             nstyle.italic = style[8] == "-1"
@@ -572,8 +582,10 @@ class Ass:
 
             nline.layer = int(linesplit[0])
 
-            nline.start_time = Convert.time(linesplit[1])
-            nline.end_time = Convert.time(linesplit[2])
+            nline.start_time = Convert.assts2seconds(linesplit[1], self.fps)
+            nline.start_time = Convert.bound_to_frame(nline.start_time, self.fps)
+            nline.end_time = Convert.assts2seconds(linesplit[2], self.fps)
+            nline.end_time = Convert.bound_to_frame(nline.end_time, self.fps)
 
             for style in self.styles:
                 if style.name == linesplit[3]:
@@ -843,8 +855,10 @@ class Ass:
                 syl = Syllable()
 
                 syl.start_time = last_time
-                syl.end_time = last_time + int(kdur) * 10
-                syl.duration = int(kdur) * 10
+                # kdur is in centiseconds
+                # Converting in seconds...
+                syl.end_time = last_time + int(kdur) / 100
+                syl.duration = int(kdur) / 100
 
                 syl.style = line.style
                 syl.tags = pretags
