@@ -255,7 +255,7 @@ class AssText(DataCore, ABC):
         font = Font(obj.style)
         shape = font.text_to_shape(obj.text)
         # Clearing resources to not let overflow errors take over
-        del font
+        del font, obj
 
         return shape
 
@@ -315,6 +315,8 @@ class AssText(DataCore, ABC):
         cy = obj.top - obj.height * mult_y * (fscy - obj.style.scale_y) / obj.style.scale_y
 
         shape.move(cx, cy)
+
+        del obj
 
         return shape
 
