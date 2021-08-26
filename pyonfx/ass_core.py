@@ -417,7 +417,7 @@ class Ass:
                 # Updating section
                 section_match = section_pattern.match(line_file)
                 assert section_match
-                section = section[1]
+                section = section_match[1]
                 # Appending line to output
                 if section != "Aegisub Extradata":
                     self._output.append(line_file)
