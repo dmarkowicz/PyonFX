@@ -774,8 +774,8 @@ class Ass:
             while True:
                 next_tag = tag_pattern.search(line.raw_text, tag.end())
                 chk = self._TextChunk(
-                    line.raw_text[tag.start() + 1 : tag.end() - 1].replace("}{", ""),
-                    line.raw_text[tag.end() : (next_tag.start() if next_tag else None)],
+                    line.raw_text[tag.start() + 1: tag.end() - 1].replace("}{", ""),
+                    line.raw_text[tag.end(): (next_tag.start() if next_tag else None)],
                     word_i
                 )
                 text_chunks.append(chk)
