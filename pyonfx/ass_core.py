@@ -17,6 +17,12 @@
 
 from __future__ import annotations
 
+__all__ = [
+    'Meta', 'Style',
+    'Line', 'Word', 'Syllable', 'Char',
+    'Ass'
+]
+
 import copy
 import os
 import re
