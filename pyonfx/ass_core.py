@@ -57,8 +57,6 @@ class DataCore(ABC):
             if isinstance(v, DataCore):
                 # Work recursively to print another object
                 out += cls._pretty_print(v, indent, k)
-            elif isinstance(v, Color):
-                out += " " * indent + f"{k}: {v.pprint()}\n"
             elif isinstance(v, list):
                 v = cast(List[DataCore], v)
                 for el in v:
@@ -88,18 +86,6 @@ class Meta(DataCore):
     """Loaded audio path (absolute)"""
     video: Union[Path, str]
     """Loaded video path (absolute)"""
-
-
-# class Color(str):
-#     alpha: str
-
-#     def __new__(cls, x: str, alpha: str) -> Color:
-#         color = super().__new__(cls, x)
-#         color.alpha = alpha
-#         return color
-
-#     def pprint(self) -> str:
-#         return super().__str__() + f' | Alpha: {self.alpha}'
 
 
 class Style(DataCore):
