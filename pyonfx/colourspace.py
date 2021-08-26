@@ -605,6 +605,97 @@ class HSV(HueSaturationBased):
         return self
 
 
+class Opacity(ColourSpace[float]):
+    value: float
+    data: str
+
+    def __init__(self, _x: Pct) -> None:
+        self.value = _x
+        self.data = f'&H{round(abs(self.value * 255 - 255)):02X}&'
+        super().__init__(_x)
+
+    @overload
+    @classmethod
+    def from_ass_val(cls, _x: str) -> Opacity:
+        """
+        Convert an ASS string value to an Opacity object
+
+        :param _x:          ASS alpha string in the format &HXX&
+        :return:            Opacity object
+        """
+        ...
+
+    @overload
+    @classmethod
+    def from_ass_val(cls, _x: Nb8bit) -> Opacity:
+        """
+        Convert an ASS integer value to an Opacity object
+
+        :param _x:          ASS integer string in the range 0 - 255
+        :return:            Opacity object
+        """
+        ...
+
+    @classmethod
+    def from_ass_val(cls, _x: str | Nb8bit) -> Opacity:
+        if isinstance(_x, str):
+            if match := re.fullmatch(r"&H([0-9A-F]{2})&", _x):
+                x = float(int(match.group(1), 16))
+            else:
+                raise ValueError(f'Opacity: Provided ASS alpha string {_x} is not in the expected format &HXX&')
+        else:
+            x = float(_x)
+        x = (255 - x) / 255
+        return cls(x)
+
+    def __str__(self) -> str:
+        return self.data
+
+    def __repr__(self) -> str:
+        return repr(self.value)
+
+    def interpolate(self, nobj: TCS, pct: Pct, /) -> TCS:
+        return cast(
+            TCS,
+            Opacity(
+                self._colour_values['value'] * (1 - pct) + nobj._colour_values['value'] * pct
+            )
+        )
+
+    def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
+        raise NotImplementedError
+
+    def to_xyz(self) -> XYZ:
+        raise NotImplementedError
+
+    def to_xyy(self) -> xyY:
+        raise NotImplementedError
+
+    def to_lab(self) -> Lab:
+        raise NotImplementedError
+
+    def to_lch_ab(self) -> LCHab:
+        raise NotImplementedError
+
+    def to_luv(self) -> Luv:
+        raise NotImplementedError
+
+    def to_lch_uv(self) -> LCHuv:
+        raise NotImplementedError
+
+    def to_hsl(self) -> HSL:
+        raise NotImplementedError
+
+    def to_hsv(self) -> HSV:
+        raise NotImplementedError
+
+    def to_html(self) -> HTML:
+        raise NotImplementedError
+
+    def to_ass_color(self) -> ASSColor:
+        raise NotImplementedError
+
+
 class HexBased(ColourSpace[str], ABC):
     """Hexadecimal based colourspace"""
     _rgb: RGB
