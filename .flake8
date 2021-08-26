@@ -2,6 +2,5 @@
 count = True
 max-line-length = 140
 ignore = W503,E226,E303
-max-line-length = 140
 show-source = True
 statistics = True
