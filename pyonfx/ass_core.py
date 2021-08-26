@@ -338,7 +338,7 @@ class Ass:
     lines: List[Line]
 
     _output: List[str]
-    _output_lines: List[str] = []
+    _output_lines: List[str]
     _output_extradata: List[str]
 
     _ptime: float
@@ -348,7 +348,7 @@ class Ass:
         text: str
         word_i: Optional[int] = None
 
-    def __init__(self, path_input: Union[os.PathLike[str], str], path_output: Union[os.PathLike[str], str],
+    def __init__(self, path_input: os.PathLike[str] | str, path_output: os.PathLike[str] | str | None = None,
                  comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
         """
         Args:
@@ -375,12 +375,13 @@ class Ass:
         self._ptime = time.time()
 
         # Resolve paths, make absolute the paths
-        # script_path = Path(sys.argv[0]).resolve()
 
         self.path_input = Path(path_input).resolve()
-        self.path_output = Path(path_output).resolve()
+        if path_output:
+            self.path_output = Path(path_output).resolve()
         self.vertical_kanji = vertical_kanji
         self._output = []
+        self._output_lines = []
         self._output_extradata = []
 
         self.meta = Meta()
