@@ -43,9 +43,12 @@ class Shape:
         # We return drawing commands as a string rapresentation of the object
         return self.drawing_cmds
 
-    def __eq__(self, other: Shape):
+    def __eq__(self, other: object) -> bool:
         # Method used to compare two shapes
-        return type(other) is type(self) and self.drawing_cmds == other.drawing_cmds
+        if isinstance(other, Shape):
+            return type(other) is type(self) and self.drawing_cmds == other.drawing_cmds
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def format_value(x: float, prec: int = 3) -> str:
