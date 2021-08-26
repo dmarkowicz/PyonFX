@@ -222,6 +222,11 @@ class ColorUtility:
             CU = ColorUtility([ line[0] ])
     """
 
+    color_changes: List[Dict[str, Any]]
+    c1_req: bool
+    c3_req: bool
+    c4_req: bool
+
     def __init__(self, lines: List[Line], offset: int = 0):
         self.color_changes = []
         self.c1_req = False
@@ -324,9 +329,7 @@ class ColorUtility:
                         }
                     )
 
-    def get_color_change(
-        self, line: Line, c1: bool = None, c3: bool = None, c4: bool = None
-    ) -> str:
+    def get_color_change(self, line: Line, c1: Optional[bool] = None, c3: Optional[bool] = None, c4: Optional[bool] = None) -> str:
         """Returns all the color_changes in the object that fit (in terms of time) between line.start_time and line.end_time.
 
         Parameters:
@@ -364,9 +367,9 @@ class ColorUtility:
             c4 = self.c4_req
 
         # Reading default colors
-        base_c1 = "\\1c" + line.styleref.color1
-        base_c3 = "\\3c" + line.styleref.color3
-        base_c4 = "\\4c" + line.styleref.color4
+        base_c1 = "\\1c" + line.style.color1
+        base_c3 = "\\3c" + line.style.color3
+        base_c4 = "\\4c" + line.style.color4
 
         for color_change in self.color_changes:
             if color_change["end"] <= line.start_time:
@@ -411,9 +414,7 @@ class ColorUtility:
 
         return transform
 
-    def get_fr_color_change(
-        self, line: Line, c1: bool = None, c3: bool = None, c4: bool = None
-    ) -> str:
+    def get_fr_color_change(self, line: Line, c1: Optional[bool] = None, c3: Optional[bool] = None, c4: Optional[bool] = None) -> str:
         """Returns the single color(s) in the color_changes that fit the current frame (line.start_time) in your frame loop.
 
         Note:
@@ -448,9 +449,9 @@ class ColorUtility:
             c4 = self.c4_req
 
         # Reading default colors
-        base_c1 = "\\1c" + line.styleref.color1
-        base_c3 = "\\3c" + line.styleref.color3
-        base_c4 = "\\4c" + line.styleref.color4
+        base_c1 = "\\1c" + line.style.color1
+        base_c3 = "\\3c" + line.style.color3
+        base_c4 = "\\4c" + line.style.color4
 
         # Searching valid color_change
         current_time = line.start_time
