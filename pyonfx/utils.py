@@ -17,15 +17,13 @@
 
 from __future__ import annotations
 
-import math
 import re
-from typing import List, TypeVar, Union
+from typing import (Any, Dict, Final, Iterable, Iterator, List, Optional,
+                    Tuple, cast)
 
-from .ass_core import Char, Line, Syllable, Word
-from .convert import ColorModel, Convert
-
-
-AssTextT = TypeVar('AssTextT', bound=Union[Line, Word, Syllable, Char])
+from .ass_core import Line
+from .colourspace import ColourSpace
+from .types import I, Pct
 
 
 class Utils:
@@ -34,35 +32,15 @@ class Utils:
     """
 
     @staticmethod
-    def all_non_empty(
-        lines_words_syls_or_chars: List[AssTextT],
-    ) -> List[AssTextT]:
-        """
-        Helps to not check everytime for text containing only spaces or object's duration equals to zero.
-
-        Parameters:
-            lines_chars_syls_or_words (list of :class:`Line<pyonfx.ass_utility.Line>`, :class:`Char<pyonfx.ass_utility.Char>`, :class:`Syllable<pyonfx.ass_utility.Syllable>` or :class:`Word<pyonfx.ass_utility.Word>`)
-
-        Returns:
-            A list containing lines_chars_syls_or_words without objects with duration equals to zero or blank text (no text or only spaces).
-        """
-        out = []
-        for obj in lines_words_syls_or_chars:
-            if obj.text.strip() and obj.duration > 0:
-                out.append(obj)
-        return out
-        # return [obj for obj in lines_words_syls_or_chars if obj.text.strip() and obj.duration > 0]
-
-    @staticmethod
     def clean_tags(text: str) -> str:
         # TODO: Cleans up ASS subtitle lines of badly-formed override. Returns a cleaned up text.
-        pass
+        raise NotImplementedError
 
-    @staticmethod
-    def accelerate(pct: float, accelerator: float) -> float:
-        # Modifies pct according to the acceleration provided.
-        # TODO: Implement acceleration based on bezier's curve
-        return pct ** accelerator
+    # @staticmethod
+    # def accelerate(pct: float, accelerator: float) -> float:
+    #     # Modifies pct according to the acceleration provided.
+    #     # TODO: Implement acceleration based on bezier's curve
+    #     return pct ** accelerator
 
     @staticmethod
     def interpolate(
