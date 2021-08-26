@@ -646,6 +646,10 @@ class HexBased(ColourSpace[str], ABC):
     def to_hsv(self) -> HSV:
         return self.to_rgb(RGBS).to_hsv()
 
+    @staticmethod
+    def hex_to_int(h: str) -> int:
+        return int(h, 16)
+
 
 class HTML(HexBased):
     _rgb: RGB
@@ -693,7 +697,7 @@ class HTML(HexBased):
                 seq = _x
                 match = re.fullmatch(r"#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})", _x)
                 if match:
-                    r, g, b = map(lambda x: int(x, 16), match.groups())
+                    r, g, b = map(self.hex_to_int, match.groups())
                     self._rgb = RGB((r, g, b))
                 else:
                     ValueError('No match found')
@@ -704,7 +708,7 @@ class HTML(HexBased):
                     seq = ''.join(hex(x)[2:].zfill(2) for x in self._rgb)
                 else:
                     _x = cast(Tup3Str, _x)
-                    r, g, b = map(lambda x: int(x, 16), _x)
+                    r, g, b = map(self.hex_to_int, _x)
                     self._rgb = RGB((r, g, b))
                     seq = ''.join(_x)
 
@@ -796,7 +800,7 @@ class ASSColor(HexBased):
             if isinstance(_x, str):
                 seq = _x[2:-1]
                 if match := re.fullmatch(r"&H([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})&", _x):
-                    r, g, b = map(lambda x: int(x, 16), match.groups()[::-1])
+                    r, g, b = map(self.hex_to_int, match.groups()[::-1])
                     self._rgb = RGB((r, g, b))
                 else:
                     ValueError('No match found')
@@ -806,7 +810,7 @@ class ASSColor(HexBased):
                     seq = ''.join(hex(cast(int, x))[2:].zfill(2) for x in _x)
                 else:
                     _x = cast(Tup3Str, _x)
-                    r, g, b = map(lambda x: int(x, 16), _x)
+                    r, g, b = map(self.hex_to_int, _x)
                     self._rgb = RGB((r, g, b))
                     seq = ''.join(_x)
 
