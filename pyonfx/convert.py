@@ -117,10 +117,7 @@ class Convert:
         return cls.f2seconds(cls.seconds2f(s, fps), fps)
 
     @staticmethod
-    def text_to_shape(
-        obj: Union[Line, Word, Syllable, Char],
-        fscx: Optional[float] = None, fscy: Optional[float] = None
-    ) -> Shape:
+    def text_to_shape(ass_text: AssText, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """Converts text with given style information to an ASS shape.
 
         **Tips:** *You can easily create impressive deforming effects.*
@@ -141,8 +138,7 @@ class Convert:
                 io.write_line(line)
         """
         # Obtaining information and editing values of style if requested
-        original_scale_x = obj.style.scale_x
-        original_scale_y = obj.style.scale_y
+        obj = ass_text.deep_copy()
 
         # Editing temporary the style to properly get the shape
         if fscx is not None:
@@ -156,20 +152,10 @@ class Convert:
         # Clearing resources to not let overflow errors take over
         del font
 
-        # Restoring values of style and returning the shape converted
-        if fscx is not None:
-            obj.style.scale_x = original_scale_x
-        if fscy is not None:
-            obj.style.scale_y = original_scale_y
         return shape
 
-    @staticmethod
-    def text_to_clip(
-        obj: Union[Line, Word, Syllable, Char],
-        an: int = 5,
-        fscx: Optional[float] = None,
-        fscy: Optional[float] = None,
-    ) -> Shape:
+    @classmethod
+    def text_to_clip(cls, ass_text: AssText, an: Alignment, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """Converts text with given style information to an ASS shape, applying some translation/scaling to it since
         it is not possible to position a shape with \\pos() once it is in a clip.
 
@@ -193,9 +179,7 @@ class Convert:
                 line.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\clip(%s)}%s" % (line.center, line.middle, Convert.text_to_clip(line), line.text)
                 io.write_line(line)
         """
-        # Checking for errors
-        if an < 1 or an > 9:
-            raise ValueError("Alignment value must be an integer between 1 and 9")
+        obj = ass_text.deep_copy()
 
         # Setting default values
         if fscx is None:
@@ -204,42 +188,36 @@ class Convert:
             fscy = obj.style.scale_y
 
         # Obtaining text converted to shape
-        shape = Convert.text_to_shape(obj, fscx, fscy)
+        shape = cls.text_to_shape(obj, fscx, fscy)
 
         # Setting mult_x based on alignment
-        if an % 3 == 1:  # an=1 or an=4 or an=7
+        if an in {1, 4, 7}:
             mult_x = 0
-        elif an % 3 == 2:  # an=2 or an=5 or an=8
+        elif an in {2, 5, 8}:
             mult_x = 1 / 2
         else:
             mult_x = 1
 
         # Setting mult_y based on alignment
-        if an < 4:
+        if an in {1, 2, 3}:
             mult_y = 1
-        elif an < 7:
+        elif an in {4, 5, 6}:
             mult_y = 1 / 2
         else:
             mult_y = 0
 
         # Calculating offsets
-        cx = (
-            obj.left
-            - obj.width * mult_x * (fscx - obj.style.scale_x) / obj.style.scale_x
-        )
-        cy = (
-            obj.top
-            - obj.height * mult_y * (fscy - obj.style.scale_y) / obj.style.scale_y
-        )
+        cx = obj.left - obj.width * mult_x * (fscx - obj.style.scale_x) / obj.style.scale_x
+        cy = obj.top - obj.height * mult_y * (fscy - obj.style.scale_y) / obj.style.scale_y
 
-        return shape.move(cx, cy)
+        shape.move(cx, cy)
 
-    @staticmethod
-    def text_to_pixels(
-        obj: Union[Line, Word, Syllable, Char], supersampling: int = 8
-    ) -> List[Pixel]:
+        return shape
+
+    @classmethod
+    def text_to_pixels(cls, ass_text: AssText, supersampling: int = 8) -> List[Pixel]:
         """| Converts text with given style information to a list of pixel data.
-        | A pixel data is a dictionary containing 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency).
+        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency/opacity).
 
         It is highly suggested to create a dedicated style for pixels,
         because you will write less tags for line in your pixels, which means less size for your .ass file.
@@ -272,13 +250,14 @@ class Convert:
                     line.text = "{\\p1\\pos(%d,%d)%s}%s" % (x, y, alpha, p_sh)
                     io.write_line(line)
         """
-        shape = Convert.text_to_shape(obj).move(obj.left % 1, obj.top % 1)
+        shape = Convert.text_to_shape(ass_text)
+        shape.move(ass_text.left % 1, ass_text.top % 1)
         return Convert.shape_to_pixels(shape, supersampling)
 
     @staticmethod
     def shape_to_pixels(shape: Shape, supersampling: int = 8) -> List[Pixel]:
         """| Converts a Shape object to a list of pixel data.
-        | A pixel data is a dictionary containing 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency).
+        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency/opacity).
 
         It is highly suggested to create a dedicated style for pixels,
         because you will write less tags for line in your pixels, which means less size for your .ass file.
@@ -329,7 +308,7 @@ class Convert:
             math.ceil((x2 + shift_x) * downscale) * upscale,
             math.ceil((y2 + shift_y) * downscale) * upscale,
         )
-        image = [False for i in range(width * height)]
+        image: List[bool] = [False] * (width * height)
 
         # Renderer (on binary image with aliasing)
         lines, last_point, last_move = [], {}, {}
