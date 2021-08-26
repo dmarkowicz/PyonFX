@@ -79,73 +79,64 @@ class Utils:
 
 
 
+NTSC_24P_MS_FROM_FRAME: Final[float] = 1000 / (24000 / 1001)
 
-class FrameUtility:
+
+class FrameUtility(Iterable[Tuple[int, int, int, int]]):
     """
     This class helps in the stressful calculation of frames per frame.
-
-    Parameters:
-        start_time (positive float): Initial time
-        end_time (positive float): Final time
-        fr (positive float, optional): Frame Duration
-
-    Returns:
-        Returns a Generator containing start_time, end_time, index and total number of frames for each step.
-
-    Examples:
-        ..  code-block:: python3
-            :emphasize-lines: 1
-
-            FU = FrameUtility(0, 100)
-            for s, e, i, n in FU:
-                print(f"Frame {i}/{n}: {s} - {e}")
-
-        >>> Frame 1/3: 0 - 41.71
-        >>> Frame 2/3: 41.71 - 83.42
-        >>> Frame 3/3: 83.42 - 100
-
     """
+    start_time: int
+    end_time: int
+    frame_dur: float
+    n: int
 
-    def __init__(self, start_time: float, end_time: float, fr: float = 41.71):
-        # Checking for invalid values
-        if start_time < 0 or end_time < 0 or fr <= 0 or end_time < start_time:
-            raise ValueError("Positive values and/or end_time > start_time expected.")
+    current_time: int
 
-        # Calculating number of frames
-        self.n = math.ceil((end_time - start_time) / fr)
+    def __init__(self, start_time: int, end_time: int, frame_dur: float = NTSC_24P_MS_FROM_FRAME) -> None:
+        """
+        Parameters:
+            start_time (positive float): Initial time in milliseconds
+            end_time (positive float): Final time in milliseconds
+            fr (positive float, optional): Frame Duration
+
+        Returns:
+            Returns a Generator containing start_time, end_time, index and total number of frames for each step.
+
+        Examples:
+            ..  code-block:: python3
+                :emphasize-lines: 1
+
+                FU = FrameUtility(0, 100)
+                for s, e, i, n in FU:
+                    print(f"Frame {i}/{n}: {s} - {e}")
+
+            >>> Frame 0/3: 0 - 41.71
+            >>> Frame 1/3: 41.71 - 83.42
+            >>> Frame 2/3: 83.42 - 100
+        """
+        if end_time < start_time:
+            raise ValueError("FrameUtility: start_time must be > to end_time")
+
+        self.n = round((end_time - start_time) / frame_dur)
 
         # Defining fields
         self.start_time = start_time
         self.end_time = end_time
-        self.current_time = fr
-        self.fr = fr
+        self.frame_dur = frame_dur
+        self.current_time = start_time
 
-    def __iter__(self):
-        # For loop for the first n-1 frames
-        for i in range(1, self.n):
-            yield (
-                round(self.start_time, 2),
-                round(self.start_time + self.fr, 2),
-                i,
-                self.n,
-            )
-            self.start_time += self.fr
-            self.current_time += self.fr
+    def __iter__(self) -> Iterator[Tuple[int, int, int, int]]:
+        for i in range(self.n):
+            s = round(self.start_time + self.frame_dur * i)
+            e = round(self.start_time + self.frame_dur * (i + 1) if i < self.n - 1 else self.end_time)
+            self.current_time = s
+            yield s, e, i, self.n
 
-        # Last frame, with end value clamped at end_time
-        yield (round(self.start_time, 2), round(self.end_time, 2), self.n, self.n)
+        self.current_time = self.start_time
 
-        # Resetting to make this object usable again
-        self.start_time = self.start_time - self.fr * max(self.n - 1, 0)
-        self.current_time = self.fr
 
-    def add(
-        self,
-        start_time: int,
-        end_time: int,
-        end_value: float,
-        accelerator: float = 1.0,
-    ) -> float:
+    def add(self, start_time: int, end_time: int, end_value: float, acc: float = 1.0) -> float:
         """
         This function makes a lot easier the calculation of tags value.
         You can see this as a \"\\t\" tag usable in frame per frame operations.
@@ -178,9 +169,9 @@ class FrameUtility:
         elif self.current_time > end_time:
             return end_value
 
-        pstart = self.current_time - start_time
+        pstart = self.current_time - self.start_time - start_time
         pend = end_time - start_time
-        return Utils.interpolate(pstart / pend, 0, end_value, accelerator)
+        return Utils.interpolate(0, end_value, pstart / pend, acc)
 
 
 class ColorUtility:
