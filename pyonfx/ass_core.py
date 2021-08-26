@@ -1069,34 +1069,25 @@ class Ass:
                 f"Process duration (in seconds): {round(time.time() - self._ptime, ndigits=3)}"
             )
 
-    def open_aegisub(self) -> int:
+    def open_aegisub(self) -> None:
         """Open the output (specified in self.path_output) with Aegisub.
 
         This can be usefull if you don't have MPV installed or you want to look at your output in detailed.
-
-        Returns:
-            0 if success, -1 if the output couldn't be opened.
         """
 
         # Check if it was saved
-        if not self.path_input.exists():
+        if not self.path_output.exists():
             warnings.warn("You've tried to open the output with Aegisub before having saved. Check your code.", Warning)
-            return -1
-
-        if sys.platform == "win32":
-            os.startfile(self.path_output)
         else:
-            try:
-                subprocess.call(["aegisub", self.path_output])
-            except FileNotFoundError:
-                warnings.warn("Aegisub not found.", Warning)
-                return -1
+            if sys.platform == "win32":
+                os.startfile(self.path_output)
+            else:
+                try:
+                    subprocess.call(["aegisub", self.path_output])
+                except FileNotFoundError:
+                    warnings.warn("Aegisub not found.", Warning)
 
-        return 0
-
-    def open_mpv(
-        self, video_path: Optional[str] = None, video_start: Optional[str] = None, full_screen: bool = False
-    ) -> int:
+    def open_mpv(self, video_path: Optional[str] = None, video_start: Optional[str] = None, full_screen: bool = False) -> None:
         """Open the output (specified in self.path_output) in softsub with the MPV player.
         To utilize this function, MPV player is required. Additionally if you're on Windows,
         MPV must be in the PATH (check https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step).
@@ -1105,46 +1096,42 @@ class Ass:
 
         Parameters:
             video_path (string): The video file path (absolute) to reproduce. If not specified, **meta.video** is automatically taken.
-            video_start (string): The start time for the video (more info: https://mpv.io/manual/master/#options-start). If not specified, 0 is automatically taken.
+            video_start (string): The start time for the video (more info: https://mpv.io/manual/master/#options-start).
+                                  If not specified, 0 is automatically taken.
             full_screen (bool): If True, it will reproduce the output in full screen. If not specified, False is automatically taken.
         """
 
         # Check if it was saved
-        if self.path_input.exists():
+        if not self.path_output.exists():
             warnings.warn("You've tried to open the output with MPV before having saved. Check your code.", Warning)
-            return -1
-
-        # Check if mpv is usable
-        if str(self.meta.video).startswith("?dummy") and not video_path:
-            warnings.warn(
-                'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
-                'You can specify a new video source using video_path parameter, check the documentation of the function.',
-                Warning
-            )
-            return -1
-
-        # Setting up the command to execute
-        cmd = ["mpv"]
-
-        if not video_path:
-            cmd.append(str(self.meta.video))
         else:
-            cmd.append(video_path)
-        if video_start:
-            cmd.append("--start=" + video_start)
-        if full_screen:
-            cmd.append("--fs")
+            # Check if mpv is usable
+            if self.meta.video.startswith("?dummy") and not video_path:
+                warnings.warn(
+                    'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
+                    'You can specify a new video source using video_path parameter, check the documentation of the function.',
+                    Warning
+                )
+            else:
+                # Setting up the command to execute
+                cmd = ["mpv"]
 
-        cmd.append("--sub-file=" + str(self.path_output))
+                if video_path:
+                    cmd.append(video_path)
+                else:
+                    cmd.append(self.meta.video)
+                if video_start:
+                    cmd.append("--start=" + video_start)
+                if full_screen:
+                    cmd.append("--fs")
 
-        try:
-            subprocess.call(cmd)
-        except FileNotFoundError:
-            warnings.warn(
-                "MPV not found in your environment variables.\n"
-                "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
-                Warning
-            )
-            return -1
+                cmd.append("--sub-file=" + str(self.path_output))
 
-        return 0
+                try:
+                    subprocess.call(cmd)
+                except FileNotFoundError:
+                    warnings.warn(
+                        "MPV not found in your environment variables.\n"
+                        "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
+                        Warning
+                    )
