@@ -256,8 +256,18 @@ class Line(AssText):
     chars: List[Char]
     """List containing objects :class:`Char` in this line (*)"""
 
-    def deep_copy(self) -> Line:
-        return cast(Line, super().deep_copy())
+    def strip_empty(self, words: bool = True, syls: bool = True, chars: bool = True) -> Line:
+        if words:
+            self.words = self.strip_obj_empty(self.words)
+        if syls:
+            self.syls = self.strip_obj_empty(self.syls)
+        if chars:
+            self.chars = self.strip_obj_empty(self.chars)
+        return self
+
+    @staticmethod
+    def strip_obj_empty(obj: List[AssTextT]) -> List[AssTextT]:
+        return [o for o in obj if o.text.strip() and o.duration > 0]
 
     def compose_ass_line(self) -> str:
         return (
