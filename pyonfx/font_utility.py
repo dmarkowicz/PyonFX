@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # PyonFX: An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).
 # Copyright (C) 2019 Antonio Strippoli (CoffeeStraw/YellowFlash)
 #
@@ -19,51 +18,59 @@ This module contains the Font class definition, which has some functions
 to help getting informations from a specific font
 """
 from __future__ import annotations
+
 import sys
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Final, Tuple
 
 from .shape import Shape
 
 if sys.platform == "win32":
-    import win32gui  # pylint: disable=import-error
-    import win32ui  # pylint: disable=import-error
-    import win32con  # pylint: disable=import-error
+    import win32con
+    import win32gui
+    import win32ui
+    from win32helper.win32typing import PyCFont
 elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
-    import cairo  # pylint: disable=import-error
-    import gi  # pylint: disable=import-error
+    import cairo
+    import gi
 
     gi.require_version("Pango", "1.0")
     gi.require_version("PangoCairo", "1.0")
 
-    from gi.repository import Pango, PangoCairo  # pylint: disable=import-error
     import html
 
+    from gi.repository import Pango, PangoCairo
+
 if TYPE_CHECKING:
-    from .ass_core import Style
+    from .core import Style
 
 # CONFIGURATION
-FONT_PRECISION = 64  # Font scale for better precision output from native font system
-LIBASS_FONTHACK = True  # Scale font data to fontsize? (no effect on windows)
-PANGO_SCALE = 1024  # The PANGO_SCALE macro represents the scale between dimensions used for Pango distances and device units.
+FONT_PRECISION: Final[int] = 64
+"""Font scale for better precision output from native font system"""
+LIBASS_FONTHACK: Final[bool] = True
+"""Scale font data to fontsize? (no effect on windows)"""
+PANGO_SCALE: Final[int] = 1024
+"""The PANGO_SCALE macro represents the scale between dimensions used for Pango distances and device units."""
 
 
 class Font:
     """
     Font class definition
     """
+    style: Style
+    xscale: float
+    yscale: float
+    hspace: float
+    upscale = FONT_PRECISION
+    downscale = 1 / FONT_PRECISION
 
-    def __init__(self, style: Style):
-        self.family = style.fontname
-        self.bold = style.bold
-        self.italic = style.italic
-        self.underline = style.underline
-        self.strikeout = style.strikeout
-        self.size = style.fontsize
+    metrics: Dict[str, float]
+    pycfont: PyCFont
+
+    def __init__(self, style: Style) -> None:
+        self.style = style
         self.xscale = style.scale_x / 100
         self.yscale = style.scale_y / 100
         self.hspace = style.spacing
-        self.upscale = FONT_PRECISION
-        self.downscale = 1 / FONT_PRECISION
 
         if sys.platform == "win32":
             # Create device context
@@ -73,26 +80,27 @@ class Font:
             # Set context backgrounds to transparent
             win32gui.SetBkMode(self.dc, win32con.TRANSPARENT)
             # Create font handle
-            font_spec = {
-                "height": int(self.size * self.upscale),
+            font_spec: Dict[str, Any] = {
+                "height": int(self.style.fontsize * self.upscale),
                 "width": 0,
                 "escapement": 0,
                 "orientation": 0,
-                "weight": win32con.FW_BOLD if self.bold else win32con.FW_NORMAL,
-                "italic": int(self.italic),
-                "underline": int(self.underline),
-                "strike out": int(self.strikeout),
+                "weight": win32con.FW_BOLD if self.style.bold else win32con.FW_NORMAL,
+                "italic": int(self.style.italic),
+                "underline": int(self.style.underline),
+                "strike out": int(self.style.strikeout),
                 "charset": win32con.DEFAULT_CHARSET,
                 "out precision": win32con.OUT_TT_PRECIS,
                 "clip precision": win32con.CLIP_DEFAULT_PRECIS,
                 "quality": win32con.ANTIALIASED_QUALITY,
                 "pitch and family": win32con.DEFAULT_PITCH + win32con.FF_DONTCARE,
-                "name": self.family,
+                "name": self.style.fontname,
             }
             self.pycfont = win32ui.CreateFont(font_spec)
             win32gui.SelectObject(self.dc, self.pycfont.GetSafeHandle())
             # Calculate metrics
-            self.metrics = win32gui.GetTextMetrics(self.dc)
+            # self.metrics = win32gui.GetTextMetrics(self.dc)
+            self.metrics = win32gui.GetTextMetrics()
         elif sys.platform in {"linux", "darwin"}:
             surface = cairo.ImageSurface(cairo.Format.A8, 1, 1)
 
@@ -100,13 +108,13 @@ class Font:
             self.layout = PangoCairo.create_layout(self.context)
 
             font_description = Pango.FontDescription()
-            font_description.set_family(self.family)
-            font_description.set_absolute_size(self.size * self.upscale * PANGO_SCALE)
+            font_description.set_family(self.style.fontname)
+            font_description.set_absolute_size(self.style.fontsize * self.upscale * PANGO_SCALE)
             font_description.set_weight(
-                Pango.Weight.BOLD if self.bold else Pango.Weight.NORMAL
+                Pango.Weight.BOLD if self.style.bold else Pango.Weight.NORMAL
             )
             font_description.set_style(
-                Pango.Style.ITALIC if self.italic else Pango.Style.NORMAL
+                Pango.Style.ITALIC if self.style.italic else Pango.Style.NORMAL
             )
 
             self.layout.set_font_description(font_description)
@@ -115,7 +123,7 @@ class Font:
             )
 
             if LIBASS_FONTHACK:
-                self.fonthack_scale = self.size / (
+                self.fonthack_scale = self.style.fontsize / (
                     (self.metrics.get_ascent() + self.metrics.get_descent())
                     / PANGO_SCALE
                     * self.downscale
@@ -125,7 +133,7 @@ class Font:
         else:
             raise NotImplementedError
 
-    def __del__(self):
+    def __del__(self) -> None:
         if sys.platform == "win32":
             win32gui.DeleteObject(self.pycfont.GetSafeHandle())
             win32gui.DeleteDC(self.dc)
@@ -167,8 +175,8 @@ class Font:
             def get_rect(new_text):
                 self.layout.set_markup(
                     f"<span "
-                    f'strikethrough="{str(self.strikeout).lower()}" '
-                    f'underline="{"single" if self.underline else "none"}"'
+                    f'strikethrough="{str(self.style.strikeout).lower()}" '
+                    f'underline="{"single" if self.style.underline else "none"}"'
                     f">"
                     f"{html.escape(new_text)}"
                     f"</span>",
@@ -200,7 +208,7 @@ class Font:
 
             # Add path to device context
             win32gui.BeginPath(self.dc)
-            win32gui.ExtTextOut(self.dc, 0, 0, 0x0, None, text)
+            win32gui.ExtTextOut(self.dc, 0, 0, 0x0, None, text)  # type: ignore
             win32gui.EndPath(self.dc)
             # Getting Path produced by Microsoft API
             points, type_points = win32gui.GetPath(self.dc)
@@ -208,7 +216,8 @@ class Font:
             # Checking for errors
             if len(points) == 0 or len(points) != len(type_points):
                 raise RuntimeError(
-                    "This should never happen: function win32gui.GetPath has returned something unexpected.\nPlease report this to the developer"
+                    'This should never happen: function win32gui.GetPath has returned something unexpected.'
+                    '\nPlease report this to the developer'
                 )
 
             # Defining variables
@@ -280,8 +289,8 @@ class Font:
 
                 self.layout.set_markup(
                     f"<span "
-                    f'strikethrough="{str(self.strikeout).lower()}" '
-                    f'underline="{"single" if self.underline else "none"}"'
+                    f'strikethrough="{str(self.style.strikeout).lower()}" '
+                    f'underline="{"single" if self.style.underline else "none"}"'
                     f">"
                     f"{html.escape(new_text)}"
                     f"</span>",
