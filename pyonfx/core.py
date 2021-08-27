@@ -24,7 +24,7 @@ __all__ = [
 import copy
 from abc import ABC
 from fractions import Fraction
-from typing import Any, List, Optional, TypeVar, cast
+from typing import Any, Dict, List, Optional, TypeVar, cast
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
@@ -40,6 +40,12 @@ class DataCore(ABC):
 
     def __str__(self) -> str:
         return self._pretty_print(self)
+
+    def __repr__(self) -> str:
+        return repr(self.__dict__)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return self.__dict__
 
     @classmethod
     def _pretty_print(cls, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
