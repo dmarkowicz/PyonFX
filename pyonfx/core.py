@@ -24,7 +24,8 @@ __all__ = [
 import copy
 from abc import ABC
 from fractions import Fraction
-from typing import Any, Dict, List, Optional, TypeVar, cast
+from typing import (Any, Dict, Iterable, List, Literal, MutableSequence,
+                    Optional, SupportsIndex, TypeVar, cast, overload)
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
@@ -33,6 +34,100 @@ from .shape import Pixel, Shape
 from .types import Alignment
 
 AssTextT = TypeVar('AssTextT', bound='AssText')
+
+
+class PList(MutableSequence[AssTextT]):
+    """PyonFX mutable sequence."""
+
+    _list: List[AssTextT]
+
+    def __init__(self, iterable: Iterable[AssTextT] | None = None) -> None:
+        """
+        If no argument is given, the constructor creates a new empty list.
+
+        :param iterable:            Iterable object, defaults to None
+        """
+        self._list = list(iterable) if iterable else []
+        super().__init__()
+
+    @overload
+    def __getitem__(self, index: SupportsIndex) -> AssTextT:
+        ...
+
+    @overload
+    def __getitem__(self, index: slice) -> PList[AssTextT]:
+        ...
+
+    def __getitem__(self, index: SupportsIndex | slice) -> AssTextT | PList[AssTextT]:
+        if isinstance(index, SupportsIndex):
+            return self._list[index]
+        else:
+            return PList(self._list[index])
+
+    @overload
+    def __setitem__(self, index: SupportsIndex, value: AssTextT) -> None:
+        ...
+
+    @overload
+    def __setitem__(self, index: slice, value: Iterable[AssTextT]) -> None:
+        ...
+
+    def __setitem__(self, index: SupportsIndex | slice, value: AssTextT | Iterable[AssTextT]) -> None:
+        if isinstance(index, SupportsIndex) and not isinstance(value, Iterable):
+            self._list[index] = value
+        elif isinstance(index, slice) and isinstance(value, Iterable):
+            self._list[index] = value
+        elif isinstance(index, SupportsIndex) and isinstance(value, Iterable):
+            raise TypeError('can only assign a value')
+        elif isinstance(index, slice) and not isinstance(value, Iterable):
+            raise TypeError('can only assign an iterable')
+        else:
+            raise NotImplementedError
+
+    def __delitem__(self, index: SupportsIndex | slice) -> None:
+        del self._list[index]
+
+    def __len__(self) -> int:
+        return len(self._list)
+
+    def insert(self, index: SupportsIndex, value: AssTextT) -> None:
+        """
+        Insert an AssText value before index
+
+        :param index:               Index number
+        :param value:               AssText object
+        """
+        self._list.insert(index, value)
+
+    @overload
+    def strip_empty(self, return_new: Literal[False] = False) -> None:
+        """
+        Removes objects with empty text or a duration of 0
+
+        :param return_new:          If False, works on the current object, defaults to False
+        """
+        ...
+
+    @overload
+    def strip_empty(self, return_new: Literal[True]) -> PList[AssTextT]:
+        """
+        Removes objects with empty text or a duration of 0
+
+        :param return_new:          If True, returns a new PList
+        """
+        ...
+
+    def strip_empty(self, return_new: bool) -> None | PList[AssTextT]:
+
+        def _strip_check(a: AssTextT) -> bool:
+            return a.text.strip() != '' and a.duration > 0
+
+        if not return_new:
+            for a in self:
+                if not _strip_check(a):
+                    self.remove(a)
+        else:
+            return PList(a for a in self if _strip_check(a))
 
 
 class DataCore(ABC):
@@ -396,25 +491,12 @@ class Line(AssText):
     """Effect field"""
     raw_text: str
     """Line raw text"""
-    words: List[Word]
+    words: PList[Word]
     """List containing objects :class:`Word` in this line (*)"""
-    syls: List[Syllable]
+    syls: PList[Syllable]
     """List containing objects :class:`Syllable` in this line (if available) (*)"""
-    chars: List[Char]
+    chars: PList[Char]
     """List containing objects :class:`Char` in this line (*)"""
-
-    def strip_empty(self, words: bool = True, syls: bool = True, chars: bool = True) -> Line:
-        if words:
-            self.words = self.strip_obj_empty(self.words)
-        if syls:
-            self.syls = self.strip_obj_empty(self.syls)
-        if chars:
-            self.chars = self.strip_obj_empty(self.chars)
-        return self
-
-    @staticmethod
-    def strip_obj_empty(obj: List[AssTextT]) -> List[AssTextT]:
-        return [o for o in obj if o.text.strip() and o.duration > 0]
 
     def compose_ass_line(self) -> str:
         ass_line = "Comment: " if self.comment else "Dialogue: "

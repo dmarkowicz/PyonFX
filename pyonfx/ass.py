@@ -30,7 +30,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
-from .core import Char, Line, Meta, Style, Syllable, Word
+from .core import Char, Line, Meta, PList, Style, Syllable, Word
 from .font_utility import Font
 
 
@@ -358,7 +358,7 @@ class Ass:
     def _add_data_words(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float],
                         space_width: float, style_spacing: float) -> Line:
         # Adding words
-        line.words = []
+        line.words = PList()
 
         presp_txt_postsp = re.findall(r"(\s*)([^\s]+)(\s*)", line.text)
         presp_txt_postsp = cast(List[Tuple[str, str, str]], presp_txt_postsp)
@@ -495,7 +495,7 @@ class Ass:
         inline_fx = ""
         syl_tags_pattern = re.compile(r"(.*?)\\[kK][of]?(\d+)(.*)")
 
-        line.syls = []
+        line.syls = PList()
         for tc in text_chunks:
             # If we don't have at least one \k tag, everything is invalid
             if not syl_tags_pattern.match(tc.tags):
@@ -635,10 +635,10 @@ class Ass:
 
     def _add_data_chars(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float], style_spacing: float) -> Line:
         # Adding chars
-        line.chars = []
+        line.chars = PList()
 
         # If we have syls in line, we prefert to work with them to provide more informations
-        words_or_syls: Union[List[Syllable], List[Word]] = line.syls if line.syls else line.words
+        words_or_syls: Union[PList[Syllable], PList[Word]] = line.syls if line.syls else line.words
 
         # Getting chars
         # char_index = 0
