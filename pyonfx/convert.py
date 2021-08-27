@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # PyonFX: An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).
 # Copyright (C) 2019 Antonio Strippoli (CoffeeStraw/YellowFlash)
 #
@@ -17,16 +16,21 @@
 
 from __future__ import annotations
 
+__all__ = [
+    'ConvertTime', 'ConvertColour'
+]
+
+import colorsys
+import math
 from fractions import Fraction
-from typing import List
+from typing import Final, Tuple
+
+import numpy as np
+
+from .types import Nb, Tup3
 
 
-class Convert:
-    """
-    This class is a collection of methods that will help
-    the user to convert everything needed to the ASS format.
-    """
-
+class ConvertTime:
     # Seconds | Timestamp
     @staticmethod
     def ts2seconds(ts: str, /) -> float:
@@ -100,42 +104,344 @@ class Convert:
     def bound_to_frame(cls, s: float, fps: Fraction, /) -> float:
         return cls.f2seconds(cls.seconds2f(s, fps), fps)
 
+
+class ConvertColour:
+
+    # Reference white
+    D65_XYZ_TRISTIMULUS_2: Final[Tup3[float]] = (0.95047, 1.00000, 1.08883)
+    D65_XYZ_TRISTIMULUS_10: Final[Tup3[float]] = (0.9481, 1.000, 1.07304)
+    κ: Final[float] = 24389 / 27
+    ϵ: Final[float] = 216 / 24389
+
+
+    @staticmethod
+    def hsl_to_rgb(h: float, s: float, l: float) -> Tuple[float, float, float]:
+        return colorsys.hls_to_rgb(h, l, s)
+
+    @staticmethod
+    def hsv_to_rgb(h: float, s: float, v: float) -> Tuple[float, float, float]:
+        return colorsys.hsv_to_rgb(h, s, v)
+
+    # -------------------------------------------------------------------------
+    # ---------------------------- RGB Conversions ----------------------------
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def rgb_to_xyz(r: float, g: float, b: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_RGB_to_XYZ.html
+        rgb_mat = np.array((r, g, b), np.float64)
+        conv_mat = np.array(
+            [(0.4124564, 0.3575761, 0.1804375),
+                (0.2126729, 0.7151522, 0.0721750),
+                (0.0193339, 0.1191920, 0.9503041)],
+            np.float64
+        )
+        inv_srgb_comp = np.where(
+            rgb_mat <= 0.04045,
+            rgb_mat / 12.92,
+            ((rgb_mat + 0.055) / 1.055) ** 2.4
+        )
+        return tuple(np.dot(conv_mat, np.array([*inv_srgb_comp])))  # type: ignore
+
     @classmethod
-    def text_to_pixels(cls, ass_text: AssText, supersampling: int = 8) -> List[Pixel]:
-        """| Converts text with given style information to a list of pixel data.
-        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency/opacity).
+    def rgb_to_xyy(cls, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.rgb_to_xyz(r, g, b)
+        return cls.xyz_to_xyy(*xyz)
 
-        It is highly suggested to create a dedicated style for pixels,
-        because you will write less tags for line in your pixels, which means less size for your .ass file.
+    @classmethod
+    def rgb_to_lab(cls, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.rgb_to_xyz(r, g, b)
+        return cls.xyz_to_lab(*xyz)
 
-        | The style suggested is:
-        | - **an=7 (very important!);**
-        | - bord=0;
-        | - shad=0;
-        | - For Font informations leave whatever the default is;
+    @classmethod
+    def rgb_to_lch_ab(cls, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.rgb_to_xyz(r, g, b)
+        return cls.xyz_to_lch_ab(*xyz)
 
-        **Tips:** *It allows easy creation of text decaying or light effects.*
+    @classmethod
+    def rgb_to_luv(cls, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.rgb_to_xyz(r, g, b)
+        return cls.xyz_to_luv(*xyz)
 
-        Parameters:
-            obj (Line, Word, Syllable or Char): An object of class Line, Word, Syllable or Char.
-            supersampling (int): Value used for supersampling. Higher value means smoother and more precise anti-aliasing (and more computational time for generation).
+    @classmethod
+    def rgb_to_lch_uv(cls, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.rgb_to_xyz(r, g, b)
+        return cls.xyz_to_lch_uv(*xyz)
 
-        Returns:
-            A list of dictionaries representing each individual pixel of the input text styled.
+    @staticmethod
+    def rgb_to_hsl(r: float, g: float, b: float) -> Tuple[float, float, float]:
+        h, l, s = colorsys.rgb_to_hls(r, g, b)
+        return h, s, l
 
-        Examples:
-            ..  code-block:: python3
+    @staticmethod
+    def rgb_to_hsv(r: float, g: float, b: float) -> Tuple[float, float, float]:
+        return colorsys.rgb_to_hsv(r, g, b)
 
-                line = lines[2].copy()
-                line.style = "p"
-                p_sh = Shape.rectangle()
-                for pixel in Convert.text_to_pixels(line):
-                    x, y = math.floor(line.left) + pixel['x'], math.floor(line.top) + pixel['y']
-                    alpha = "\\alpha" + Convert.color_alpha_to_ass(pixel['alpha']) if pixel['alpha'] != 255 else ""
+    # -------------------------------------------------------------------------
+    # ---------------------------- XYZ Conversions ----------------------------
+    # -------------------------------------------------------------------------
+    @classmethod
+    def xyz_to_xyy(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_xyY.html
+        if not x == y == z == 0.0:
+            Y = y
+            x, y = map(lambda a: a / (x + y + z), (x, y))
+        else:
+            Y = 0.0
+            x, y = map(lambda a: a / sum(cls.D65_XYZ_TRISTIMULUS_10), (x, y))
+        return x, y, Y
 
-                    line.text = "{\\p1\\pos(%d,%d)%s}%s" % (x, y, alpha, p_sh)
-                    io.write_line(line)
-        """
-        shape = Convert.text_to_shape(ass_text)
-        shape.move(ass_text.left % 1, ass_text.top % 1)
-        return Convert.shape_to_pixels(shape, supersampling)
+    @classmethod
+    def xyz_to_lab(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Lab.html
+        xr, yr, zr = [a / b for a, b in zip((x, y, z), cls.D65_XYZ_TRISTIMULUS_10)]
+        fx, fy, fz = [a ** (1/3) if a > cls.ϵ else (cls.κ * a + 16) / 116 for a in (xr, yr, zr)]
+        return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+    @classmethod
+    def xyz_to_lch_ab(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
+        lab = cls.xyz_to_lab(x, y, z)
+        return cls.lab_to_lch_ab(*lab)
+
+    @classmethod
+    def xyz_to_luv(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Luv.html
+        x_ref, y_ref, z_ref = cls.D65_XYZ_TRISTIMULUS_10
+        yr = y / y_ref
+        up = 4 * x / (x + 15 * y + 3 * z)
+        vp = 9 * y / (x + 15 * y + 3 * z)
+        up_ref = 4 * x_ref / (x_ref + 15 * y_ref + 3 * z_ref)
+        vp_ref = 9 * y_ref / (x_ref + 15 * y_ref + 3 * z_ref)
+
+        l = 116 * yr ** (1 / 3) - 16 if yr > cls.ϵ else cls.κ * yr
+        u = 13 * l * (up - up_ref)
+        v = 13 * l * (vp - vp_ref)
+
+        return l, u, v
+
+    @classmethod
+    def xyz_to_lch_uv(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
+        luv = cls.xyz_to_luv(x, y, z)
+        return cls.luv_to_lch_uv(*luv)
+
+    @staticmethod
+    def xyz_to_rgb(x: float, y: float, z: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_RGB.html
+        xyz_mat = np.array((x, y, z), np.float64)
+        conv_mat = np.array(
+            [(3.2404542, -1.5371385, -0.4985314),
+             (-0.9692660, 1.8760108, 0.0415560),
+             (0.0556434, -0.2040259, 1.0572252)],
+            np.float64
+        )
+        linear_rgb = np.dot(conv_mat, xyz_mat)
+        srgb_comp = np.where(
+            linear_rgb <= 0.0031308,
+            linear_rgb * 12.92,
+            1.055 * linear_rgb ** (1 / 2.4) - 0.055
+        )
+        return tuple(map(lambda a: clamp_value(a, 0.0, 1.0), srgb_comp))  # type: ignore
+
+
+    # -------------------------------------------------------------------------
+    # ---------------------------- xyY Conversions ----------------------------
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def xyy_to_xyz(x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_xyY_to_XYZ.html
+        if Y == 0.0:
+            x = y = z = 0.0
+        else:
+            z = ((1 - x - y) * Y) / y
+            x = (x * Y) / y
+            y = Y
+        return x, y, z
+
+    @classmethod
+    def xyy_to_lab(cls, x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        xyz = cls.xyy_to_xyz(x, y, Y)
+        return cls.xyz_to_lab(*xyz)
+
+    @classmethod
+    def xyy_to_lch_ab(cls, x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        lab = cls.xyy_to_lab(x, y, Y)
+        return cls.lab_to_lch_ab(*lab)
+
+    @classmethod
+    def xyy_to_luv(cls, x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        xyz = cls.xyy_to_xyz(x, y, Y)
+        return cls.xyz_to_luv(*xyz)
+
+    @classmethod
+    def xyy_to_lch_uv(cls, x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        luv = cls.xyy_to_luv(x, y, Y)
+        return cls.luv_to_lch_uv(*luv)
+
+    @classmethod
+    def xyy_to_rgb(cls, x: float, y: float, Y: float) -> Tuple[float, float, float]:
+        xyz = cls.xyy_to_xyz(x, y, Y)
+        return cls.xyz_to_rgb(*xyz)
+
+    # -------------------------------------------------------------------------
+    # ---------------------------- Lab Conversions ----------------------------
+    # -------------------------------------------------------------------------
+    @classmethod
+    def lab_to_xyz(cls, l: float, a: float, b: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_Lab_to_XYZ.html
+        fy = (l + 16) / 116
+        fx = a / 500 + fy
+        fz = fy - b / 200
+
+        yr = fy ** 3 if l > cls.ϵ * cls.κ else l / cls.κ
+        xr, zr = map(lambda n: n ** 3 if n ** 3 > cls.ϵ else (116 * n - 16) / cls.κ, (fx, fz))
+        return tuple(n * m for n, m in zip((xr, yr, zr), cls.D65_XYZ_TRISTIMULUS_10))  # type: ignore
+
+    @classmethod
+    def lab_to_xyy(cls, l: float, a: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.lab_to_xyz(l, a, b)
+        return cls.xyz_to_xyy(*xyz)
+
+    @staticmethod
+    def lab_to_lch_ab(l: float, a: float, b: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_Lab_to_LCH.html
+        return l, math.sqrt(a ** 2 + b ** 2), (math.atan2(b, a) * 180 / math.pi) % 360
+
+    @classmethod
+    def lab_to_luv(cls, l: float, a: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.lab_to_xyz(l, a, b)
+        return cls.xyz_to_luv(*xyz)
+
+    @classmethod
+    def lab_to_lch_uv(cls, l: float, a: float, b: float) -> Tuple[float, float, float]:
+        luv = cls.lab_to_luv(l, a, b)
+        return cls.luv_to_lch_uv(*luv)
+
+    @classmethod
+    def lab_to_rgb(cls, l: float, a: float, b: float) -> Tuple[float, float, float]:
+        xyz = cls.lab_to_xyz(l, a, b)
+        return cls.xyz_to_rgb(*xyz)
+
+    # -------------------------------------------------------------------------
+    # --------------------------- LCHab Conversions ---------------------------
+    # -------------------------------------------------------------------------
+    @classmethod
+    def lch_ab_to_xyz(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        lab = cls.lch_ab_to_lab(l, c, h)
+        return cls.lab_to_xyy(*lab)
+
+    @classmethod
+    def lch_ab_to_xyy(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_ab_to_xyz(l, c, h)
+        return cls.xyz_to_xyy(*xyz)
+
+    @staticmethod
+    def lch_ab_to_lab(l: float, c: float, h: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_LCH_to_Lab.html
+        hr = h * math.pi/180
+        return l, math.cos(hr) * c, math.sin(hr) * c
+
+    @classmethod
+    def lch_ab_to_luv(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_ab_to_xyz(l, c, h)
+        return cls.xyz_to_luv(*xyz)
+
+    @classmethod
+    def lch_ab_to_lch_uv(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_ab_to_xyz(l, c, h)
+        return cls.xyz_to_lch_uv(*xyz)
+
+    @classmethod
+    def lch_ab_to_rgb(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_ab_to_xyz(l, c, h)
+        return cls.xyz_to_rgb(*xyz)
+
+    # -------------------------------------------------------------------------
+    # ---------------------------- Luv Conversions ----------------------------
+    # -------------------------------------------------------------------------
+    @classmethod
+    def luv_to_xyz(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
+        x_ref, y_ref, z_ref = cls.D65_XYZ_TRISTIMULUS_10
+        u0 = 4 * x_ref / (x_ref + 15 * y_ref + 3 * z_ref)
+        v0 = 9 * y_ref / (x_ref + 15 * y_ref + 3 * z_ref)
+
+        y = ((l + 16) / 116) ** 3 if l > cls.κ * cls.ϵ else l / cls.κ
+
+        a = ((52 * l) / (u + 13 * l * u0) - 1) * (1 / 3)
+        b = (-5) * y
+        c = - 1 / 3
+        d = ((39 * l) / (v + 13 * l * v0) - 5) * y
+
+        x = (d - b) / (a - c)
+        z = x * a + b
+
+        return x, y, z 
+
+    @classmethod
+    def luv_to_xyy(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
+        xyz = cls.luv_to_xyz(l, u, v)
+        return cls.xyz_to_xyy(*xyz)
+
+    @classmethod
+    def luv_to_lab(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
+        xyz = cls.luv_to_xyz(l, u, v)
+        return cls.xyz_to_lab(*xyz)
+
+    @classmethod
+    def luv_to_lch_ab(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
+        lab = cls.luv_to_lab(l, u, v)
+        return cls.lab_to_lch_ab(*lab)
+
+    @staticmethod
+    def luv_to_lch_uv(l: float, u: float, v: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_Luv_to_LCH.html
+        return l, math.sqrt(u ** 2 + v ** 2), (math.atan2(v, u) * 180 / math.pi) % 360
+
+    @classmethod
+    def luv_to_rgb(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
+        xyz = cls.luv_to_xyz(l, u, v)
+        return cls.xyz_to_rgb(*xyz)
+
+    # -------------------------------------------------------------------------
+    # --------------------------- LCHuv Conversions ---------------------------
+    # -------------------------------------------------------------------------
+    @classmethod
+    def lch_uv_to_xyz(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        luv = cls.lch_uv_to_luv(l, c, h)
+        return cls.luv_to_xyz(*luv)
+
+    @classmethod
+    def lch_uv_to_xyy(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_uv_to_xyz(l, c, h)
+        return cls.xyz_to_xyy(*xyz)
+
+    @classmethod
+    def lch_uv_to_lab(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_uv_to_xyz(l, c, h)
+        return cls.xyz_to_lab(*xyz)
+
+    @classmethod
+    def lch_uv_to_lch_ab(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_uv_to_xyz(l, c, h)
+        return cls.xyz_to_lch_ab(*xyz)
+
+    @staticmethod
+    def lch_uv_to_luv(l: float, c: float, h: float) -> Tuple[float, float, float]:
+        # http://www.brucelindbloom.com/index.html?Eqn_LCH_to_Luv.html
+        hr = h * math.pi/180
+        return l, math.cos(hr) * c, math.sin(hr) * c
+
+    @classmethod
+    def lch_uv_to_rgb(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
+        xyz = cls.lch_uv_to_xyz(l, c, h)
+        return cls.xyz_to_rgb(*xyz)
+
+
+def clamp_value(val: Nb, min_val: Nb, max_val: Nb) -> Nb:
+    """
+    Clamp value val between min_val and max_val
+
+    :param val:         Value to clamp
+    :param min_val:     Minimum value
+    :param max_val:     Maximum value
+    :return:            Clamped value
+    """
+    return min(max_val, max(min_val, val))

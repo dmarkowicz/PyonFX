@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 
 from .colourspace import ASSColor, Opacity
-from .convert import Convert
+from .convert import ConvertTime
 from .core import Char, Line, Meta, Style, Syllable, Word
 from .font_utility import Font
 
@@ -279,10 +279,10 @@ class Ass:
 
             nline.layer = int(linesplit[0])
 
-            nline.start_time = Convert.assts2seconds(linesplit[1], self.fps)
-            nline.start_time = Convert.bound_to_frame(nline.start_time, self.fps)
-            nline.end_time = Convert.assts2seconds(linesplit[2], self.fps)
-            nline.end_time = Convert.bound_to_frame(nline.end_time, self.fps)
+            nline.start_time = ConvertTime.assts2seconds(linesplit[1], self.fps)
+            nline.start_time = ConvertTime.bound_to_frame(nline.start_time, self.fps)
+            nline.end_time = ConvertTime.assts2seconds(linesplit[2], self.fps)
+            nline.end_time = ConvertTime.bound_to_frame(nline.end_time, self.fps)
 
             for style in self.styles:
                 if style.name == linesplit[3]:

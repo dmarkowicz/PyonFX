@@ -27,7 +27,7 @@ from fractions import Fraction
 from typing import Any, List, Optional, TypeVar, cast
 
 from .colourspace import ASSColor, Opacity
-from .convert import Convert
+from .convert import ConvertTime
 from .font_utility import Font
 from .shape import Shape
 from .types import Alignment
@@ -372,8 +372,8 @@ class Line(AssText):
         ass_line = "Comment: " if self.comment else "Dialogue: "
         elements: List[Any] = [
             self.layer,
-            Convert.seconds2assts(self.start_time, self.meta.fps),
-            Convert.seconds2assts(self.end_time, self.meta.fps),
+            ConvertTime.seconds2assts(self.start_time, self.meta.fps),
+            ConvertTime.seconds2assts(self.end_time, self.meta.fps),
             self.style.name, self.actor,
             self.margin_l, self.margin_r, self.margin_v,
             self.effect, self.text

@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import (TYPE_CHECKING, Annotated, Any, Callable, Generic, Iterable,
-                    Tuple, TypeVar, Union, cast, get_args, get_origin,
-                    get_type_hints)
+from typing import (Annotated, Any, Callable, Generic, Iterable, Tuple,
+                    TypeVar, Union, cast, get_args, get_origin, get_type_hints)
 
 T = TypeVar('T')
 F = TypeVar('F', bound=Callable[..., Any])

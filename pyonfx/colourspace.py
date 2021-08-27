@@ -14,19 +14,7 @@ from abc import ABC, abstractmethod
 from typing import (Any, ClassVar, Dict, List, Sequence, Tuple, Type, TypeVar,
                     cast, overload)
 
-from .colour_conv import (hsl_to_rgb, hsv_to_rgb, lab_to_lch_ab, lab_to_lch_uv,
-                          lab_to_luv, lab_to_rgb, lab_to_xyy, lab_to_xyz,
-                          lch_ab_to_lab, lch_ab_to_lch_uv, lch_ab_to_luv,
-                          lch_ab_to_rgb, lch_ab_to_xyy, lch_ab_to_xyz,
-                          lch_uv_to_lab, lch_uv_to_lch_ab, lch_uv_to_luv,
-                          lch_uv_to_rgb, lch_uv_to_xyy, lch_uv_to_xyz,
-                          luv_to_lab, luv_to_lch_ab, luv_to_lch_uv, luv_to_rgb,
-                          luv_to_xyy, luv_to_xyz, rgb_to_hsl, rgb_to_hsv,
-                          rgb_to_lab, rgb_to_lch_ab, rgb_to_lch_uv, rgb_to_luv,
-                          rgb_to_xyy, rgb_to_xyz, xyy_to_lab, xyy_to_lch_ab,
-                          xyy_to_lch_uv, xyy_to_luv, xyy_to_rgb, xyy_to_xyz,
-                          xyz_to_lab, xyz_to_lch_ab, xyz_to_lch_uv, xyz_to_luv,
-                          xyz_to_rgb, xyz_to_xyy)
+from .convert import ConvertColour as CC
 from .types import (ACV, Nb, Nb8bit, Pct, TCV_co, Tup3, Tup3Str, Tup4,
                     check_annotations)
 
@@ -279,28 +267,28 @@ class BaseRGB(ColourSpace[Nb], ABC):
         return rgb_type(svalues)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(rgb_to_xyz(*self.to_rgb(RGBS)))
+        return XYZ(CC.rgb_to_xyz(*self.to_rgb(RGBS)))
 
     def to_xyy(self) -> xyY:
-        return xyY(rgb_to_xyy(*self.to_rgb(RGBS)))
+        return xyY(CC.rgb_to_xyy(*self.to_rgb(RGBS)))
 
     def to_lab(self) -> Lab:
-        return Lab(rgb_to_lab(*self.to_rgb(RGBS)))
+        return Lab(CC.rgb_to_lab(*self.to_rgb(RGBS)))
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(rgb_to_lch_ab(*self.to_rgb(RGBS)))
+        return LCHab(CC.rgb_to_lch_ab(*self.to_rgb(RGBS)))
 
     def to_luv(self) -> Luv:
-        return Luv(rgb_to_luv(*self.to_rgb(RGBS)))
+        return Luv(CC.rgb_to_luv(*self.to_rgb(RGBS)))
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(rgb_to_lch_uv(*self.to_rgb(RGBS)))
+        return LCHuv(CC.rgb_to_lch_uv(*self.to_rgb(RGBS)))
 
     def to_hsl(self) -> HSL:
-        return HSL(rgb_to_hsl(*self.to_rgb(RGBS)))
+        return HSL(CC.rgb_to_hsl(*self.to_rgb(RGBS)))
 
     def to_hsv(self) -> HSV:
-        return HSV(rgb_to_hsv(*self.to_rgb(RGBS)))
+        return HSV(CC.rgb_to_hsv(*self.to_rgb(RGBS)))
 
     def to_html(self) -> HTML:
         r, g, b = self.to_rgb(RGB)
@@ -558,7 +546,7 @@ class HSL(HueSaturationBased):
             self.h, self.s, self.l = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(hsl_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.hsl_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_hsl(self) -> HSL:
         return self
@@ -596,7 +584,7 @@ class HSV(HueSaturationBased):
             self.h, self.s, self.v = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(hsv_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.hsv_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_hsl(self) -> HSL:
         return self.to_rgb(RGBS).to_hsl()
@@ -959,25 +947,25 @@ class XYZ(XYZBased):
             self.x, self.y, self.z = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(xyz_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.xyz_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
         return self
 
     def to_xyy(self) -> xyY:
-        return xyY(xyz_to_xyy(*self))
+        return xyY(CC.xyz_to_xyy(*self))
 
     def to_lab(self) -> Lab:
-        return Lab(xyz_to_lab(*self))
+        return Lab(CC.xyz_to_lab(*self))
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(xyz_to_lch_ab(*self))
+        return LCHab(CC.xyz_to_lch_ab(*self))
 
     def to_luv(self) -> Luv:
-        return Luv(xyz_to_luv(*self))
+        return Luv(CC.xyz_to_luv(*self))
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(xyz_to_lch_uv(*self))
+        return LCHuv(CC.xyz_to_lch_uv(*self))
 
 
 class xyY(XYZBased):
@@ -1011,25 +999,25 @@ class xyY(XYZBased):
             self.x, self.y, self.z = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(xyy_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.xyy_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(xyy_to_xyz(*self))
+        return XYZ(CC.xyy_to_xyz(*self))
 
     def to_xyy(self) -> xyY:
         return self
 
     def to_lab(self) -> Lab:
-        return Lab(xyy_to_lab(*self))
+        return Lab(CC.xyy_to_lab(*self))
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(xyy_to_lch_ab(*self))
+        return LCHab(CC.xyy_to_lch_ab(*self))
 
     def to_luv(self) -> Luv:
-        return Luv(xyy_to_luv(*self))
+        return Luv(CC.xyy_to_luv(*self))
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(xyy_to_lch_uv(*self))
+        return LCHuv(CC.xyy_to_lch_uv(*self))
 
 
 class Lab(XYZBased):
@@ -1062,25 +1050,25 @@ class Lab(XYZBased):
             self.L, self.a, self.b = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(lab_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.lab_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(lab_to_xyz(*self))
+        return XYZ(CC.lab_to_xyz(*self))
 
     def to_xyy(self) -> xyY:
-        return xyY(lab_to_xyy(*self))
+        return xyY(CC.lab_to_xyy(*self))
 
     def to_lab(self) -> Lab:
         return self
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(lab_to_lch_ab(*self))
+        return LCHab(CC.lab_to_lch_ab(*self))
 
     def to_luv(self) -> Luv:
-        return Luv(lab_to_luv(*self))
+        return Luv(CC.lab_to_luv(*self))
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(lab_to_lch_uv(*self))
+        return LCHuv(CC.lab_to_lch_uv(*self))
 
 
 class LCHab(XYZBased):
@@ -1113,25 +1101,25 @@ class LCHab(XYZBased):
             self.L, self.C, self.H = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(lch_ab_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.lch_ab_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(lch_ab_to_xyz(*self))
+        return XYZ(CC.lch_ab_to_xyz(*self))
 
     def to_xyy(self) -> xyY:
-        return xyY(lch_ab_to_xyy(*self))
+        return xyY(CC.lch_ab_to_xyy(*self))
 
     def to_lab(self) -> Lab:
-        return Lab(lch_ab_to_lab(*self))
+        return Lab(CC.lch_ab_to_lab(*self))
 
     def to_lch_ab(self) -> LCHab:
         return self
 
     def to_luv(self) -> Luv:
-        return Luv(lch_ab_to_luv(*self))
+        return Luv(CC.lch_ab_to_luv(*self))
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(lch_ab_to_lch_uv(*self))
+        return LCHuv(CC.lch_ab_to_lch_uv(*self))
 
 
 class Luv(XYZBased):
@@ -1164,25 +1152,25 @@ class Luv(XYZBased):
             self.L, self.u, self.v = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(luv_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.luv_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(luv_to_xyz(*self))
+        return XYZ(CC.luv_to_xyz(*self))
 
     def to_xyy(self) -> xyY:
-        return xyY(luv_to_xyy(*self))
+        return xyY(CC.luv_to_xyy(*self))
 
     def to_lab(self) -> Lab:
-        return Lab(luv_to_lab(*self))
+        return Lab(CC.luv_to_lab(*self))
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(luv_to_lch_ab(*self))
+        return LCHab(CC.luv_to_lch_ab(*self))
 
     def to_luv(self) -> Luv:
         return self
 
     def to_lch_uv(self) -> LCHuv:
-        return LCHuv(luv_to_lch_uv(*self))
+        return LCHuv(CC.luv_to_lch_uv(*self))
 
 
 class LCHuv(XYZBased):
@@ -1215,22 +1203,22 @@ class LCHuv(XYZBased):
             self.L, self.C, self.H = _x
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
-        return RGBS(lch_uv_to_rgb(*self)).to_rgb(rgb_type)
+        return RGBS(CC.lch_uv_to_rgb(*self)).to_rgb(rgb_type)
 
     def to_xyz(self) -> XYZ:
-        return XYZ(lch_uv_to_xyz(*self))
+        return XYZ(CC.lch_uv_to_xyz(*self))
 
     def to_xyy(self) -> xyY:
-        return xyY(lch_uv_to_xyy(*self))
+        return xyY(CC.lch_uv_to_xyy(*self))
 
     def to_lab(self) -> Lab:
-        return Lab(lch_uv_to_lab(*self))
+        return Lab(CC.lch_uv_to_lab(*self))
 
     def to_lch_ab(self) -> LCHab:
-        return LCHab(lch_uv_to_lch_ab(*self))
+        return LCHab(CC.lch_uv_to_lch_ab(*self))
 
     def to_luv(self) -> Luv:
-        return Luv(lch_uv_to_luv(*self))
+        return Luv(CC.lch_uv_to_luv(*self))
 
     def to_lch_uv(self) -> LCHuv:
         return self
