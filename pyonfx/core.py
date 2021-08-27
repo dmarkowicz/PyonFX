@@ -168,7 +168,8 @@ class DataCore(ABC):
 
 
 class Meta(DataCore):
-    """Meta object contains informations about the Ass.
+    """
+    Meta object contains informations about the Ass.
 
     More info about each of them can be found on http://docs.aegisub.org/manual/Styles
     """
@@ -189,7 +190,8 @@ class Meta(DataCore):
 
 
 class Style(DataCore):
-    """Style object contains a set of typographic formatting rules that is applied to dialogue lines.
+    """
+    Style object contains a set of typographic formatting rules that is applied to dialogue lines.
 
     More info about styles can be found on http://docs.aegisub.org/3.2/ASS_Tags/.
     """
@@ -200,17 +202,21 @@ class Style(DataCore):
     fontsize: float
     """Font size in points"""
     color1: ASSColor
+    """Primary color (fill)"""
     alpha1: Opacity
-    """Primary color (fill) and transparency"""
+    """Transparency of color1"""
     color2: ASSColor
+    """Secondary color (secondary fill, for karaoke effect)"""
     alpha2: Opacity
-    """Secondary color (secondary fill, for karaoke effect) and transparency"""
+    """Transparency of color2"""
     color3: ASSColor
+    """Outline (border) color"""
     alpha3: Opacity
-    """Outline (border) color and transparency"""
+    """Transparency color3"""
     color4: ASSColor
+    """Shadow color"""
     alpha4: Opacity
-    """Shadow color and transparency"""
+    """Transparency of color4"""
     bold: bool
     """Font with bold"""
     italic: bool
@@ -234,7 +240,6 @@ class Style(DataCore):
     shadow: float
     """How far downwards and to the right a shadow is drawn"""
     _alignment: int
-    """Alignment of the text"""
     margin_l: int
     """Distance from the left of the video frame"""
     margin_r: int
@@ -246,6 +251,11 @@ class Style(DataCore):
 
     @property
     def alignment(self) -> int:
+        """
+        Alignment of the text
+
+        setter: Set the alignment. Must be in the range 1 <= an <= 9
+        """
         return self._alignment
 
     @alignment.setter
@@ -286,7 +296,7 @@ class AssText(DataCore, ABC):
     style: Style
     """Reference to the Style object"""
     meta: Meta
-    """Reference toe the Meta object"""
+    """Reference to the Meta object"""
     width: float
     """Text width"""
     height: float
@@ -318,30 +328,32 @@ class AssText(DataCore, ABC):
 
     def deep_copy(self: AssTextT) -> AssTextT:
         """
-        Returns:
-            A deep copy of this object
+        :return:            A deep copy of this object
         """
         return copy.deepcopy(self)
 
-    def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
-        """Converts text with given style information to an ASS shape.
+    def shallow_copy(self: AssTextT) -> AssTextT:
+        """
+        :return:            A shallow copy of this object
+        """
+        return copy.copy(self)
 
+    def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
+        """
+        Converts text with given style information to an ASS shape.
         **Tips:** *You can easily create impressive deforming effects.*
 
-        Parameters:
-            obj (Line, Word, Syllable or Char): An object of class Line, Word, Syllable or Char.
-            fscx (float, optional): The scale_x value for the shape.
-            fscy (float, optional): The scale_y value for the shape.
-
-        Returns:
-            A Shape object, representing the text with the style format values of the object.
-
         Examples:
-            ..  code-block:: python3
+            ..  code-block:: python
 
-                line = Line.copy(lines[1])
-                line.text = "{\\\\an7\\\\pos(%.3f,%.3f)\\\\p1}%s" % (line.left, line.top, Convert.text_to_shape(line))
-                io.write_line(line)
+                l = line.deep_copy()
+                l.text = f"{\\\\an7\\\\pos({line.left},{line.top})\\\\p1}{line.to_shape()}"
+                io.write_line(l)
+
+        :param fscx:        The scale_x value for the shape, defaults to None
+        :param fscy:        The scale_y value for the shape, defaults to None
+        :return:            A Shape object, representing the text with the style format values
+                            of the object
         """
         # Obtaining information and editing values of style if requested
         obj = self.deep_copy()
@@ -361,28 +373,22 @@ class AssText(DataCore, ABC):
         return shape
 
     def to_clip(self, an: Alignment, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
-        """Converts text with given style information to an ASS shape, applying some translation/scaling to it since
-        it is not possible to position a shape with \\pos() once it is in a clip.
-
-        This is an high level function since it does some additional operations, check text_to_shape for further infromations.
-
+        """
+        Converts text with given style information to an ASS shape, applying some translation/scaling to it
+        since it is not possible to position a shape with \\pos() once it is in a clip.
         **Tips:** *You can easily create text masks even for growing/shrinking text without too much effort.*
 
-        Parameters:
-            obj (Line, Word, Syllable or Char): An object of class Line, Word, Syllable or Char.
-            an (integer, optional): The alignment wanted for the shape.
-            fscx (float, optional): The scale_x value for the shape.
-            fscy (float, optional): The scale_y value for the shape.
-
-        Returns:
-            A Shape object, representing the text with the style format values of the object.
-
         Examples:
-            ..  code-block:: python3
+            ..  code-block:: python
 
-                line = Line.copy(lines[1])
-                line.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\clip(%s)}%s" % (line.center, line.middle, Convert.text_to_clip(line), line.text)
-                io.write_line(line)
+                l = line.deep_copy()
+                l.text = f"{\\\\an5\\\\pos({line.center},{line.middle})\\\\clip({line.to_clip()})}{line.text}"
+                io.write_line(l)
+
+        :param an:          Alignment wanted for the shape
+        :param fscx:        The scale_x value for the shape, defaults to None
+        :param fscy:        The scale_y value for the shape, defaults to None
+        :return:            A Shape object, representing the text with the style format values of the object
         """
         obj = self.deep_copy()
 
@@ -421,45 +427,48 @@ class AssText(DataCore, ABC):
 
         return shape
 
-    def to_pixels(self, ass_text: AssText, supersampling: int = 8) -> List[Pixel]:
-        """| Converts text with given style information to a list of pixel data.
-        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position)
+    def to_pixels(self, supersampling: int = 8) -> List[Pixel]:
+        """
+        Converts text with given style information to a list of pixel data.
+        A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position)
         and 'alpha' (alpha/transparency/opacity).
 
         It is highly suggested to create a dedicated style for pixels,
         because you will write less tags for line in your pixels, which means less size for your .ass file.
 
-        | The style suggested is:
-        | - **an=7 (very important!);**
-        | - bord=0;
-        | - shad=0;
-        | - For Font informations leave whatever the default is;
+        Suggested style:
+
+            - **an=7 (very important!)**
+            - bord=0
+            - shad=0
+            - For Font informations leave whatever the default is
 
         **Tips:** *It allows easy creation of text decaying or light effects.*
 
-        Parameters:
-            obj (Line, Word, Syllable or Char): An object of class Line, Word, Syllable or Char.
-            supersampling (int): Value used for supersampling. Higher value means smoother and more precise anti-aliasing
-            (and more computational time for generation).
-
-        Returns:
-            A list of NamedTuple representing each individual pixel of the input text styled.
-
         Examples:
-            ..  code-block:: python3
+            ..  code-block:: python
 
-                line = lines[2].copy()
-                line.style = "p"
+                io = Ass(...)
+                _, _, lines = io.get_data()
+
+                line = lines[0]
+
+                l = line.deep_copy()
+                l.style = "p"
                 p_sh = Shape.rectangle()
-                for pixel in Convert.text_to_pixels(line):
-                    x, y = math.floor(line.left) + pixel['x'], math.floor(line.top) + pixel['y']
-                    alpha = "\\alpha" + Convert.color_alpha_to_ass(pixel['alpha']) if pixel['alpha'] != 255 else ""
+                for pixel in line.to_pixels():
+                    x, y = math.floor(line.left) + pixel.x, math.floor(line.top) + pixel.y
+                    alpha = f"\\alpha{pixel.alpha}" if if pixel.alpha < 1.0 else ""
 
-                    line.text = "{\\p1\\pos(%d,%d)%s}%s" % (x, y, alpha, p_sh)
-                    io.write_line(line)
+                    l.text = f"{\\p1\\pos({x},{y}){alpha}}{p_sh}"
+                    io.write_line(l)
+
+        :param supersampling:   Supersampling value.
+                                Higher value means smoother and more precise anti-aliasing, defaults to 8
+        :return:                A list of Pixel representing each individual pixel of the input text styled.
         """
         shape = self.to_shape()
-        shape.move(ass_text.left % 1, ass_text.top % 1)
+        shape.move(self.left % 1, self.top % 1)
         return shape.to_pixels(supersampling)
 
 
