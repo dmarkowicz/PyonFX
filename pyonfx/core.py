@@ -29,7 +29,7 @@ from typing import Any, List, Optional, TypeVar, cast
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
 from .font_utility import Font
-from .shape import Shape
+from .shape import Pixel, Shape
 from .types import Alignment
 
 AssTextT = TypeVar('AssTextT', bound='AssText')
@@ -319,6 +319,48 @@ class AssText(DataCore, ABC):
         del obj
 
         return shape
+
+    def to_pixels(self, ass_text: AssText, supersampling: int = 8) -> List[Pixel]:
+        """| Converts text with given style information to a list of pixel data.
+        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position)
+        and 'alpha' (alpha/transparency/opacity).
+
+        It is highly suggested to create a dedicated style for pixels,
+        because you will write less tags for line in your pixels, which means less size for your .ass file.
+
+        | The style suggested is:
+        | - **an=7 (very important!);**
+        | - bord=0;
+        | - shad=0;
+        | - For Font informations leave whatever the default is;
+
+        **Tips:** *It allows easy creation of text decaying or light effects.*
+
+        Parameters:
+            obj (Line, Word, Syllable or Char): An object of class Line, Word, Syllable or Char.
+            supersampling (int): Value used for supersampling. Higher value means smoother and more precise anti-aliasing
+            (and more computational time for generation).
+
+        Returns:
+            A list of NamedTuple representing each individual pixel of the input text styled.
+
+        Examples:
+            ..  code-block:: python3
+
+                line = lines[2].copy()
+                line.style = "p"
+                p_sh = Shape.rectangle()
+                for pixel in Convert.text_to_pixels(line):
+                    x, y = math.floor(line.left) + pixel['x'], math.floor(line.top) + pixel['y']
+                    alpha = "\\alpha" + Convert.color_alpha_to_ass(pixel['alpha']) if pixel['alpha'] != 255 else ""
+
+                    line.text = "{\\p1\\pos(%d,%d)%s}%s" % (x, y, alpha, p_sh)
+                    io.write_line(line)
+        """
+        shape = self.to_shape()
+        shape.move(ass_text.left % 1, ass_text.top % 1)
+        return shape.to_pixels(supersampling)
+
 
 
 class Line(AssText):
