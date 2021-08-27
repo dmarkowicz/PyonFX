@@ -17,15 +17,20 @@
 
 from __future__ import annotations
 
-import re
-from typing import (Any, Dict, Final, Iterable, Iterator, List, Optional,
-                    Tuple, TypeVar, Union, cast)
+__all__ = ['Utils', 'FrameUtility', 'ColorUtility']
 
-from .ass_core import Line
+import re
+from typing import (TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List,
+                    Optional, Tuple, TypeVar, Union, cast)
+
 from .colourspace import ColourSpace
 from .types import Pct
 
+if TYPE_CHECKING:
+    from .ass import Line
+
 I = TypeVar('I', bound=Union[float, int, ColourSpace])
+
 
 class Utils:
     """
@@ -188,8 +193,10 @@ class ColorUtility:
         A few notes about the color transformations in your lines:
 
         * Every color-tag has to be in the format of ``c&Hxxxxxx&``, do not forget the last &;
-        * You can put color changes without using transformations, like ``{\\1c&HFFFFFF&\\3c&H000000&}Test``, but those will be interpreted as ``{\\t(0,0,\\1c&HFFFFFF&\\3c&H000000&)}Test``;
-        * For an example of how color changes should be put in your lines, check `this <https://github.com/CoffeeStraw/PyonFX/blob/master/examples/2%20-%20Beginner/in2.ass#L34-L36>`_.
+        * You can put color changes without using transformations, like
+        ``{\\1c&HFFFFFF&\\3c&H000000&}Test``, but those will be interpreted as ``{\\t(0,0,\\1c&HFFFFFF&\\3c&H000000&)}Test``;
+        * For an example of how color changes should be put in your lines, check
+        `this <https://github.com/CoffeeStraw/PyonFX/blob/master/examples/2%20-%20Beginner/in2.ass#L34-L36>`_.
 
         Also, it is important to remember that **color changes in your lines are treated as if they were continuous**.
 
@@ -200,7 +207,8 @@ class ColorUtility:
 
         Even if the second line **doesn't have any color changes** and you would expect to have the style's colors,
         **it will be treated as it has** ``\\1c&H000000&``. That could seem strange at first,
-        but thinking about your generated lines, **the majority** will have **start_time and end_time different** from the ones of your original file.
+        but thinking about your generated lines, **the majority** will have **start_time and end_time different**
+        from the ones of your original file.
 
         Treating transformations as if they were continous, **ColorUtility will always know the right colors** to pick for you.
         Also, remember that even if you can't always see them directly on Aegisub, you can use transformations
@@ -228,7 +236,7 @@ class ColorUtility:
     c3_req: bool
     c4_req: bool
 
-    def __init__(self, lines: List[Line], offset: int = 0):
+    def __init__(self, lines: List[Line], offset: int = 0) -> None:
         self.color_changes = []
         self.c1_req = False
         self.c3_req = False
@@ -343,7 +351,8 @@ class ColorUtility:
             A string containing color changes interpolated.
 
         Note:
-            If c1, c3 or c4 is/are None, the script will automatically recognize what you used in the color changes in the lines and put only the ones considered essential.
+            If c1, c3 or c4 is/are None, the script will automatically recognize what you used in the color changes
+            in the lines and put only the ones considered essential.
 
         Examples:
             ..  code-block:: python3
@@ -354,7 +363,9 @@ class ColorUtility:
                 l.start_time = line.start_time + syl.start_time
                 l.end_time   = line.start_time + syl.end_time
 
-                l.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\fscx120\\\\fscy120%s}%s" % (syl.center, syl.middle, CU.get_color_change(l), syl.text)
+                l.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\fscx120\\\\fscy120%s}%s" % (
+                    syl.center, syl.middle, CU.get_color_change(l), syl.text
+                )
         """
         transform = ""
 
@@ -368,9 +379,9 @@ class ColorUtility:
             c4 = self.c4_req
 
         # Reading default colors
-        base_c1 = "\\1c" + line.style.color1
-        base_c3 = "\\3c" + line.style.color3
-        base_c4 = "\\4c" + line.style.color4
+        base_c1 = "\\1c" + str(line.style.color1)
+        base_c3 = "\\3c" + str(line.style.color3)
+        base_c4 = "\\4c" + str(line.style.color4)
 
         for color_change in self.color_changes:
             if color_change["end"] <= line.start_time:
@@ -434,11 +445,14 @@ class ColorUtility:
             ..  code-block:: python3
                 :emphasize-lines: 5
 
-                # Assume that we have l as a copy of line and we're iterating over all the syl in the current line and we're iterating over the frames
+                # Assume that we have l as a copy of line and we're iterating over all the syl in the current line
+                # and we're iterating over the frames
                 l.start_time = s
                 l.end_time   = e
 
-                l.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\fscx120\\\\fscy120%s}%s" % (syl.center, syl.middle, CU.get_fr_color_change(l), syl.text)
+                l.text = "{\\\\an5\\\\pos(%.3f,%.3f)\\\\fscx120\\\\fscy120%s}%s" % (
+                    syl.center, syl.middle, CU.get_fr_color_change(l), syl.text
+                )
         """
         # If we don't have user's settings, we set c values
         # to the ones that we previously saved
@@ -450,9 +464,9 @@ class ColorUtility:
             c4 = self.c4_req
 
         # Reading default colors
-        base_c1 = "\\1c" + line.style.color1
-        base_c3 = "\\3c" + line.style.color3
-        base_c4 = "\\4c" + line.style.color4
+        base_c1 = "\\1c" + str(line.style.color1)
+        base_c3 = "\\3c" + str(line.style.color3)
+        base_c4 = "\\4c" + str(line.style.color4)
 
         # Searching valid color_change
         current_time = line.start_time

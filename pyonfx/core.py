@@ -296,19 +296,19 @@ class AssText(DataCore, ABC):
 
         # Setting mult_x based on alignment
         if an in {1, 4, 7}:
-            mult_x = 0
+            mult_x = 0.0
         elif an in {2, 5, 8}:
             mult_x = 1 / 2
         else:
-            mult_x = 1
+            mult_x = 1.0
 
         # Setting mult_y based on alignment
         if an in {1, 2, 3}:
-            mult_y = 1
+            mult_y = 1.0
         elif an in {4, 5, 6}:
             mult_y = 1 / 2
         else:
-            mult_y = 0
+            mult_y = 0.0
 
         # Calculating offsets
         cx = obj.left - obj.width * mult_x * (fscx - obj.style.scale_x) / obj.style.scale_x

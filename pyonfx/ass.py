@@ -491,7 +491,7 @@ class Ass:
                        text_chunks: List['_TextChunk'], space_width: float, style_spacing: float) -> Line:
         # Adding syls
         si = 0
-        last_time = 0
+        last_time = 0.0
         inline_fx = ""
         syl_tags_pattern = re.compile(r"(.*?)\\[kK][of]?(\d+)(.*)")
 

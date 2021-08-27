@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # PyonFX: An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).
 # Copyright (C) 2019 Antonio Strippoli (CoffeeStraw/YellowFlash)
 #
@@ -16,6 +15,8 @@
 # along with this program. If not, see http://www.gnu.org/licenses/.
 
 from __future__ import annotations
+
+__all__ = ['Shape']
 
 import math
 from inspect import signature
@@ -173,8 +174,10 @@ class Shape:
         **Tips:** *Working with outline points can be used to deform the whole shape and make f.e. a wobble effect.*
 
         Parameters:
-            fun (function): A function with two (or optionally three) parameters. It will define how each coordinate will be changed.
-            The first two parameters represent the x and y coordinates of each point. The third optional one represents the type of each point (move, line, bezier...).
+            fun (function): A function with two (or optionally three) parameters.
+            It will define how each coordinate will be changed.
+            The first two parameters represent the x and y coordinates of each point.
+            The third optional one represents the type of each point (move, line, bezier...).
 
         Returns:
             A pointer to the current object.
@@ -213,7 +216,7 @@ class Shape:
                     raise ValueError("Unexpected end of the shape")
 
                 # Convert back to string the results for later
-                cmds_and_points[i : i + 2] = (
+                cmds_and_points[i: i + 2] = (
                     Shape.format_value(x),
                     Shape.format_value(y),
                 )
@@ -292,7 +295,8 @@ class Shape:
         """Moves shape coordinates in given direction.
 
         | If neither x and y are passed, it will automatically center the shape to the origin (0,0).
-        | This function is an high level function, it just uses Shape.map, which is more advanced. Additionally, it is an easy way to center a shape.
+        | This function is an high level function, it just uses Shape.map, which is more advanced.
+        Additionally, it is an easy way to center a shape.
 
         Parameters:
             x (int or float): Displacement along the x-axis.
@@ -329,7 +333,8 @@ class Shape:
         | This is a low level function. Instead, you should use :func:`split` which already calls this function.
 
         Parameters:
-            tolerance (float): Angle in degree to define a curve as flat (increasing it will boost performance during reproduction, but lower accuracy)
+            tolerance (float): Angle in degree to define a curve as flat (increasing it will boost performance during reproduction,
+            but lower accuracy)
 
         Returns:
             A pointer to the current object.
