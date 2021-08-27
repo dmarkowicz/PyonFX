@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 # flake8: noqa
 
-from .font_utility import Font
-from .ass_core import *
-from .convert import Convert
-from .shape import Shape
-from .utils import Utils, FrameUtility, ColorUtility
+from .ass import *
+from .colourspace import *
+from .convert import *
+from .core import *
+from .image import *
+from .shape import *
+from .utils import *
 
 __version__ = "0.9.10"
