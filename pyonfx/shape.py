@@ -40,7 +40,8 @@ class Pixel(NamedTuple):
 class Shape:
     """
     This class can be used to define a Shape object (by passing its drawing commands)
-    and then apply functions to it in order to accomplish some tasks, like analyzing its bounding box, apply transformations, splitting curves into segments...
+    and then apply functions to it in order to accomplish some tasks, like analyzing its bounding box, apply transformations,
+    splitting curves into segments...
 
     Args:
         drawing_cmds (str): The shape's drawing commands in ASS format as a string.
