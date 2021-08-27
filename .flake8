@@ -1,6 +1,6 @@
 [flake8]
 count = True
 max-line-length = 140
-ignore = W503,E226,E303
+ignore = W503,E226,E303,E741
 show-source = True
 statistics = True
