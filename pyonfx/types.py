@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import wraps
-from typing import (Annotated, Any, Callable, Generic, Iterable, Tuple,
-                    TypeVar, Union, cast, get_args, get_origin, get_type_hints)
+from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
+                    Iterator, Reversible, Sequence, Sized, Tuple, TypeVar, Union, cast, get_args,
+                    get_origin, get_type_hints)
 
 T = TypeVar('T')
+T_co = TypeVar('T_co', covariant=True)
 F = TypeVar('F', bound=Callable[..., Any])
 TCV_co = TypeVar('TCV_co', bound=Union[float, int, str], covariant=True)  # Type Color Value covariant
 TCV_inv = TypeVar('TCV_inv', bound=Union[float, int, str])  # Type Color Value invariant
@@ -14,6 +16,13 @@ Nb = TypeVar('Nb', bound=Union[float, int])  # Number
 Tup3 = Tuple[Nb, Nb, Nb]
 Tup4 = Tuple[Nb, Nb, Nb, Nb]
 Tup3Str = Tuple[str, str, str]
+
+BézierCoord = Tuple[
+    Tuple[float, float],
+    Tuple[float, float],
+    Tuple[float, float],
+    Tuple[float, float]
+]
 
 
 class CheckAnnotated(Generic[T], ABC):
