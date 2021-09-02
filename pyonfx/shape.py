@@ -943,21 +943,6 @@ class Shape(MutableSequence[DrawingCommand]):
                 raise ValueError(f'Shape: unexpected shape "{draw}"')
         return cls(cmds)
 
-    @overload
-    @staticmethod
-    def _chunk(iterable: Iterable[T_co], size: Literal[2] = 2) -> Iterable[Tuple[T_co, T_co]]:
-        ...
-
-    @overload
-    @staticmethod
-    def _chunk(iterable: Iterable[T_co], size: Literal[3]) -> Iterable[Tuple[T_co, T_co, T_co]]:
-        ...
-
-    @staticmethod
-    def _chunk(iterable: Iterable[T_co], size: int = 2) -> Iterable[Tuple[T_co, ...]]:  # type: ignore
-        niter = iter(iterable)
-        return iter(lambda: tuple(islice(niter, size)), ())
-
 
 class OldShape:
     """
