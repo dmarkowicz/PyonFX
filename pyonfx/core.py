@@ -90,7 +90,7 @@ class PList(MutableSequence[AssTextT]):
     def __len__(self) -> int:
         return len(self._list)
 
-    def insert(self, index: SupportsIndex, value: AssTextT) -> None:
+    def insert(self, index: int, value: AssTextT) -> None:
         """
         Insert an AssText value before index
 
@@ -117,7 +117,7 @@ class PList(MutableSequence[AssTextT]):
         """
         ...
 
-    def strip_empty(self, return_new: bool) -> None | PList[AssTextT]:
+    def strip_empty(self, return_new: bool = False) -> None | PList[AssTextT]:
 
         def _strip_check(a: AssTextT) -> bool:
             return a.text.strip() != '' and a.duration > 0
@@ -126,6 +126,7 @@ class PList(MutableSequence[AssTextT]):
             for a in self:
                 if not _strip_check(a):
                     self.remove(a)
+            return None
         else:
             return PList(a for a in self if _strip_check(a))
 
@@ -490,7 +491,6 @@ class AssText(PositionedText, ABC):
         shape = self.to_shape()
         shape.move(self.left % 1, self.top % 1)
         return shape.to_pixels(supersampling)
-
 
 
 class Line(AssText):
