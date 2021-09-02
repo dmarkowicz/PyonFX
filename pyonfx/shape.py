@@ -338,7 +338,7 @@ class Shape(MutableSequence[DrawingCommand]):
             draw = str(self)
         return draw
 
-    def round(self, ndigits: int = 3) -> None:
+    def round(self, ndigits: int = 3, /) -> None:
         """
         Round coordinates to a given precision in decimal digits.
 
@@ -347,7 +347,7 @@ class Shape(MutableSequence[DrawingCommand]):
         for cmd in self:
             cmd.round(ndigits)
 
-    def map(self, func: Callable[[float, float], Tuple[float, float]]) -> None:
+    def map(self, func: Callable[[float, float], Tuple[float, float]], /) -> None:
         """
         Sends every point of a shape through given transformation function to change them.
 
@@ -359,7 +359,7 @@ class Shape(MutableSequence[DrawingCommand]):
         for i, cmd in enumerate(self):
             self[i] = DrawingCommand(cmd.prop, *[func(x, y) for x, y in cmd.coordinates])
 
-    def move(self, _x: float = 0., _y: float = 0.) -> None:
+    def move(self, _x: float = 0., _y: float = 0., /) -> None:
         """
         Moves shape coordinates in given direction.
 
@@ -694,7 +694,7 @@ class Shape(MutableSequence[DrawingCommand]):
         return cls(cmds)
 
     @classmethod
-    def heart(cls, size: float = 30., c_xy: Tuple[float, float] = (0., 0.), voffset: float = 0., /) -> Shape:
+    def heart(cls, size: float = 30., voffset: float = 0., /) -> Shape:
         """
         Make an heart Shape object with given size
 
@@ -864,8 +864,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
     @classmethod
     def triangle(cls, side: float | Tuple[float, float], angle: Tuple[float, float] | float,
-                 c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True, *,
-                 orthocentred: bool = True) -> Shape:
+                 c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True, *, orthocentred: bool = True) -> Shape:
         DC = DrawingCommand
         mov, lin = DrawingProp.MOVE, DrawingProp.LINE
         cl = - int((-1) ** clockwise)
