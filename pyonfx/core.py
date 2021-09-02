@@ -339,22 +339,12 @@ class AssText(PositionedText, ABC):
     """Internal leading"""
     external_leading: float
     """External leading"""
-    x: float
-    """Text position horizontal (depends on alignment)"""
-    y: float
-    """Text position vertical (depends on alignment)."""
-    left: float
-    """Text position left"""
-    center: float
-    """Text position center"""
-    right: float
-    """Text position right"""
-    top: float
-    """Text position top"""
-    middle: float
-    """Text position middle"""
-    bottom: float
-    """Text position bottom"""
+
+    def __copy__(self: AssTextT) -> AssTextT:
+        return self
+
+    def __deepcopy__(self: AssTextT, *args: Any) -> AssTextT:
+        return self
 
     def deep_copy(self: AssTextT) -> AssTextT:
         """
