@@ -83,3 +83,49 @@ def check_annotations(func: F, /) -> F:
         return func(*args, **kwargs)
 
     return cast(F, wrapper)
+
+
+class View(Sized, Reversible[T_co], ABC):
+    """Abstract View class"""
+    @abstractmethod
+    def __init__(self, __x: Sequence[T_co]) -> None:
+        self.__x = __x
+        super().__init__()
+
+    def __len__(self) -> int:
+        return len(self.__x)
+
+    def __reversed__(self) -> Iterator[T_co]:
+        return reversed(self.__x)
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}({self.__x})'
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class PropView(View[T_co], Collection[T_co]):
+    """View for DrawingProp"""
+    def __init__(self, __props: Iterable[T_co], /) -> None:
+        self.__props = list(__props)
+        super().__init__(self.__props)
+
+    def __contains__(self, __x: object) -> bool:
+        return __x in self.__props
+
+    def __iter__(self) -> Iterator[T_co]:
+        return iter(self.__props)
+
+
+class CoordinatesView(View[Tuple[Nb, Nb]], Collection[Tuple[Nb, Nb]]):
+    """View for coordinates"""
+    def __init__(self, __coordinates: Iterable[Tuple[Nb, Nb]], /) -> None:
+        self.__coordinates = list(__coordinates)
+        super().__init__(self.__coordinates)
+
+    def __contains__(self, __x: object) -> bool:
+        return __x in self.__coordinates
+
+    def __iter__(self) -> Iterator[Tuple[Nb, Nb]]:
+        return iter(self.__coordinates)
