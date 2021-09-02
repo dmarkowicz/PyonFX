@@ -99,8 +99,8 @@ class Font:
             self.pycfont = win32ui.CreateFont(font_spec)
             win32gui.SelectObject(self.dc, self.pycfont.GetSafeHandle())
             # Calculate metrics
-            # self.metrics = win32gui.GetTextMetrics(self.dc)
-            self.metrics = win32gui.GetTextMetrics()
+            self.metrics = win32gui.GetTextMetrics(self.dc)
+            # self.metrics = win32gui.GetTextMetrics()
         elif sys.platform in {"linux", "darwin"}:
             surface = cairo.ImageSurface(cairo.Format.A8, 1, 1)
 
