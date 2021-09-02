@@ -242,7 +242,6 @@ class ConvertColour:
         )
         return tuple(map(lambda a: clamp_value(a, 0.0, 1.0), srgb_comp))  # type: ignore
 
-
     # -------------------------------------------------------------------------
     # ---------------------------- xyY Conversions ----------------------------
     # -------------------------------------------------------------------------
@@ -337,7 +336,7 @@ class ConvertColour:
     @staticmethod
     def lch_ab_to_lab(l: float, c: float, h: float) -> Tuple[float, float, float]:
         # http://www.brucelindbloom.com/index.html?Eqn_LCH_to_Lab.html
-        hr = h * math.pi/180
+        hr = math.radians(h)
         return l, math.cos(hr) * c, math.sin(hr) * c
 
     @classmethod
@@ -374,7 +373,7 @@ class ConvertColour:
         x = (d - b) / (a - c)
         z = x * a + b
 
-        return x, y, z 
+        return x, y, z
 
     @classmethod
     def luv_to_xyy(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
@@ -394,7 +393,7 @@ class ConvertColour:
     @staticmethod
     def luv_to_lch_uv(l: float, u: float, v: float) -> Tuple[float, float, float]:
         # http://www.brucelindbloom.com/index.html?Eqn_Luv_to_LCH.html
-        return l, math.sqrt(u ** 2 + v ** 2), (math.atan2(v, u) * 180 / math.pi) % 360
+        return l, math.sqrt(u ** 2 + v ** 2), (math.degrees(math.atan2(v, u))) % 360
 
     @classmethod
     def luv_to_rgb(cls, l: float, u: float, v: float) -> Tuple[float, float, float]:
