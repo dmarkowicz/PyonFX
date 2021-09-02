@@ -21,10 +21,10 @@ __all__ = ['Shape']
 import re
 from enum import Enum
 from functools import reduce
-from itertools import chain, islice, zip_longest
+from itertools import chain, zip_longest
 from math import (asin, atan, atan2, ceil, cos, degrees, dist, radians, sin,
                   sqrt)
-from typing import (Callable, Dict, Iterable, List, Literal, MutableSequence,
+from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     NamedTuple, NoReturn, Optional, Sequence, SupportsIndex,
                     Tuple, cast, overload)
 
@@ -32,7 +32,8 @@ import numpy as np
 from pyquaternion import Quaternion
 
 from .colourspace import Opacity
-from .types import Alignment, BézierCoord, CoordinatesView, PropView, T_co
+from .misc import chunk
+from .types import Alignment, BézierCoord, CoordinatesView, PropView
 
 
 class Pixel(NamedTuple):
@@ -141,10 +142,11 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         return CoordinatesView(self)
 
     def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float]) -> None:
-        """[summary]
+        """
+        Make a DrawingCommand object
 
-        :param prop: [description]
-        :type prop: DrawingProp
+        :param prop:            Drawing property of this DrawingCommand
+        :param coordinates:     Coordinates of this DrawingCommand
         """
         self._prop = prop
         self._coordinates = list(coordinates)
@@ -163,7 +165,7 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         if isinstance(index, SupportsIndex):
             return self._coordinates[index]
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
 
     def __len__(self) -> int:
         return len(self._coordinates)
@@ -191,10 +193,10 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         elif self._prop == DP.CLOSE_BSPLINE:
             check_len = len(self) == 0
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{self.__class__.__name__}: Undefined DrawingProp!')
         if not check_len:
             raise ValueError(
-                f'DrawingCommand: your prop {self._prop} does not correspond to the length of the coordinates '
+                f'{self.__class__.__name__}: "{self._prop}" does not correspond to the length of the coordinates'
                 + ''.join(map(str, self))
             )
 
@@ -215,9 +217,7 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
 
 class Shape(MutableSequence[DrawingCommand]):
     """
-    This class can be used to define a Shape object (by passing its drawing commands)
-    and then apply functions to it in order to accomplish some tasks, like analyzing its bounding box,
-    apply transformations, splitting curves into segments...
+    Class for creating, handling, making transformations from an ASS shape
     """
     _commands: List[DrawingCommand]
 
@@ -232,9 +232,10 @@ class Shape(MutableSequence[DrawingCommand]):
         return [c.coordinates for c in self]
 
     def __init__(self, cmds: Iterable[DrawingCommand]) -> None:
-        """[summary]
+        """
+        Initialise a Shape object with given DrawingCommand objects
 
-        :param cmds: [description]
+        :param cmds:        DrawingCommand objects
         """
         self._commands = list(cmds)
         super().__init__()
@@ -267,11 +268,11 @@ class Shape(MutableSequence[DrawingCommand]):
         elif isinstance(index, slice) and not isinstance(value, DrawingCommand):
             self._commands[index] = value
         elif isinstance(index, SupportsIndex) and isinstance(value, DrawingCommand):
-            raise TypeError('can only assign a value')
+            raise TypeError(f'{self.__class__.__name__}: can only assign a value!')
         elif isinstance(index, slice) and not isinstance(value, DrawingCommand):
-            raise TypeError('can only assign an iterable')
+            raise TypeError(f'{self.__class__.__name__}: can only assign an iterable!')
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{self.__class__.__name__}: not supported')
 
     def __delitem__(self, index: SupportsIndex | slice) -> None:
         del self._commands[index]
@@ -329,7 +330,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 elif cmd.prop == p and cmd.prop in {DrawingProp.LINE, DrawingProp.CUBIC_BÉZIER_CURVE}:
                     draw += ' '.join(f'{x} {y}' for x, y in cmd) + ' '
                 else:
-                    raise NotImplementedError
+                    raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd.prop} not recognised!"')
                 p = cmd.prop
         else:
             draw = str(self)
@@ -409,7 +410,10 @@ class Shape(MutableSequence[DrawingCommand]):
             2: (-0.5, -1.),
             3: (-1., -1.),
         }
-        an_x, an_y = align[an]
+        try:
+            an_x, an_y = align[an]
+        except KeyError as key_err:
+            raise ValueError(f'{self.__class__.__name__}: Wrong an value!') from key_err
         x0, y0, x1, y1 = self.bounding()
         self.map(
             lambda x, y:
@@ -427,7 +431,6 @@ class Shape(MutableSequence[DrawingCommand]):
         :param zero_pad:        Point where the Z-axis rotation will be performed.
                                 If not specified, equivalent to (0., 0.), defaults to None
         """
-
         def _calc(x: float, y: float, zpx: float, zpy: float) -> Tuple[float, float]:
             # Distance to zero-point
             zpd = dist((zpx, zpy), (x, y))
@@ -469,13 +472,16 @@ class Shape(MutableSequence[DrawingCommand]):
             if cmd0.prop in {m, n, l}:
                 ncmds.append(cmd0)
             elif cmd0.prop in {p, s, c}:
-                raise NotImplementedError
+                raise NotImplementedError(
+                    f'{self.__class__.__name__}: EXTEND_BSPLINE, CUBIC_BSPLINE and CLOSE_BSPLINE'
+                    + ' drawing properties are not supported!'
+                )
             elif cmd0.prop == b:
                 # Get the previous coordinate to complete a bezier curve
                 flatten_cmds = self._curve4_to_lines((list(cmd1.coordinates)[-1], *cmd0), tolerance)  # type: ignore
                 ncmds.extend(reversed(flatten_cmds))
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
         self.clear()
         self.extend(reversed(ncmds))
@@ -550,6 +556,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
     @staticmethod
     def _get_vector_length(vector: Tuple[float, float]) -> float:
+        # Not used btw
         return np.linalg.norm(vector)
 
     def split(self, max_length: float = 16., tolerance: float = 1.) -> None:
@@ -577,27 +584,33 @@ class Shape(MutableSequence[DrawingCommand]):
             if cmd0.prop in {m, n}:
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
+                # Get the new points
                 splitted_cmds = self._split_line(cmd1._coordinates[-1], cmd0._coordinates[0], max_length)
                 splitted_cmds.append(cmd0)
                 ncmds.extend(reversed(splitted_cmds))
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
         self.clear()
         self.extend(reversed(ncmds))
 
-    def _split_line(self, p0: Tuple[float, float], p1: Tuple[float, float], max_len: float) -> List[DrawingCommand]:
+    def _split_line(self, p0: Tuple[float, float], p1: Tuple[float, float], max_length: float) -> List[DrawingCommand]:
+        """Split a vector (p0, p1) into shorter vectors with maximum max_length"""
         l = DrawingProp.LINE
         ncmds: List[DrawingCommand] = []
+
         distance = dist(p0, p1)
-        if distance > max_len:
+        if distance > max_length:
             (x0, y0), (x1, y1) = p0, p1
-            step = distance / ceil(distance / max_len)
+            # Equal step between the two points instead of having all points to 16
+            # except the last for the remaining distance
+            step = distance / ceil(distance / max_length)
+            # Step can be a float so numpy.arange is prefered
             for i in np.arange(step, distance, step):
+                pct = i / distance
                 ncmds.append(
-                    DrawingCommand(l, ((x0 + (x1 - x0) * (i / distance)), (y0 + (y1 - y0) * (i / distance))))
+                    DrawingCommand(l, ((x0 + (x1 - x0) * pct), (y0 + (y1 - y0) * pct)))
                 )
-        else:
             ncmds.append(DrawingCommand(l, p1))
         return ncmds
 
@@ -614,7 +627,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                A Shape object representing a ring
         """
         if out_rad <= in_rad:
-            raise ValueError("Shape: inner radius must be less than outer radius")
+            raise ValueError(f'{cls.__name__}: inner radius must be less than outer radius')
 
         return cls.disk(out_rad, c_xy, True) + cls.disk(in_rad, c_xy, False)
 
@@ -644,6 +657,7 @@ class Shape(MutableSequence[DrawingCommand]):
         c = 0.551915024494  # https://spencermortensen.com/articles/bezier-circle/
         cx, cy = c_xy
 
+        # Aliases
         DP = DrawingCommand
         m, b = DrawingProp.MOVE, DrawingProp.BÉZIER
 
@@ -680,7 +694,7 @@ class Shape(MutableSequence[DrawingCommand]):
     @classmethod
     def heart(cls, size: float = 30., c_xy: Tuple[float, float] = (0., 0.), voffset: float = 0., /) -> Shape:
         """
-        Make an heart Shape object with given size, centered around (c_xy)
+        Make an heart Shape object with given size
 
         :param size:            Size of the heart, defaults to 30.
         :param voffset:         Vertical offset of the central coordinate, defaults to 0.
@@ -779,7 +793,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param height:          Height of the triangle
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :param orthocentred:    If centred in the orthocenter, defaults to True
+        :param orthocentred:    Centred in the orthocenter, defaults to True
         :return:                A Shape object representing a equilateral triangle
         """
         return cls.triangle(height * 2 / sqrt(3), (60, 60), c_xy, clockwise, orthocentred=orthocentred)
@@ -794,7 +808,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param base:            Lenght of the base of the triangle
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :param orthocentred:    If centred in the orthocenter, defaults to True
+        :param orthocentred:    Centred in the orthocenter, defaults to True
         :return:                A Shape object representing a isosceles triangle
         """
         angle = degrees(atan(height / (base / 2)))
@@ -809,7 +823,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param side:            First two sides of the triangle
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :param orthocentred:    If centred in the orthocenter, defaults to True
+        :param orthocentred:    Centred in the orthocenter, defaults to True
         :return:                A Shape object representing an orthognal triangle
         """
         return cls.triangle(side, 90, c_xy, clockwise, orthocentred=orthocentred)
@@ -825,7 +839,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param angle:           First two angles of the triangle in degrees
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :param orthocentred:    If centred in the orthocenter, defaults to True
+        :param orthocentred:    Centred in the orthocenter, defaults to True
         :return:                A Shape object representing a triangle
         """
         ...
@@ -841,7 +855,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param angle:           First angle of the triangle in degrees
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :param orthocentred:    If centred in the orthocenter, defaults to True
+        :param orthocentred:    Centred in the orthocenter, defaults to True
         :return:                A Shape object representing a triangle
         """
         ...
@@ -874,7 +888,7 @@ class Shape(MutableSequence[DrawingCommand]):
             x1, y1 = ab, 0
             x2, y2 = x1 - bc * cos(Br), bc * sin(Br)
         else:
-            raise ValueError('triangle: possibles values are one side and two angles or two sides and one angle')
+            raise ValueError(f'{cls.__name__}: possibles values are one side and two angles or two sides and one angle')
 
         cmds = [
             DC(mov, ((x0 + cx) * cl, y0 + cy)),
@@ -900,7 +914,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                Shape object
         """
         if not drawing_cmds.startswith('m'):
-            raise ValueError('Shape: a shape must have a "m" at the beginning')
+            raise ValueError(f'{cls.__name__}: a shape must have a "m" at the beginning!')
 
         DC, DP = DrawingCommand, DrawingProp
         cmds: List[DrawingCommand] = []
@@ -924,7 +938,7 @@ class Shape(MutableSequence[DrawingCommand]):
                     DC(
                         DP._prop_drawing_dict()[p],
                         (float(x), float(y))
-                    ) for x, y in cls._chunk(sdraw, 2)
+                    ) for x, y in chunk(sdraw, 2)
                 )
             elif sdraw[0].startswith(('b', 's')) and lendraw >= 7:
                 p = sdraw.pop(0)
@@ -932,15 +946,15 @@ class Shape(MutableSequence[DrawingCommand]):
                     cmds.extend(
                         DC(
                             DP.CUBIC_BÉZIER_CURVE, *coords
-                        ) for coords in cls._chunk(cls._chunk(map(float, sdraw), 2), 3)
+                        ) for coords in chunk(chunk(map(float, sdraw), 2), 3)
                     )
                 elif p == 's':
-                    coords = list(cls._chunk(map(float, sdraw), 2))
+                    coords = list(chunk(map(float, sdraw), 2))
                     cmds.append(DC(DP.CUBIC_BSPLINE, *coords))
                 else:
-                    raise ValueError
+                    raise ValueError(f'{cls.__name__}: "{p}" and "{sdraw}" not recognised!')
             else:
-                raise ValueError(f'Shape: unexpected shape "{draw}"')
+                raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
         return cls(cmds)
 
 
