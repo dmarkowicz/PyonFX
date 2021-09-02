@@ -281,7 +281,37 @@ class Style(DataCore):
         return self.alignment in {1, 2, 3}
 
 
-class AssText(DataCore, ABC):
+class PositionedText(DataCore, ABC):
+    _rounding: int
+
+    x: float
+    """Text position horizontal (depends on alignment)"""
+    y: float
+    """Text position vertical (depends on alignment)."""
+    left: float
+    """Text position left"""
+    center: float
+    """Text position center"""
+    right: float
+    """Text position right"""
+    top: float
+    """Text position top"""
+    middle: float
+    """Text position middle"""
+    bottom: float
+    """Text position bottom"""
+
+    def __init__(self) -> None:
+        self._rounding = 3
+        super().__init__()
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {'x', 'y', 'left', 'center', 'right', 'top', 'middle', 'bottom'}:
+            value = round(value, self._rounding)
+        return super().__setattr__(name, value)
+
+
+class AssText(PositionedText, ABC):
     """Abstract AssText object"""
     i: int
     """Index number"""
