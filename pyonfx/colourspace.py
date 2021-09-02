@@ -15,6 +15,7 @@ from typing import (Any, ClassVar, Dict, List, Sequence, Tuple, Type, TypeVar,
                     cast, overload)
 
 from .convert import ConvertColour as CC
+from .misc import clamp_value
 from .types import (ACV, Nb, Nb8bit, Pct, TCV_co, Tup3, Tup3Str, Tup4,
                     check_annotations)
 
@@ -1222,15 +1223,3 @@ class LCHuv(XYZBased):
 
     def to_lch_uv(self) -> LCHuv:
         return self
-
-
-def clamp_value(val: Nb, min_val: Nb, max_val: Nb) -> Nb:
-    """
-    Clamp value val between min_val and max_val
-
-    :param val:         Value to clamp
-    :param min_val:     Minimum value
-    :param max_val:     Maximum value
-    :return:            Clamped value
-    """
-    return min(max_val, max(min_val, val))

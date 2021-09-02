@@ -27,7 +27,8 @@ from typing import Final, Tuple
 
 import numpy as np
 
-from .types import Nb, Tup3
+from .misc import clamp_value
+from .types import Tup3
 
 
 class ConvertTime:
@@ -433,15 +434,3 @@ class ConvertColour:
     def lch_uv_to_rgb(cls, l: float, c: float, h: float) -> Tuple[float, float, float]:
         xyz = cls.lch_uv_to_xyz(l, c, h)
         return cls.xyz_to_rgb(*xyz)
-
-
-def clamp_value(val: Nb, min_val: Nb, max_val: Nb) -> Nb:
-    """
-    Clamp value val between min_val and max_val
-
-    :param val:         Value to clamp
-    :param min_val:     Minimum value
-    :param max_val:     Maximum value
-    :return:            Clamped value
-    """
-    return min(max_val, max(min_val, val))
