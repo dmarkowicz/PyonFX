@@ -184,13 +184,15 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
     def check_integrity(self) -> None:
         """Check if the current coordinates are valid"""
         DP = DrawingProp
-        if self._prop in {DP.MOVE, DP.MOVE_NO_CLOSING, DP.MOVE_NC, DP.LINE, DP.EXTEND_BSPLINE, DP.EX_BSPLINE}:
+        m, n, l, p = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.EX_BSPLINE
+        b, s, c = DP.BÉZIER, DP.CUBIC_BSPLINE, DP.CLOSE_BSPLINE
+        if self._prop in {m, n, l, p}:
             check_len = len(self) == 1
-        elif self._prop in {DP.CUBIC_BÉZIER_CURVE, DP.BÉZIER}:
+        elif self._prop == b:
             check_len = len(self) == 3
-        elif self._prop in {DP.CUBIC_BSPLINE, DP.BSPLINE}:
+        elif self._prop == s:
             check_len = len(self) >= 3
-        elif self._prop == DP.CLOSE_BSPLINE:
+        elif self._prop == c:
             check_len = len(self) == 0
         else:
             raise NotImplementedError(f'{self.__class__.__name__}: Undefined DrawingProp!')
@@ -295,7 +297,7 @@ class Shape(MutableSequence[DrawingCommand]):
         if isinstance(o, str):
             response = str(self) == o or self.to_str() == o
         else:
-            response = all(scmd == so for scmd, so in zip(iter(self), iter(o)))
+            response = all(scmd == so for scmd, so in zip(self, o))
         return response
 
     def __add__(self, other: Shape) -> Shape:
@@ -457,18 +459,18 @@ class Shape(MutableSequence[DrawingCommand]):
         :param tolerance:       Angle in degree to define a curve as flat, defaults to 1.0.
                                 Increasing it will boost performance but decrease accuracy.
         """
+        # Aliases
         DP = DrawingProp
-        DC = DrawingCommand
 
         m, n, l, p = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.EX_BSPLINE
-        b, s, c = DP.BÉZIER, DP.CLOSE_BSPLINE, DP.CLOSE_BSPLINE
+        b, s, c = DP.BÉZIER, DP.CUBIC_BSPLINE, DP.CLOSE_BSPLINE
         ncmds: List[DrawingCommand] = []
 
         # Work with the commands reversed
         self.reverse()
 
         for cmd0, cmd1 in zip_longest(self, self[1:]):
-            cmd0, cmd1 = cast(DC, cmd0), cast(DC, cmd1)
+            cmd0, cmd1 = cast(DrawingCommand, cmd0), cast(DrawingCommand, cmd1)
             if cmd0.prop in {m, n, l}:
                 ncmds.append(cmd0)
             elif cmd0.prop in {p, s, c}:
@@ -513,18 +515,20 @@ class Shape(MutableSequence[DrawingCommand]):
                 for coord in zip(lcoord, lcoord[2:])
             ]
             vecsp = [
-                (vecs[i], vecs[i + 1])
-                for i in range(0, len(vecs), 2)
-                if not (vecs[i] == 0 and vecs[i+1] == 0)
+                (v0, v1) for v0, v1 in chunk(vecs, 2)
+                if not (v0 == 0 and v1 == 0)
             ]
             # # Old code:
             # (x0, y0), (x1, y1), (x2, y2), (x3, y3) = b_coord
             # vecs = [[x1 - x0, y1 - y0], [x2 - x1, y2 - y1], [x3 - x2, y3 - y2]]
             # vecsp = [el for el in vecs if not (el[0] == 0 and el[1] == 0)]
+
             # Check flatness on vectors
-            for i in range(1, len(vecsp)):
-                if abs(self._get_vector_angle(vecsp[i - 1], vecsp[i])) > tolerance:
+            rvecsp = vecsp[::-1]
+            for v0, v1 in reversed(list(zip(rvecsp[1:], rvecsp))):
+                if abs(self._get_vector_angle(v0, v1)) > tolerance:
                     return False
+
             return True
 
         def _convert_recursive(b_coord: BézierCoord, /) -> None:
@@ -568,9 +572,8 @@ class Shape(MutableSequence[DrawingCommand]):
         :param tolerance:       Angle in degree to define a curve as flat, defaults to 1.0.
                                 Increasing it will boost performance but decrease accuracy.
         """
+        # Aliases
         DP = DrawingProp
-        DC = DrawingCommand
-
         m, n, l = DP.MOVE, DP.MOVE_NC, DP.LINE
         ncmds: List[DrawingCommand] = []
 
@@ -580,13 +583,12 @@ class Shape(MutableSequence[DrawingCommand]):
         self.reverse()
 
         for cmd0, cmd1 in zip_longest(self, self[1:]):
-            cmd0, cmd1 = cast(DC, cmd0), cast(DC, cmd1)
+            cmd0, cmd1 = cast(DrawingCommand, cmd0), cast(DrawingCommand, cmd1)
             if cmd0.prop in {m, n}:
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
                 # Get the new points
                 splitted_cmds = self._split_line(cmd1._coordinates[-1], cmd0._coordinates[0], max_length)
-                splitted_cmds.append(cmd0)
                 ncmds.extend(reversed(splitted_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -611,7 +613,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 ncmds.append(
                     DrawingCommand(l, ((x0 + (x1 - x0) * pct), (y0 + (y1 - y0) * pct)))
                 )
-            ncmds.append(DrawingCommand(l, p1))
+        ncmds.append(DrawingCommand(l, p1))
         return ncmds
 
     @classmethod
