@@ -902,8 +902,8 @@ class Shape(MutableSequence[DrawingCommand]):
         triangle = cls(cmds)
 
         if orthocentred:
-            _, y0, _, y1 = triangle.bounding()
-            triangle.move(0, (y1 - y0) / 6)
+            _, yb0, _, yb1 = triangle.bounding()
+            triangle.move(0, (yb1 - yb0) / 6)
 
         return triangle
 
