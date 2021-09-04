@@ -29,6 +29,8 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
+from skimage.draw import polygon as skimage_polygon
+from skimage.transform import rescale as skimage_rescale
 
 from .colourspace import Opacity
 from .misc import chunk
@@ -1057,6 +1059,66 @@ class Shape(MutableSequence[DrawingCommand]):
             else:
                 raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
         return cls(cmds)
+
+    def to_pixels(self, supersampling: int = 4, anti_aliasing: bool = True) -> List[Pixel]:
+        """
+        Convert current Shape to a list of Pixel
+        It is strongly recommended to create a dedicated style for pixels,
+        thus, you will write less tags for line in your pixels,
+        which means less size for your .ass file.
+
+        Style suggested as an=7, bord=0, shad=0
+
+        :param supersampling:       Supersampling value to avoid aliasing.
+                                    Higher value means smoother and more precise anti-aliasing
+                                    (and more computational time for generation), defaults to 4
+        :param anti_aliasing:       Downscale with anti_aliasing or not, default to True
+        :return:                    List of Pixel
+        """
+        # Copy current shape object
+        wshape = Shape(self)
+        # Get shift
+        shift_x, shift_y, _, _ = wshape.bounding()
+        # Align shape to 7 - Positive coordinates
+        wshape.align(7)
+        # Upscale it
+        wshape.map(lambda x, y: (x * supersampling, y * supersampling))
+
+        # Flatten the shape to avoid working with bézier curves
+        wshape.flatten()
+
+        def _close_shape(shape: Shape) -> Shape:
+            shape.close()
+            return shape
+
+        # Close each shape and merge again them
+        wshape = self.merge_shapes([_close_shape(wsh) for wsh in wshape.split_shape()])
+
+        # Build an image
+        _, _, x1, y1 = wshape.bounding()
+        width, height = ceil(x1 + 1), ceil(y1 + 1)
+        image = np.zeros((height, width), np.uint8)
+
+        # Extract coordinates
+        xs, ys = zip(*[c for cv in wshape.coordinates for c in cv])
+        # Build rows and columns from coordinates
+        rows, columns = np.array(ys), np.array(xs)
+        # Get polygons coordinates
+        rr, cc = skimage_polygon(rows, columns)
+        # Fill the image from the polygon coordinates
+        image[rr, cc] = 255
+        # Downscale while avoiding aliasing
+        image = skimage_rescale(
+            image, 1 / supersampling,
+            preserve_range=True, anti_aliasing=anti_aliasing
+        )
+        # Return all those pixels
+        return [
+            Pixel(int(x - shift_x), int(y - shift_y), Opacity(alpha / 255))
+            for row, y in zip(image, range(height))
+            for alpha, x in zip(row, range(width))
+            if alpha > 0
+        ]
 
 
 class OldShape:
