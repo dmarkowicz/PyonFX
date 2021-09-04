@@ -435,7 +435,7 @@ class Shape(MutableSequence[DrawingCommand]):
         try:
             an_x, an_y = align[an]
         except KeyError as key_err:
-            raise ValueError(f'{self.__class__.__name__}: Wrong an value!') from key_err
+            raise ValueError(f'{self.__class__.__name__}: Wrong "an" value!') from key_err
         x0, y0, x1, y1 = self.bounding()
         self.map(
             lambda x, y:
@@ -609,7 +609,7 @@ class Shape(MutableSequence[DrawingCommand]):
         self.extend(reversed(ncmds))
 
     def _split_line(self, p0: Tuple[float, float], p1: Tuple[float, float], max_length: float) -> List[DrawingCommand]:
-        """Split a vector (p0, p1) into shorter vectors with maximum max_length"""
+        """Split a line (p0, p1) into shorter lines with maximum max_length"""
         l = DrawingProp.LINE
         ncmds: List[DrawingCommand] = []
 
