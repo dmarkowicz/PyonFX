@@ -453,34 +453,34 @@ class Shape(MutableSequence[DrawingCommand]):
         :param zero_pad:        Point where the Z-axis rotation will be performed.
                                 If not specified, equivalent to (0., 0.), defaults to None
         """
-        self.map(lambda x, y: self.rotate_point(x, y, *(0., 0.) if not zero_pad else zero_pad, rotation))
+        self.map(lambda x, y: rotate_point(x, y, *(0., 0.) if not zero_pad else zero_pad, rotation))
 
-    @staticmethod
-    def rotate_point(x: float, y: float, zpx: float, zpy: float, rotation: float) -> Tuple[float, float]:
+    def close(self) -> None:
         """
-        Rotate a single point on the Z-axis
-
-        :param x:               Abscissa of the point
-        :param y:               Ordinate of the point
-        :param zpx:             Abscissa of the zero point
-        :param zpy:             Ordinate of the zero point
-        :param rotation:        Rotation in degrees
-        :return:                A tuple of rotated coordinates
+        Close current shape if last point is not the first
         """
-        # Distance to zero-point
-        zpd = dist((zpx, zpy), (x, y))
+        if self[-1][-1] != self[0][0]:
+            self.append(DrawingCommand(DrawingProp.LINE, self[0][0]))
 
-        rot = radians(rotation)
-        curot = atan2(x - zpx, y - zpy)
+    def split_shape(self) -> List[Shape]:
+        """
+        Split current shape into a list of Shape bounded
+        by each DrawingProp.MOVE in the current shape object
 
-        nx = zpd * sin(curot + rot) + zpx
-        ny = zpd * cos(curot + rot) + zpy
-        return nx, ny
-        # def _calc(x: float, y: float, zero_pad: Tuple[float, float]) -> Tuple[float, float]:
-        #     rot = radians(rotation)
-        #     nx = x * cos(rot) + y * sin(rot)
-        #     ny = - x * sin(rot) + y * cos(rot)
-        #     return nx, ny
+        :return:                List of Shape objects
+        """
+        m_indx = [i for i, cmd in enumerate(self) if cmd.prop == DrawingProp.MOVE]
+        return [self[i:j] for i, j in zip_longest(m_indx, m_indx[1:])]
+
+    @classmethod
+    def merge_shapes(cls, shapes: List[Shape]) -> Shape:
+        """
+        Merge the shapes into one Shape object
+
+        :param shapes:          List of Shape objects
+        :return:                A new merged Shape
+        """
+        return sum(shapes[1:], shapes[0])
 
     def flatten(self, tolerance: float = 1.) -> None:
         """
@@ -554,11 +554,10 @@ class Shape(MutableSequence[DrawingCommand]):
             # vecsp = [el for el in vecs if not (el[0] == 0 and el[1] == 0)]
 
             # Check flatness on vectors
-            rvecsp = vecsp[::-1]
-            for v0, v1 in reversed(list(zip(rvecsp[1:], rvecsp))):
-                if abs(self._get_vector_angle(v0, v1)) > tolerance:
+            vecsp.reverse()
+            for v0, v1 in reversed(list(zip(vecsp[1:], vecsp))):
+                if abs(get_vector_angle(v0, v1)) > tolerance:
                     return False
-
             return True
 
         def _convert_recursive(b_coord: BézierCoord, /) -> None:
@@ -576,24 +575,7 @@ class Shape(MutableSequence[DrawingCommand]):
         _convert_recursive(b_coord)
         return ncoord
 
-    @staticmethod
-    def _get_vector_angle(v0: Tuple[float, float], v1: Tuple[float, float]) -> float:
-        """Get angle between two vectors"""
-        # https://stackoverflow.com/a/35134034
-        (x0, y0), (x1, y1) = v0, v1
-
-        angler = atan2(np.linalg.det((v0, v1)), np.dot(v0, v1))
-        angled = degrees(angler)
-
-        # Return with sign by clockwise direction
-        return - angled if (x0 * y1 - y0 * x1) < 0 else angled
-
-    @staticmethod
-    def _get_vector_length(vector: Tuple[float, float]) -> float:
-        # Not used btw
-        return np.linalg.norm(vector)
-
-    def split(self, max_length: float = 16., tolerance: float = 1.) -> None:
+    def split_lines(self, max_length: float = 16., tolerance: float = 1.) -> None:
         """
         Flatten Shape bezier curves into lines and split the latter into shorter segments
         with maximum given length.
@@ -1006,8 +988,8 @@ class Shape(MutableSequence[DrawingCommand]):
         cmds.append(DrawingCommand(m, (0, -outer_size)))
 
         for i in range(1, edges + 1):
-            inner_p = cls.rotate_point(0, -inner_size, 0, 0, ((i - 0.5) / edges) * 360)
-            outer_p = cls.rotate_point(0, -outer_size, 0, 0, (i / edges) * 360)
+            inner_p = rotate_point(0, -inner_size, 0, 0, ((i - 0.5) / edges) * 360)
+            outer_p = rotate_point(0, -outer_size, 0, 0, (i / edges) * 360)
             if prop == l:
                 cmds += [DC(prop, inner_p), DC(prop, outer_p)]
             elif prop == b:
@@ -1132,141 +1114,47 @@ class OldShape:
                     line.text = "{\\p1\\pos(%d,%d)%s\\fad(0,%d)}%s" % (x, y, alpha, l.dur/4, p_sh)
                     io.write_line(line)
         """
-        # Scale values for supersampled rendering
-        upscale = supersampling
-        downscale = 1 / upscale
+    ...
 
-        # Upscale shape for later downsampling
-        self.map(lambda x, y: (x * upscale, y * upscale))
 
-        # Bring shape near origin in positive room
-        x1, y1, x2, y2 = self.bounding()
-        shift_x, shift_y = -1 * (x1 - x1 % upscale), -1 * (y1 - y1 % upscale)
-        self.move(shift_x, shift_y)
+def rotate_point(x: float, y: float, zpx: float, zpy: float, rotation: float) -> Tuple[float, float]:
+    """
+    Rotate a single point on the Z-axis
 
-        # Create image
-        width, height = (
-            math.ceil((x2 + shift_x) * downscale) * upscale,
-            math.ceil((y2 + shift_y) * downscale) * upscale,
-        )
-        image: List[bool] = [False] * (width * height)
+    :param x:               Abscissa of the point
+    :param y:               Ordinate of the point
+    :param zpx:             Abscissa of the zero point
+    :param zpy:             Ordinate of the zero point
+    :param rotation:        Rotation in degrees
+    :return:                A tuple of rotated coordinates
+    """
+    # Distance to zero-point
+    zpd = dist((zpx, zpy), (x, y))
 
-        # Renderer (on binary image with aliasing)
-        lines, last_point, last_move = [], {}, {}
+    rot = radians(rotation)
+    curot = atan2(x - zpx, y - zpy)
 
-        def collect_lines(x, y, typ):
-            # Collect lines (points + vectors)
-            nonlocal lines, last_point, last_move
-            x, y = int(round(x)), int(round(y))  # Use integers to avoid rounding errors
+    nx = zpd * sin(curot + rot) + zpx
+    ny = zpd * cos(curot + rot) + zpy
+    return nx, ny
 
-            # Move
-            if typ == "m":
-                # Close figure with non-horizontal line in image
-                if (
-                    last_move
-                    and last_move["y"] != last_point["y"]
-                    and not (last_point["y"] < 0 and last_move["y"] < 0)
-                    and not (last_point["y"] > height and last_move["y"] > height)
-                ):
-                    lines.append(
-                        [
-                            last_point["x"],
-                            last_point["y"],
-                            last_move["x"] - last_point["x"],
-                            last_move["y"] - last_point["y"],
-                        ]
-                    )
 
-                last_move = {"x": x, "y": y}
-            # Non-horizontal line in image
-            elif (
-                last_point
-                and last_point["y"] != y
-                and not (last_point["y"] < 0 and y < 0)
-                and not (last_point["y"] > height and y > height)
-            ):
-                lines.append(
-                    [
-                        last_point["x"],
-                        last_point["y"],
-                        x - last_point["x"],
-                        y - last_point["y"],
-                    ]
-                )
+def get_vector_angle(v0: Tuple[float, float], v1: Tuple[float, float]) -> float:
+    """Get angle between two vectors"""
+    # https://stackoverflow.com/a/35134034
 
-            # Remember last point
-            last_point = {"x": x, "y": y}
+    angler = atan2(np.linalg.det((v0, v1)), np.dot(v0, v1))
+    angled = degrees(angler)
 
-        self.flatten().map(collect_lines)
+    # Return with sign by clockwise direction
+    return - angled if np.cross(v0, v1) < 0 else angled
 
-        # Close last figure with non-horizontal line in image
-        if (
-            last_move
-            and last_move["y"] != last_point["y"]
-            and not (last_point["y"] < 0 and last_move["y"] < 0)
-            and not (last_point["y"] > height and last_move["y"] > height)
-        ):
-            lines.append(
-                [
-                    last_point["x"],
-                    last_point["y"],
-                    last_move["x"] - last_point["x"],
-                    last_move["y"] - last_point["y"],
-                ]
-            )
 
-        # Calculates line x horizontal line intersection
-        def line_x_hline(x, y, vx, vy, y2):
-            if vy != 0:
-                s = (y2 - y) / vy
-                if s >= 0 and s <= 1:
-                    return x + s * vx
-            return None
+def get_vector_length(vector: Tuple[float, float]) -> float:
+    """
+    Get a vector length (or norm)
 
-        # Scan image rows in shape
-        _, y1, _, y2 = self.bounding()
-        for y in range(max(math.floor(y1), 0), min(math.ceil(y2), height)):
-            # Collect row intersections with lines
-            row_stops = []
-            for line in lines:
-                cx = line_x_hline(line[0], line[1], line[2], line[3], y + 0.5)
-                if cx is not None:
-                    row_stops.append(
-                        [max(0, min(cx, width)), 1 if line[3] > 0 else -1]
-                    )  # image trimmed stop position & line vertical direction
-
-            # Enough intersections / something to render?
-            if len(row_stops) > 1:
-                # Sort row stops by horizontal position
-                row_stops.sort(key=lambda x: x[0])
-                # Render!
-                status, row_index = 0, y * width
-                for i in range(0, len(row_stops) - 1):
-                    status = status + row_stops[i][1]
-                    if status != 0:
-                        for x in range(
-                            math.ceil(row_stops[i][0] - 0.5),
-                            math.floor(row_stops[i + 1][0] + 0.5),
-                        ):
-                            image[row_index + x] = True
-
-        # Extract pixels from image
-        pixels = []
-        for y in range(0, height, upscale):
-            for x in range(0, width, upscale):
-                opacity = 0
-                for yy in range(0, upscale):
-                    for xx in range(0, upscale):
-                        if image[(y + yy) * width + (x + xx)]:
-                            opacity = opacity + 255
-
-                if opacity > 0:
-                    pixels.append(
-                        Pixel(
-                            x=(x - shift_x) * downscale,
-                            y=(y - shift_y) * downscale,
-                            alpha=round(opacity * downscale ** 2),
-                        )
-                    )
-
-        return pixels
+    :param vector:      Vector
+    :return:            Vector length
+    """
+    return np.linalg.norm(vector)
