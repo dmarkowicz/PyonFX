@@ -599,8 +599,11 @@ class Opacity(ColourSpace[float]):
     data: str
 
     def __init__(self, _x: Pct) -> None:
+        """
+        :param _x: [description]
+        """
         super().__init__()
-        self.value = _x
+        self.value = clamp_value(_x, 0., 1.0)
         self.data = f'&H{round(abs(self.value * 255 - 255)):02X}&'
 
     @overload
