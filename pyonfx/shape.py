@@ -510,7 +510,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 )
             elif cmd0.prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = self._curve4_to_lines((list(cmd1.coordinates)[-1], *cmd0), tolerance)  # type: ignore
+                flatten_cmds = self._curve4_to_lines((cmd1[-1], *cmd0), tolerance)  # type: ignore
                 ncmds.extend(reversed(flatten_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -600,7 +600,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
                 # Get the new points
-                splitted_cmds = self._split_line(cmd1._coordinates[-1], cmd0._coordinates[0], max_length)
+                splitted_cmds = self._split_line(cmd1[-1], cmd0[0], max_length)
                 ncmds.extend(reversed(splitted_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
