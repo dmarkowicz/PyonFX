@@ -2856,7 +2856,7 @@ Returns:
     pass
 
 
-def GetTextMetrics() -> typing.Any:
+def GetTextMetrics(dc: typing.Any) -> typing.Any:
     """
     Returns info for the font selected into a DC
 
@@ -4191,7 +4191,7 @@ Returns:
     pass
 
 
-def ExtTextOut(hdc: int, _int: typing.Any, _int1: typing.Any, _int2: typing.Any, rect: 'win32typing.PyRECT', string: typing.Any, _tuple: 'typing.Tuple[typing.Tuple[typing.Any, typing.Any], ...]') -> typing.Any:
+def ExtTextOut(hdc: int, _int: typing.Any, _int1: typing.Any, _int2: typing.Any, rect: typing.Optional[win32typing.PyRECT], string: typing.Any, _tuple: typing.Optional[typing.Tuple[typing.Tuple[typing.Any, typing.Any], ...]] = ...) -> typing.Any:
     """
     Writes text to a DC.
 
@@ -5142,7 +5142,10 @@ Returns:
     pass
 
 
-def GetPath(hdc: int) -> typing.Tuple[typing.Any, typing.Any]:
+def GetPath(hdc: int) -> typing.Tuple[
+    typing.Tuple[typing.Tuple[int, int], ...],
+    typing.Tuple[int, ...]
+]:
     """
     Returns a sequence of points that describe the current path
 
