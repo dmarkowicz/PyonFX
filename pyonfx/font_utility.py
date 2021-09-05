@@ -13,49 +13,25 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/.
-"""
-This module contains the Font class definition, which has some functions
-to help getting informations from a specific font
-"""
 from __future__ import annotations
 
+__all__ = ['Font']
+
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Final, Tuple
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, Final, List, Tuple
 
-from .shape import Shape
-
-if sys.platform == "win32":
-    import win32con
-    import win32gui
-    import win32ui
-    from win32helper.win32typing import PyCFont
-elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
-    import cairo
-    import gi
-
-    gi.require_version("Pango", "1.0")
-    gi.require_version("PangoCairo", "1.0")
-
-    import html
-
-    from gi.repository import Pango, PangoCairo
+from .shape import DrawingCommand, DrawingProp, Shape
 
 if TYPE_CHECKING:
     from .core import Style
 
-# CONFIGURATION
 FONT_PRECISION: Final[int] = 64
 """Font scale for better precision output from native font system"""
-LIBASS_FONTHACK: Final[bool] = True
-"""Scale font data to fontsize? (no effect on windows)"""
-PANGO_SCALE: Final[int] = 1024
-"""The PANGO_SCALE macro represents the scale between dimensions used for Pango distances and device units."""
 
 
-class Font:
-    """
-    Font class definition
-    """
+class _Font(ABC):
+    """Class for getting data from fonts"""
     style: Style
     xscale: float
     yscale: float
@@ -63,16 +39,67 @@ class Font:
     upscale = FONT_PRECISION
     downscale = 1 / FONT_PRECISION
 
-    metrics: Dict[str, float]
     pycfont: PyCFont
 
     def __init__(self, style: Style) -> None:
+        """
+        Initialise a font object
+
+        :param style:       Style object from core module
+        """
         self.style = style
         self.xscale = style.scale_x / 100
         self.yscale = style.scale_y / 100
         self.hspace = style.spacing
 
-        if sys.platform == "win32":
+    @abstractmethod
+    def __del__(self) -> None:
+        ...
+
+    @property
+    @abstractmethod
+    def metrics(self) -> Tuple[float, float, float, float]:
+        """
+        Get metrics of the current font
+
+        :return:            A tuple containing text data in this order:
+                            (ascent, descent, internal_leading, external_leading)
+        """
+        ...
+
+    @abstractmethod
+    def get_text_extents(self, text: str) -> Tuple[float, float]:
+        """
+        Get text extents of the specified text
+
+        :param text:        Text in string
+        :return:            A tuple containing text data in this order:
+                            (width, height)
+        """
+        ...
+
+    @abstractmethod
+    def text_to_shape(self, text: str) -> Shape:
+        """
+        Convert specified text string into a Shape object
+
+        :param text:        Text in string
+        :return:            A Shape object
+        """
+        ...
+
+
+if sys.platform == "win32":
+    import win32con
+    import win32gui
+    import win32ui
+    from win32helper.win32typing import PyCFont  # type: ignore
+
+    class Font(_Font):
+        _metrics: Dict[str, float]
+
+        def __init__(self, style: Style) -> None:
+            super().__init__(style)
             # Create device context
             self.dc = win32gui.CreateCompatibleDC(None)
             # Set context coordinates mapping mode
@@ -99,9 +126,103 @@ class Font:
             self.pycfont = win32ui.CreateFont(font_spec)
             win32gui.SelectObject(self.dc, self.pycfont.GetSafeHandle())
             # Calculate metrics
-            self.metrics = win32gui.GetTextMetrics(self.dc)
-            # self.metrics = win32gui.GetTextMetrics()
-        elif sys.platform in {"linux", "darwin"}:
+            self._metrics = win32gui.GetTextMetrics(self.dc)
+
+        def __del__(self) -> None:
+            win32gui.DeleteObject(self.pycfont.GetSafeHandle())
+            win32gui.DeleteDC(self.dc)
+
+        @property
+        def metrics(self) -> Tuple[float, float, float, float]:
+            const = self.downscale * self.yscale
+            return (
+                # 'height': self.metrics['Height'] * const,
+                self._metrics["Ascent"] * const,
+                self._metrics["Descent"] * const,
+                self._metrics["InternalLeading"] * const,
+                self._metrics["ExternalLeading"] * const,
+            )
+
+        def get_text_extents(self, text: str) -> Tuple[float, float]:
+            cx, cy = win32gui.GetTextExtentPoint32(self.dc, text)
+
+            return (
+                (cx * self.downscale + self.hspace * (len(text) - 1)) * self.xscale,
+                cy * self.downscale * self.yscale,
+            )
+
+        def text_to_shape(self, text: str) -> Shape:
+            if not text:
+                raise ValueError(f'{self.__class__.__name__}: Text is empty!')
+            # TODO: Calcultating distance between origins of character cells (just in case of spacing)
+
+            # Add path to device context
+            win32gui.BeginPath(self.dc)
+            win32gui.ExtTextOut(self.dc, 0, 0, 0x0, None, text)
+            win32gui.EndPath(self.dc)
+            # Getting Path produced by Microsoft API
+            points, type_points = win32gui.GetPath(self.dc)
+
+            # Checking for errors
+            if len(points) == 0 or len(points) != len(type_points):
+                raise RuntimeError(
+                    f'{self.__class__.__name__}: no points detected or mismatch length between points and type_points'
+                )
+
+            # Defining variables
+            mult_x, mult_y = self.downscale * self.xscale, self.downscale * self.yscale
+            PT_MOVE, PT_LINE, PT_BÉZIER = win32con.PT_MOVETO, win32con.PT_LINETO, win32con.PT_BEZIERTO
+            PT_CLOSE = win32con.PT_CLOSEFIGURE
+            PT_LINE_OR_CLOSE, PT_BÉZIER_OR_CLOSE = PT_LINE | PT_CLOSE, PT_BÉZIER | PT_CLOSE
+
+            cmds: List[DrawingCommand] = []
+            DC, DP = DrawingCommand, DrawingProp
+            m, l, b = DP.MOVE, DP.LINE, DP.BÉZIER
+
+            points_types = iter(zip(points, type_points))
+            while True:
+                try:
+                    (x, y), ptype = next(points_types)
+                except StopIteration:
+                    break
+                if ptype == PT_MOVE:
+                    cmds.append(DC(m, (x, y)))
+                elif ptype in {PT_LINE, PT_LINE_OR_CLOSE}:
+                    cmds.append(DC(l, (x, y)))
+                elif ptype in {PT_BÉZIER, PT_BÉZIER_OR_CLOSE}:
+                    x0, y0 = x, y
+                    (x1, y1), _ = next(points_types)
+                    (x2, y2), _ = next(points_types)
+                    cmds.append(DC(b, (x0, y0), (x1, y1), (x2, y2)))
+
+            # Clear device context path
+            win32gui.AbortPath(self.dc)
+
+            shape = Shape(cmds)
+            shape.map(lambda x, y: (x * mult_x, y * mult_y))
+            return shape
+
+
+elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
+    import html
+
+    import cairo
+    import gi
+    gi.require_version("Pango", "1.0")
+    gi.require_version("PangoCairo", "1.0")
+    from gi.repository import Pango, PangoCairo
+
+    LIBASS_FONTHACK: Final[bool] = True
+    """Scale font data to fontsize? (no effect on windows)"""
+    PANGO_SCALE: Final[int] = 1024
+    """The PANGO_SCALE macro represents the scale between dimensions used for Pango distances and device units."""
+
+
+    class Font(_Font):
+        _metrics: Any
+
+        def __init__(self, style: Style) -> None:
+            super().__init__(style)
             surface = cairo.ImageSurface(cairo.Format.A8, 1, 1)
 
             self.context = cairo.Context(surface)
@@ -118,57 +239,34 @@ class Font:
             )
 
             self.layout.set_font_description(font_description)
-            self.metrics = Pango.Context.get_metrics(
+            self._metrics = Pango.Context.get_metrics(
                 self.layout.get_context(), self.layout.get_font_description()
             )
 
             if LIBASS_FONTHACK:
                 self.fonthack_scale = self.style.fontsize / (
-                    (self.metrics.get_ascent() + self.metrics.get_descent())
+                    (self._metrics.get_ascent() + self._metrics.get_descent())
                     / PANGO_SCALE
                     * self.downscale
                 )
             else:
                 self.fonthack_scale = 1
-        else:
-            raise NotImplementedError
 
-    def __del__(self) -> None:
-        if sys.platform == "win32":
-            win32gui.DeleteObject(self.pycfont.GetSafeHandle())
-            win32gui.DeleteDC(self.dc)
+        def __del__(self) -> None:
+            pass
 
-    def get_metrics(self) -> Tuple[float, float, float, float]:
-        if sys.platform == "win32":
-            const = self.downscale * self.yscale
-            return (
-                # 'height': self.metrics['Height'] * const,
-                self.metrics["Ascent"] * const,
-                self.metrics["Descent"] * const,
-                self.metrics["InternalLeading"] * const,
-                self.metrics["ExternalLeading"] * const,
-            )
-        elif sys.platform in {"linux", "darwin"}:
+        @property
+        def metrics(self) -> Tuple[float, float, float, float]:
             const = self.downscale * self.yscale * self.fonthack_scale / PANGO_SCALE
             return (
                 # 'height': (self.metrics.get_ascent() + self.metrics.get_descent()) * const,
-                self.metrics.get_ascent() * const,
-                self.metrics.get_descent() * const,
+                self._metrics.get_ascent() * const,
+                self._metrics.get_descent() * const,
                 0.0,
                 self.layout.get_spacing() * const,
             )
-        else:
-            raise NotImplementedError
 
-    def get_text_extents(self, text: str) -> Tuple[float, float]:
-        if sys.platform == "win32":
-            cx, cy = win32gui.GetTextExtentPoint32(self.dc, text)
-
-            return (
-                (cx * self.downscale + self.hspace * (len(text) - 1)) * self.xscale,
-                cy * self.downscale * self.yscale,
-            )
-        elif sys.platform in {"linux", "darwin"}:
+        def get_text_extents(self, text: str) -> Tuple[float, float]:
             if not text:
                 return 0.0, 0.0
 
@@ -199,101 +297,25 @@ class Font:
                 * self.yscale
                 * self.fonthack_scale,
             )
-        else:
-            raise NotImplementedError
 
-    def text_to_shape(self, text: str) -> Shape:
-        if sys.platform == "win32":
-            # TODO: Calcultating distance between origins of character cells (just in case of spacing)
+        def text_to_shape(self, text: str) -> Shape:
+            if not text:
+                raise ValueError(f'{self.__class__.__name__}: Text is empty!')
+            curr_width = 0
+            cmds: List[DrawingCommand] = []
+            DC, DP = DrawingCommand, DrawingProp
+            m, l, b = DP.MOVE, DP.LINE, DP.BÉZIER
 
-            # Add path to device context
-            win32gui.BeginPath(self.dc)
-            win32gui.ExtTextOut(self.dc, 0, 0, 0x0, None, text)  # type: ignore
-            win32gui.EndPath(self.dc)
-            # Getting Path produced by Microsoft API
-            points, type_points = win32gui.GetPath(self.dc)
-
-            # Checking for errors
-            if len(points) == 0 or len(points) != len(type_points):
-                raise RuntimeError(
-                    'This should never happen: function win32gui.GetPath has returned something unexpected.'
-                    '\nPlease report this to the developer'
-                )
-
-            # Defining variables
-            shape, last_type = [], None
-            mult_x, mult_y = self.downscale * self.xscale, self.downscale * self.yscale
-
-            # Convert points to shape
-            i = 0
-            while i < len(points):
-                cur_point, cur_type = points[i], type_points[i]
-
-                if cur_type == win32con.PT_MOVETO:
-                    if last_type != win32con.PT_MOVETO:
-                        # Avoid repetition of command tags
-                        shape.append("m")
-                        last_type = cur_type
-                    shape.extend(
-                        [
-                            Shape.format_value(cur_point[0] * mult_x),
-                            Shape.format_value(cur_point[1] * mult_y),
-                        ]
-                    )
-                    i += 1
-                elif cur_type == win32con.PT_LINETO or cur_type == (
-                    win32con.PT_LINETO | win32con.PT_CLOSEFIGURE
-                ):
-                    if last_type != win32con.PT_LINETO:
-                        # Avoid repetition of command tags
-                        shape.append("l")
-                        last_type = cur_type
-                    shape.extend(
-                        [
-                            Shape.format_value(cur_point[0] * mult_x),
-                            Shape.format_value(cur_point[1] * mult_y),
-                        ]
-                    )
-                    i += 1
-                elif cur_type == win32con.PT_BEZIERTO or cur_type == (
-                    win32con.PT_BEZIERTO | win32con.PT_CLOSEFIGURE
-                ):
-                    if last_type != win32con.PT_BEZIERTO:
-                        # Avoid repetition of command tags
-                        shape.append("b")
-                        last_type = cur_type
-                    shape.extend(
-                        [
-                            Shape.format_value(cur_point[0] * mult_x),
-                            Shape.format_value(cur_point[1] * mult_y),
-                            Shape.format_value(points[i + 1][0] * mult_x),
-                            Shape.format_value(points[i + 1][1] * mult_y),
-                            Shape.format_value(points[i + 2][0] * mult_x),
-                            Shape.format_value(points[i + 2][1] * mult_y),
-                        ]
-                    )
-                    i += 3
-                else:  # If there is an invalid type -> skip, for safeness
-                    i += 1
-
-            # Clear device context path
-            win32gui.AbortPath(self.dc)
-
-            return Shape(" ".join(shape))
-        elif sys.platform in {"linux", "darwin"}:
-            # Defining variables
-            shape, last_type = [], None
-
-            def shape_from_text(new_text, x_add):
-                nonlocal shape, last_type
+            for i, char in enumerate(text):
+                x_add = curr_width + self.hspace * self.xscale * i
 
                 self.layout.set_markup(
-                    f"<span "
+                    "<span "
                     f'strikethrough="{str(self.style.strikeout).lower()}" '
                     f'underline="{"single" if self.style.underline else "none"}"'
-                    f">"
-                    f"{html.escape(new_text)}"
-                    f"</span>",
+                    ">"
+                    f"{html.escape(char)}"
+                    "</span>",
                     -1,
                 )
 
@@ -307,56 +329,25 @@ class Font:
                 path = self.context.copy_path()
 
                 # Convert points to shape
-                for current_entry in path:
-                    current_type = current_entry[0]
-                    current_path = current_entry[1]
-
-                    if current_type == 0:  # MOVE_TO
-                        if last_type != current_type:
-                            # Avoid repetition of command tags
-                            shape.append("m")
-                            last_type = current_type
-                        shape.extend(
-                            [
-                                Shape.format_value(current_path[0] + x_add),
-                                Shape.format_value(current_path[1]),
-                            ]
-                        )
-                    elif current_type == 1:  # LINE_TO
-                        if last_type != current_type:
-                            # Avoid repetition of command tags
-                            shape.append("l")
-                            last_type = current_type
-                        shape.extend(
-                            [
-                                Shape.format_value(current_path[0] + x_add),
-                                Shape.format_value(current_path[1]),
-                            ]
-                        )
-                    elif current_type == 2:  # CURVE_TO
-                        if last_type != current_type:
-                            # Avoid repetition of command tags
-                            shape.append("b")
-                            last_type = current_type
-                        shape.extend(
-                            [
-                                Shape.format_value(current_path[0] + x_add),
-                                Shape.format_value(current_path[1]),
-                                Shape.format_value(current_path[2] + x_add),
-                                Shape.format_value(current_path[3]),
-                                Shape.format_value(current_path[4] + x_add),
-                                Shape.format_value(current_path[5]),
-                            ]
+                for ptype, ppath in path:
+                    if ptype == 0:
+                        cmds.append(DC(m, (ppath[0] + x_add, ppath[1])))
+                    elif ptype == 1:
+                        cmds.append(DC(l, (ppath[0] + x_add, ppath[1])))
+                    elif ptype == 2:
+                        cmds.append(
+                            DC(
+                                b,
+                                (ppath[0] + x_add, ppath[1]),
+                                (ppath[2] + x_add, ppath[3]),
+                                (ppath[4] + x_add, ppath[5])
+                            )
                         )
 
                 self.context.new_path()
-
-            curr_width = 0
-
-            for i, char in enumerate(text):
-                shape_from_text(char, curr_width + self.hspace * self.xscale * i)
                 curr_width += self.get_text_extents(char)[0]
 
-            return Shape(" ".join(shape))
-        else:
-            raise NotImplementedError
+            return Shape(cmds)
+
+else:
+    raise NotImplementedError
