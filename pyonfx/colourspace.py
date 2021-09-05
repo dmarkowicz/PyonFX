@@ -19,9 +19,9 @@ from .misc import clamp_value
 from .types import (ACV, Nb, Nb8bit, Pct, TCV_co, Tup3, Tup3Str, Tup4,
                     check_annotations)
 
-TRGB = TypeVar('TRGB', bound='BaseRGB')  # Type RGB
+TRGB = TypeVar('TRGB', bound='BaseRGB[Any]')  # type: ignore
 THSX = TypeVar('THSX', bound='HueSaturationBased')  # Type Hue Saturation ___
-TCS = TypeVar('TCS', bound='ColourSpace')
+TCS = TypeVar('TCS', bound='ColourSpace[Any]')
 
 
 class ColourSpace(Sequence[TCV_co], ABC):
@@ -306,7 +306,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
 class RGBNoAlpha(BaseRGB[Nb], ABC):
     """Base class for RGB colourspaces without alpha"""
 
-    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBNoAlpha:
+    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBNoAlpha[Nb]:
         return super().__new__(cls, _x)
 
     def __init__(self, _x: ColourSpace[ACV] | Tup3[Nb]) -> None:
@@ -319,7 +319,7 @@ class RGBAlpha(BaseRGB[Nb], ABC):
     a: Nb
     """Alpha value"""
 
-    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBAlpha:
+    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBAlpha[Nb]:
         return super().__new__(cls, _x)
 
     def __init__(self, _x: ColourSpace[ACV] | Tup3[Nb] | Tup4[Nb]) -> None:

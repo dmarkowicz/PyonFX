@@ -29,8 +29,8 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
-from skimage.draw import polygon as skimage_polygon
-from skimage.transform import rescale as skimage_rescale
+from skimage.draw import polygon as skimage_polygon  # type: ignore
+from skimage.transform import rescale as skimage_rescale  # type: ignore
 
 from .colourspace import Opacity
 from .misc import chunk
@@ -1115,15 +1115,15 @@ class Shape(MutableSequence[DrawingCommand]):
         # Return all those pixels
         return [
             Pixel(int(x - shift_x), int(y - shift_y), Opacity(alpha / 255))
-            for row, y in zip(image, range(height))
-            for alpha, x in zip(row, range(width))
+            for y, row in enumerate(image)
+            for x, alpha in enumerate(row)
             if alpha > 0
         ]
 
 
 class OldShape:
     def __to_outline(
-        self, bord_xy: float, bord_y: float = None, mode: str = "round"
+        self, bord_xy: float, bord_y: Optional[float] = None, mode: str = "round"
     ) -> OldShape:
         """Converts shape command for filling to a shape command for stroking.
 
@@ -1139,44 +1139,6 @@ class OldShape:
             A new shape as string, representing the border of the input.
         """
         raise NotImplementedError
-
-    def to_pixels(self, supersampling: int = 8) -> List[Pixel]:
-        """| Converts a Shape object to a list of pixel data.
-        | A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position) and 'alpha' (alpha/transparency/opacity).
-
-        It is highly suggested to create a dedicated style for pixels,
-        because you will write less tags for line in your pixels, which means less size for your .ass file.
-
-        | The style suggested is:
-        | - **an=7 (very important!);**
-        | - bord=0;
-        | - shad=0;
-        | - For Font informations leave whatever the default is;
-
-        **Tips:** *As for text, even shapes can decay!*
-
-        Parameters:
-            shape (Shape): An object of class Shape.
-            supersampling (int): Value used for supersampling. Higher value means smoother and more precise anti-aliasing (and more computational time for generation).
-
-        Returns:
-            A list of dictionaries representing each individual pixel of the input shape.
-
-        Examples:
-            ..  code-block:: python3
-
-                line = lines[2].copy()
-                line.style = "p"
-                p_sh = Shape.rectangle()
-                for pixel in Convert.shape_to_pixels(Shape.heart(100)):
-                    # Random circle to pixel effect just to show
-                    x, y = math.floor(line.left) + pixel.x, math.floor(line.top) + pixel.y
-                    alpha = "\\alpha" + Convert.color_alpha_to_ass(pixel.alpha) if pixel.alpha != 255 else ""
-
-                    line.text = "{\\p1\\pos(%d,%d)%s\\fad(0,%d)}%s" % (x, y, alpha, l.dur/4, p_sh)
-                    io.write_line(line)
-        """
-    ...
 
 
 def rotate_point(x: float, y: float, zpx: float, zpy: float, rotation: float) -> Tuple[float, float]:
@@ -1219,4 +1181,4 @@ def get_vector_length(vector: Tuple[float, float]) -> float:
     :param vector:      Vector
     :return:            Vector length
     """
-    return np.linalg.norm(vector)
+    return cast(float, np.linalg.norm(vector))
