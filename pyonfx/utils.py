@@ -16,19 +16,40 @@
 
 from __future__ import annotations
 
-__all__ = ['Utils', 'FrameUtility', 'ColorUtility']
+__all__ = ['FrameUtility', 'ColorUtility', 'interpolate']
 
 import re
 from typing import (TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List,
-                    Optional, Tuple, TypeVar, Union, cast)
+                    NamedTuple, Optional, TypeVar, Union, cast)
 
 from .colourspace import ColourSpace
 from .types import Pct
 
 if TYPE_CHECKING:
-    from .ass import Line
+    from .core import Line
 
-I = TypeVar('I', bound=Union[float, int, ColourSpace])
+I = TypeVar('I', bound=Union[float, int, ColourSpace])  # type: ignore
+
+
+def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
+    """
+    Interpolate val1 and val2 (ColourSpace objects or numbers) by percent value
+
+    :param val1:        First value to interpolate
+    :param val2:        Second value to interpolate
+    :param pct:         Percent value of the interpolation
+    :param acc:         Optional acceleration, defaults to 1.0
+    :return:            Interpolated value of val1 and val2
+    """
+    pct = pct ** acc
+
+    if isinstance(val1, (float, int)) and isinstance(val2, (float, int)):
+        return cast(I, val1 * (1 - pct) + val2 * pct)
+    elif isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
+        return cast(I, val1.interpolate(val2, pct))
+    else:
+        raise ValueError('interpolate: va1 and val2 must be of the same type')
+
 
 
 class Utils:
@@ -36,147 +57,122 @@ class Utils:
     This class is a collection of static methods that will help the user in some tasks.
     """
 
-    @staticmethod
-    def clean_tags(text: str) -> str:
-        # TODO: Cleans up ASS subtitle lines of badly-formed override. Returns a cleaned up text.
-        raise NotImplementedError
-
     # @staticmethod
     # def accelerate(pct: float, accelerator: float) -> float:
     #     # Modifies pct according to the acceleration provided.
     #     # TODO: Implement acceleration based on bezier's curve
     #     return pct ** accelerator
 
-    @staticmethod
-    def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
-        """
-        | Interpolates 2 given values (ASS colors, ASS alpha channels or numbers) by percent value as decimal number.
-        | You can also provide a http://cubic-bezier.com to accelerate based on bezier curves. (TO DO)
-        |
-        | You could use that for the calculation of color/alpha gradients.
-
-        Parameters:
-            pct (float): Percent value of the interpolation.
-            val1 (int, float or str): First value to interpolate (either string or number).
-            val2 (int, float or str): Second value to interpolate (either string or number).
-            acc (float, optional): Optional acceleration that influences final percent value.
-
-        Returns:
-            Interpolated value of given 2 values (so either a string or a number).
-
-        Examples:
-            ..  code-block:: python3
-
-                print( Utils.interpolate(0.5, 10, 20) )
-                print( Utils.interpolate(0.9, "&HFFFFFF&", "&H000000&") )
-
-            >>> 15
-            >>> &HE5E5E5&
-        """
-        pct = pct ** acc
-
-        if isinstance(val1, (float, int)) and isinstance(val2, (float, int)):
-            return cast(I, val1 * (1 - pct) + val2 * pct)
-        elif isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
-            return cast(I, val1.interpolate(val2, pct))
-        else:
-            raise ValueError('interpolate: va1 and val2 must be of the same type')
 
 
+NTSC_24P_MS_FROM_FRAME: Final[float] = 1 / (24000 / 1001)
 
-NTSC_24P_MS_FROM_FRAME: Final[float] = 1000 / (24000 / 1001)
+
+class Frame(NamedTuple):
+    """Simple NamedTuple depicting a frame"""
+    start: float
+    """Start time in seconds"""
+    end: float
+    """End time in seconds"""
+    index: int
+    """Index number"""
+    total: int
+    """Total number of frames"""
 
 
-class FrameUtility(Iterable[Tuple[int, int, int, int]]):
-    """
-    This class helps in the stressful calculation of frames per frame.
-    """
-    start_time: int
-    end_time: int
+class FrameUtility(Iterable[Frame]):
+    """Helper class for frame-per-frame calculation"""
+    start_time: float
+    end_time: float
     frame_dur: float
     n: int
 
-    current_time: int
+    current_time: float
 
-    def __init__(self, start_time: int, end_time: int, frame_dur: float = NTSC_24P_MS_FROM_FRAME) -> None:
+    def __init__(self, start_time: float, end_time: float, frame_dur: float = NTSC_24P_MS_FROM_FRAME) -> None:
         """
-        Parameters:
-            start_time (positive float): Initial time in milliseconds
-            end_time (positive float): Final time in milliseconds
-            fr (positive float, optional): Frame Duration
-
-        Returns:
-            Returns a Generator containing start_time, end_time, index and total number of frames for each step.
-
         Examples:
-            ..  code-block:: python3
-                :emphasize-lines: 1
+            ..  code-block:: python
 
-                FU = FrameUtility(0, 100)
-                for s, e, i, n in FU:
-                    print(f"Frame {i}/{n}: {s} - {e}")
+                for s, e, i, n in FrameUtility(0, 0.250):
+                    print(f"Frame {i}/{n}: {round(s, 3)} - {round(e, 3)}")
 
-            >>> Frame 0/3: 0 - 41.71
-            >>> Frame 1/3: 41.71 - 83.42
-            >>> Frame 2/3: 83.42 - 100
+                for frame in FrameUtility(0, 0.250):
+                    print(
+                        f"Frame {frame.index}/{frame.total}: "
+                        f'{round(frame.start, 3)} - {round(frame.end, 3)}'
+                    )
+
+            >>> Frame 0/6: 0.0 - 0.042
+            >>> Frame 1/6: 0.042 - 0.083
+            >>> Frame 2/6: 0.083 - 0.125
+            >>> Frame 3/6: 0.125 - 0.167
+            >>> Frame 4/6: 0.167 - 0.209
+            >>> Frame 5/6: 0.209 - 0.25
+
+        :param start_time:      Start time in seconds
+        :param end_time:        End time in seconds
+        :param frame_dur:       Frame duration, defaults to NTSC_24P_MS_FROM_FRAME
         """
         if end_time < start_time:
-            raise ValueError("FrameUtility: start_time must be > to end_time")
+            raise ValueError(f"{self.__class__.__name__}: start_time must be > to end_time")
 
         self.n = round((end_time - start_time) / frame_dur)
-
-        # Defining fields
         self.start_time = start_time
         self.end_time = end_time
         self.frame_dur = frame_dur
         self.current_time = start_time
 
-    def __iter__(self) -> Iterator[Tuple[int, int, int, int]]:
+    def __iter__(self) -> Iterator[Frame]:
         for i in range(self.n):
-            s = round(self.start_time + self.frame_dur * i)
-            e = round(self.start_time + self.frame_dur * (i + 1) if i < self.n - 1 else self.end_time)
+            s = self.start_time + self.frame_dur * i
+            e = self.start_time + self.frame_dur * (i + 1) if i < self.n - 1 else self.end_time
             self.current_time = s
-            yield s, e, i, self.n
+            yield Frame(s, e, i, self.n)
 
         self.current_time = self.start_time
 
 
-    def add(self, start_time: int, end_time: int, end_value: float, acc: float = 1.0) -> float:
+    def add(self, start_time: float, end_time: float, end_value: float, acc: float = 1.0) -> float:
         """
         This function makes a lot easier the calculation of tags value.
         You can see this as a \"\\t\" tag usable in frame per frame operations.
         Use it in a for loop which iterates a FrameUtility object, as you can see in the example.
 
-        Parameters:
-            start_time (int): Initial time
-            end_time (int): Final time
-            end_value (int or float): Value reached at end_time
-            accelerator (float): Accelerator value
-
         Examples:
-            ..  code-block:: python3
-                :emphasize-lines: 4,5
+            ..  code-block:: python
 
-                FU = FrameUtility(0, 105, 40)
-                for s, e, i, n in FU:
+                for frame in (fu := FrameUtility(0, 0.230)):
                     fsc = 100
-                    fsc += FU.add(0, 50, 50)
-                    fsc += FU.add(50, 100, -50)
-                    print(f"Frame {i}/{n}: {s} - {e}; fsc: {fsc}")
+                    fsc += fu.add(0., 0.075, 50)
+                    fsc += fu.add(0.075, 0.175, -50)
+                    print(
+                        f"Frame {frame.index}/{frame.total}: "
+                        f'{round(frame.start, 3)} - {round(frame.end, 3)}'
+                        f' | fsc: {round(fsc, 3)}'
+                    )
 
-            >>> Frame 1/3: 0 - 40; fsc: 140.0
-            >>> Frame 2/3: 40 - 80; fsc: 120.0
-            >>> Frame 3/3: 80 - 105; fsc: 100
+            >>> Frame 0/6: 0.0 - 0.042 | fsc: 100.0
+            >>> Frame 1/6: 0.042 - 0.083 | fsc: 127.806
+            >>> Frame 2/6: 0.083 - 0.125 | fsc: 145.792
+            >>> Frame 3/6: 0.125 - 0.167 | fsc: 124.938
+            >>> Frame 4/6: 0.167 - 0.209 | fsc: 104.083
+            >>> Frame 5/6: 0.209 - 0.23 | fsc: 100
+
+        :param start_time:      Start time
+        :param end_time:        End time
+        :param end_value:       Value reached at end_time
+        :param acc:             Acceleration value in interpolate function, defaults to 1.0
+        :return:                Interpolated value
         """
-
         if self.current_time < start_time:
-            return 0
+            return 0.
         elif self.current_time > end_time:
             return end_value
 
         pstart = self.current_time - self.start_time - start_time
         pend = end_time - start_time
-        return Utils.interpolate(0, end_value, pstart / pend, acc)
+        return interpolate(0, end_value, pstart / pend, acc)
 
 
 class ColorUtility:
@@ -294,7 +290,7 @@ class ColorUtility:
                 for t in ts:
                     # Parsing start, end, optional acceleration and colors
                     start, end, acc_colors = int(t[0]), int(t[1]), t[2].split(",")
-                    acc, c1, c3, c4 = 1, None, None, None
+                    acc, c1, c3, c4 = 1., None, None, None
 
                     # Do we have also acceleration?
                     if len(acc_colors) == 1:
@@ -509,21 +505,21 @@ class ColorUtility:
         if latest_index == 0:
             colors = ""
             if c1 and self.color_changes[latest_index]["c1"]:
-                colors += "\\1c" + Utils.interpolate(
+                colors += "\\1c" + interpolate(
                     pct,
                     base_c1[3:],
                     self.color_changes[latest_index]["c1"][3:],
                     self.color_changes[latest_index]["acc"],
                 )
             if c3 and self.color_changes[latest_index]["c3"]:
-                colors += "\\3c" + Utils.interpolate(
+                colors += "\\3c" + interpolate(
                     pct,
                     base_c3[3:],
                     self.color_changes[latest_index]["c3"][3:],
                     self.color_changes[latest_index]["acc"],
                 )
             if c4 and self.color_changes[latest_index]["c4"]:
-                colors += "\\4c" + Utils.interpolate(
+                colors += "\\4c" + interpolate(
                     pct,
                     base_c4[3:],
                     self.color_changes[latest_index]["c4"][3:],
@@ -534,21 +530,21 @@ class ColorUtility:
         # Else, we interpolate between current color change and previous
         colors = ""
         if c1:
-            colors += "\\1c" + Utils.interpolate(
+            colors += "\\1c" + interpolate(
                 pct,
                 self.color_changes[latest_index - 1]["c1"][3:],
                 self.color_changes[latest_index]["c1"][3:],
                 self.color_changes[latest_index]["acc"],
             )
         if c3:
-            colors += "\\3c" + Utils.interpolate(
+            colors += "\\3c" + interpolate(
                 pct,
                 self.color_changes[latest_index - 1]["c3"][3:],
                 self.color_changes[latest_index]["c3"][3:],
                 self.color_changes[latest_index]["acc"],
             )
         if c4:
-            colors += "\\4c" + Utils.interpolate(
+            colors += "\\4c" + interpolate(
                 pct,
                 self.color_changes[latest_index - 1]["c4"][3:],
                 self.color_changes[latest_index]["c4"][3:],
