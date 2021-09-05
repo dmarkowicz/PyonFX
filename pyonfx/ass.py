@@ -31,7 +31,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
 from .core import Char, Line, Meta, PList, Style, Syllable, Word
-from .font_utility import Font
+from .font import Font
 
 
 class Ass:
@@ -144,7 +144,7 @@ class Ass:
                 # Add dialog text sizes and positions (if possible)
                 if hasattr(line, 'style'):
                     font = Font(line.style)
-                    font_metrics = font.get_metrics()
+                    font_metrics = font.metrics
 
                     # Add line data
                     line = self._add_data_line(line, font, font_metrics)
