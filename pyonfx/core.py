@@ -29,7 +29,7 @@ from typing import (Any, Dict, Iterable, List, Literal, MutableSequence,
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
-from .font_utility import Font
+from .font import Font
 from .shape import Pixel, Shape
 from .types import Alignment
 
@@ -448,49 +448,20 @@ class AssText(PositionedText, ABC):
 
         return shape
 
-    def to_pixels(self, supersampling: int = 8) -> List[Pixel]:
+    def to_pixels(self, supersampling: int = 4, anti_aliasing: bool = True) -> List[Pixel]:
         """
-        Converts text with given style information to a list of pixel data.
-        A pixel data is a NamedTuple with the attributes 'x' (horizontal position), 'y' (vertical position)
-        and 'alpha' (alpha/transparency/opacity).
+        Converts text with given style information to a list of Pixel.
+        It is strongly recommended to create a dedicated style for pixels,
+        thus, you will write less tags for line in your pixels,
+        which means less size for your .ass file.
 
-        It is highly suggested to create a dedicated style for pixels,
-        because you will write less tags for line in your pixels, which means less size for your .ass file.
-
-        Suggested style:
-
-            - **an=7 (very important!)**
-            - bord=0
-            - shad=0
-            - For Font informations leave whatever the default is
-
-        **Tips:** *It allows easy creation of text decaying or light effects.*
-
-        Examples:
-            ..  code-block:: python
-
-                io = Ass(...)
-                _, _, lines = io.get_data()
-
-                line = lines[0]
-
-                l = line.deep_copy()
-                l.style = "p"
-                p_sh = Shape.rectangle()
-                for pixel in line.to_pixels():
-                    x, y = math.floor(line.left) + pixel.x, math.floor(line.top) + pixel.y
-                    alpha = f"\\alpha{pixel.alpha}" if if pixel.alpha < 1.0 else ""
-
-                    l.text = f"{\\p1\\pos({x},{y}){alpha}}{p_sh}"
-                    io.write_line(l)
+        Style suggested as an=7, bord=0, shad=0
 
         :param supersampling:   Supersampling value.
-                                Higher value means smoother and more precise anti-aliasing, defaults to 8
+                                Higher value means smoother and more precise anti-aliasing, defaults to 4
         :return:                A list of Pixel representing each individual pixel of the input text styled.
         """
-        shape = self.to_shape()
-        shape.move(self.left % 1, self.top % 1)
-        return shape.to_pixels(supersampling)
+        return self.to_shape().to_pixels(supersampling, anti_aliasing)
 
 
 class Line(AssText):
