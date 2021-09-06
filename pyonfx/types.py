@@ -25,6 +25,8 @@ BézierCoord = Tuple[
     Tuple[float, float]
 ]
 
+AssBCurve = Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
+
 
 class CheckAnnotated(Generic[T], ABC):
     @abstractmethod

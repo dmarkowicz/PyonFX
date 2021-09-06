@@ -15,7 +15,7 @@ from typing import List, Tuple, cast, overload
 import numpy as np
 
 from .misc import chunk
-from .types import BézierCoord
+from .types import AssBCurve, BézierCoord
 
 
 def curve4_to_lines(b_coord: BézierCoord, tolerance: float, /) -> List[Tuple[float, float]]:
@@ -146,7 +146,102 @@ def get_vector(p0: Tuple[float, float], p1: Tuple[float, float]) -> Tuple[float,
     return p0[0] - p1[0], p0[1] - p1[1]
 
 
-AssBCurve = Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
+@overload
+def get_ortho_vector(p0: Tuple[float, float], p1: Tuple[float, float]) -> Tuple[float, float]:
+    """
+    Get orthogonal vector of two points
+
+    :param p0:          First point
+    :param p1:          Second point
+    :return:            Orthogonal vector coordinates
+    """
+    ...
+
+
+@overload
+def get_ortho_vector(p0: Tuple[float, float, float], p1: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    """
+    Get orthogonal vector of two points
+
+    :param p0:          First point
+    :param p1:          Second point
+    :return:            Orthogonal vector coordinates
+    """
+    ...
+
+
+def get_ortho_vector(p0: Tuple[float, float] | Tuple[float, float, float],
+                     p1: Tuple[float, float] | Tuple[float, float, float]
+                     ) -> Tuple[float, float] | Tuple[float, float, float]:
+    cross = np.cross(p0, p1)
+    if len(cross) == 3:
+        x, y, z = cross
+        return x, y, z
+    x, y = cross
+    return x, y
+
+
+@overload
+def stretch_vector(v: Tuple[float, float], length: float) -> Tuple[float, float]:
+    """
+    Scale vector to given length
+
+    :param v:           Vector
+    :param length:      Required length
+    :return:            Vector stretched
+    """
+    ...
+
+
+@overload
+def stretch_vector(v: Tuple[float, float, float], length: float) -> Tuple[float, float, float]:
+    """
+    Scale vector to given length
+
+    :param v:           Vector
+    :param length:      Required length
+    :return:            Vector stretched
+    """
+    ...
+
+
+def stretch_vector(v: Tuple[float, float] | Tuple[float, float, float],
+                   length: float) -> Tuple[float, float] | Tuple[float, float, float]:
+    cur_length = get_vector_length(v)
+    if cur_length == 0.:
+        return (0., 0.) if len(v) == 2 else (0., 0., 0.)
+    factor = length / cur_length
+    return tuple(c * factor for c in v)  # type: ignore
+
+
+def get_line_intersect(p0: Tuple[float, float], p1: Tuple[float, float],
+                       p2: Tuple[float, float], p3: Tuple[float, float],
+                       strict: bool = True) -> Tuple[float, float]:
+    """
+    Get line intersection coordinates between 4 points
+
+    :param p0:          First point
+    :param p1:          Second point
+    :param p2:          Third point
+    :param p3:          Fourth point
+    :param strict:      ???, defaults to True
+    :return:            Coordinates of the intersection
+    """
+    v0, v1 = get_vector(p0, p1), get_vector(p2, p3)
+    if v0 == 0. or v1 == 0.:
+        raise ValueError('lines mustn\'t have zero length')
+    det = np.linalg.det((v0, v1))
+    if det != 0:
+        pre, post = np.linalg.det((p0, p1)), np.linalg.det((p2, p3))
+        ix, iy = (pre * v1[0] - v0[0] * post) / det, (pre * v1[1] - v0[1] * post) / det
+        if strict:
+            s = (ix - p1[0]) / v0[0] if v0[0] != 0 else (iy - p1[1]) / v0[1]
+            t = (ix - p3[0]) / v1[0] if v1[0] != 0 else (iy - p3[1]) / v1[1]
+            if s < 0 or s > 1 or t < 0 or t > 1:
+                return inf, inf
+    else:
+        return inf, inf
+    return ix, iy
 
 
 def make_ellipse(
