@@ -278,6 +278,7 @@ class Ass:
                 if style.name == linesplit[3]:
                     nline.style = style
                     break
+            nline.meta = self.meta
             nline.actor = linesplit[4]
 
             nline.margin_l = int(linesplit[5])
