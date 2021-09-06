@@ -512,70 +512,13 @@ class Shape(MutableSequence[DrawingCommand]):
                 )
             elif cmd0.prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = self._curve4_to_lines((cmd1[-1], *cmd0), tolerance)  # type: ignore
+                flatten_cmds = [DrawingCommand(l, c) for c in curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
                 ncmds.extend(reversed(flatten_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
         self.clear()
         self.extend(reversed(ncmds))
-
-    def _curve4_to_lines(self, b_coord: BézierCoord, tolerance: float, /) -> List[DrawingCommand]:
-        """function to convert 4th degree curve to line points"""
-
-        ncoord: List[DrawingCommand] = []
-
-        def _curve4_subdivide(b_coord: BézierCoord, /) -> Tuple[BézierCoord, BézierCoord]:
-            """4th degree curve subdivider (De Casteljau)"""
-            # Calculate points on curve vectors
-            lcoord = list(chain.from_iterable(b_coord))
-            sub3 = [sum(c) / 2 for c in zip(lcoord, lcoord[2:])]
-            sub2 = [sum(c) / 2 for c in zip(sub3, sub3[2:])]
-            subx1, suby1 = [sum(c) / 2 for c in zip(sub2, sub2[2:])]
-
-            # Return new 2 curves
-            b0 = b_coord[0], (sub3[0], sub3[1]), (sub2[0], sub2[1]), (subx1, suby1)
-            b1 = (subx1, suby1), (sub2[-2], sub2[-1]), (sub3[-2], sub3[-1]), b_coord[-1]
-            return b0, b1
-
-        def _curve4_is_flat(b_coord: BézierCoord, /) -> bool:
-            """Check flatness of 4th degree curve with angles"""
-            lcoord = list(chain.from_iterable(b_coord))
-            # Pack curve vectors (only ones non zero)
-            vecs = [
-                reduce(lambda a, b: b - a, coord)
-                for coord in zip(lcoord, lcoord[2:])
-            ]
-            vecsp = [
-                (v0, v1) for v0, v1 in chunk(vecs, 2)
-                if not (v0 == 0 and v1 == 0)
-            ]
-            # # Old code:
-            # (x0, y0), (x1, y1), (x2, y2), (x3, y3) = b_coord
-            # vecs = [[x1 - x0, y1 - y0], [x2 - x1, y2 - y1], [x3 - x2, y3 - y2]]
-            # vecsp = [el for el in vecs if not (el[0] == 0 and el[1] == 0)]
-
-            # Check flatness on vectors
-            vecsp.reverse()
-            for v0, v1 in reversed(list(zip(vecsp[1:], vecsp))):
-                if abs(get_vector_angle(v0, v1)) > tolerance:
-                    return False
-            return True
-
-        def _convert_recursive(b_coord: BézierCoord, /) -> None:
-            """Conversion in recursive processing"""
-            if _curve4_is_flat(b_coord):
-                ncoord.append(
-                    DrawingCommand(DrawingProp.LINE, b_coord[-1])
-                )
-                return None
-            b0, b1 = _curve4_subdivide(b_coord)
-            _convert_recursive(b0)
-            _convert_recursive(b1)
-
-        # Splitting curve recursively until we're not satisfied (angle <= tolerance)
-        _convert_recursive(b_coord)
-        return ncoord
 
     def split_lines(self, max_length: float = 16., tolerance: float = 1.) -> None:
         """
@@ -602,33 +545,13 @@ class Shape(MutableSequence[DrawingCommand]):
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
                 # Get the new points
-                splitted_cmds = self._split_line(cmd1[-1], cmd0[0], max_length)
+                splitted_cmds = [DrawingCommand(l, c) for c in split_line(cmd1[-1], cmd0[0], max_length)]
                 ncmds.extend(reversed(splitted_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
         self.clear()
         self.extend(reversed(ncmds))
-
-    def _split_line(self, p0: Tuple[float, float], p1: Tuple[float, float], max_length: float) -> List[DrawingCommand]:
-        """Split a line (p0, p1) into shorter lines with maximum max_length"""
-        l = DrawingProp.LINE
-        ncmds: List[DrawingCommand] = []
-
-        distance = dist(p0, p1)
-        if distance > max_length:
-            (x0, y0), (x1, y1) = p0, p1
-            # Equal step between the two points instead of having all points to 16
-            # except the last for the remaining distance
-            step = distance / ceil(distance / max_length)
-            # Step can be a float so numpy.arange is prefered
-            for i in np.arange(step, distance, step):
-                pct = i / distance
-                ncmds.append(
-                    DrawingCommand(l, ((x0 + (x1 - x0) * pct), (y0 + (y1 - y0) * pct)))
-                )
-        ncmds.append(DrawingCommand(l, p1))
-        return ncmds
 
     @classmethod
     def ring(cls, out_rad: float, in_rad: float, c_xy: Tuple[float, float] = (0., 0.), /) -> Shape:
@@ -670,40 +593,18 @@ class Shape(MutableSequence[DrawingCommand]):
         :param clockwise:       Direction of point creation, defaults to True
         :return:                A Shape object representing an ellipse
         """
-        c = 0.551915024494  # https://spencermortensen.com/articles/bezier-circle/
-        cx, cy = c_xy
-
         # Aliases
         DP = DrawingCommand
         m, b = DrawingProp.MOVE, DrawingProp.BÉZIER
 
-        cl = - int((-1) ** clockwise)
+        coordinates = make_ellipse(w, h, c_xy, clockwise)
+
         cmds = [
-            DP(m, ((cx - 0) * cl, cy + h)),  # Start from bottom center
-            DP(
-                b,
-                ((cx - w * c) * cl, cy + h),
-                ((cx - w) * cl, cy + h * c),
-                ((cx - w) * cl, cy - 0)
-            ),
-            DP(
-                b,
-                ((cx - w) * cl, cy - h * c),
-                ((cx - w * c) * cl, cy - h),
-                ((cx - 0) * cl, cy - h)
-            ),
-            DP(
-                b,
-                ((cx + w * c) * cl, cy - h),
-                ((cx + w) * cl, cy - h * c),
-                ((cx + w) * cl, cy - 0)
-            ),
-            DP(
-                b,
-                ((cx + w) * cl, cy + h * c),
-                ((cx + w * c) * cl, cy + h),
-                ((cx - 0) * cl, cy + h)
-            )
+            DP(m, coordinates[0]),  # Start from bottom center
+            DP(b, *coordinates[1]),
+            DP(b, *coordinates[2]),
+            DP(b, *coordinates[3]),
+            DP(b, *coordinates[4]),
         ]
         return cls(cmds)
 
@@ -780,25 +681,18 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                A Shape object representing a parallelogram
         """
         DC = DrawingCommand
-        mov, lin = DrawingProp.MOVE, DrawingProp.LINE
-        cl = - int((-1) ** clockwise)
-        cx, cy = c_xy
+        m, l = DrawingProp.MOVE, DrawingProp.LINE
 
-        l = h / cos(radians(90 - angle))
-        x0, y0 = 0, 0
-        x1, y1 = l * cos(radians(angle)), l * sin(radians(angle))
-        x2, y2 = x1 + w, y1
-        x3, y3 = w, 0
+        coordinates = make_parallelogram(w, h, angle, c_xy, clockwise)
 
         cmds = [
-            DC(mov, ((x0 + cx) * cl, y0 + cy)),
-            DC(lin, ((x1 + cx) * cl, y1 + cy)),
-            DC(lin, ((x2 + cx) * cl, y2 + cy)),
-            DC(lin, ((x3 + cx) * cl, y3 + cy)),
-            DC(lin, ((x0 + cx) * cl, y0 + cy))
+            DC(m, coordinates[0]),
+            DC(l, coordinates[1]),
+            DC(l, coordinates[2]),
+            DC(l, coordinates[3]),
+            DC(l, coordinates[4])
         ]
         return cls(cmds)
-
 
     @classmethod
     def equilateral_tr(cls, height: float, c_xy: Tuple[float, float] = (0., 0.), /,
@@ -880,36 +774,15 @@ class Shape(MutableSequence[DrawingCommand]):
     def triangle(cls, side: float | Tuple[float, float], angle: Tuple[float, float] | float,
                  c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True, *, orthocentred: bool = True) -> Shape:
         DC = DrawingCommand
-        mov, lin = DrawingProp.MOVE, DrawingProp.LINE
-        cl = - int((-1) ** clockwise)
-        cx, cy = c_xy
+        m, l = DrawingProp.MOVE, DrawingProp.LINE
 
-        if isinstance(side, (int, float)) and isinstance(angle, tuple):
-            A, B = angle
-            C = 180 - A - B
-            ab = side
-            bc = sin(radians(A)) * ab / sin(radians(C))
-
-            x0, y0 = 0, 0
-            x1, y1 = ab, 0
-            x2, y2 = x1 - bc * cos(radians(B)), bc * sin(radians(B))
-        elif isinstance(side, tuple) and isinstance(angle, (int, float)):
-            ab, ac = side
-            A = angle
-            bc = sqrt(ac ** 2 + ab ** 2 - 2 * ac * ab * cos(radians(A)))
-            Br = asin(sin(radians(A)) * ac / bc)
-
-            x0, y0 = 0, 0
-            x1, y1 = ab, 0
-            x2, y2 = x1 - bc * cos(Br), bc * sin(Br)
-        else:
-            raise ValueError(f'{cls.__name__}: possibles values are one side and two angles or two sides and one angle')
+        coordinates = make_triangle(side, angle, c_xy, clockwise)
 
         cmds = [
-            DC(mov, ((x0 + cx) * cl, y0 + cy)),
-            DC(lin, ((x1 + cx) * cl, y1 + cy)),
-            DC(lin, ((x2 + cx) * cl, y2 + cy)),
-            DC(lin, ((x0 + cx) * cl, y0 + cy)),
+            DC(m, coordinates[0]),
+            DC(l, coordinates[1]),
+            DC(l, coordinates[2]),
+            DC(l, coordinates[3]),
         ]
 
         triangle = cls(cmds)
@@ -987,7 +860,7 @@ class Shape(MutableSequence[DrawingCommand]):
         cmds: List[DrawingCommand] = []
         coordinates: List[Tuple[float, float]] = []
 
-        cmds.append(DrawingCommand(m, (0, -outer_size)))
+        cmds.append(DC(m, (0, -outer_size)))
 
         for i in range(1, edges + 1):
             inner_p = rotate_point(0, -inner_size, 0, 0, ((i - 0.5) / edges) * 360)
@@ -1119,66 +992,3 @@ class Shape(MutableSequence[DrawingCommand]):
             for x, alpha in enumerate(row)
             if alpha > 0
         ]
-
-
-class OldShape:
-    def __to_outline(
-        self, bord_xy: float, bord_y: Optional[float] = None, mode: str = "round"
-    ) -> OldShape:
-        """Converts shape command for filling to a shape command for stroking.
-
-        **Tips:** *You could use this for border textures.*
-
-        Parameters:
-            shape (str): The shape in ASS format as a string.
-
-        Returns:
-            A pointer to the current object.
-
-        Returns:
-            A new shape as string, representing the border of the input.
-        """
-        raise NotImplementedError
-
-
-def rotate_point(x: float, y: float, zpx: float, zpy: float, rotation: float) -> Tuple[float, float]:
-    """
-    Rotate a single point on the Z-axis
-
-    :param x:               Abscissa of the point
-    :param y:               Ordinate of the point
-    :param zpx:             Abscissa of the zero point
-    :param zpy:             Ordinate of the zero point
-    :param rotation:        Rotation in degrees
-    :return:                A tuple of rotated coordinates
-    """
-    # Distance to zero-point
-    zpd = dist((zpx, zpy), (x, y))
-
-    rot = radians(rotation)
-    curot = atan2(x - zpx, y - zpy)
-
-    nx = zpd * sin(curot + rot) + zpx
-    ny = zpd * cos(curot + rot) + zpy
-    return nx, ny
-
-
-def get_vector_angle(v0: Tuple[float, float], v1: Tuple[float, float]) -> float:
-    """Get angle between two vectors"""
-    # https://stackoverflow.com/a/35134034
-
-    angler = atan2(np.linalg.det((v0, v1)), np.dot(v0, v1))
-    angled = degrees(angler)
-
-    # Return with sign by clockwise direction
-    return - angled if np.cross(v0, v1) < 0 else angled
-
-
-def get_vector_length(vector: Tuple[float, float]) -> float:
-    """
-    Get a vector length (or norm)
-
-    :param vector:      Vector
-    :return:            Vector length
-    """
-    return cast(float, np.linalg.norm(vector))
