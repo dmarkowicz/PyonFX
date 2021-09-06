@@ -118,6 +118,11 @@ class PropView(View[T_co], Collection[T_co]):
     def __iter__(self) -> Iterator[T_co]:
         return iter(self.__props)
 
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, PropView):
+            return NotImplemented
+        return self.__props == o.__props
+
 
 class CoordinatesView(View[Tuple[Nb, Nb]], Collection[Tuple[Nb, Nb]]):
     """View for coordinates"""
@@ -130,3 +135,8 @@ class CoordinatesView(View[Tuple[Nb, Nb]], Collection[Tuple[Nb, Nb]]):
 
     def __iter__(self) -> Iterator[Tuple[Nb, Nb]]:
         return iter(self.__coordinates)
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, CoordinatesView):
+            return NotImplemented
+        return self.__coordinates == o.__coordinates
