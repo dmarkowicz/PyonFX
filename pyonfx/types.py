@@ -4,8 +4,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import wraps
 from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
-                    Iterator, Reversible, Sequence, Sized, Tuple, TypeVar, Union, cast, get_args,
-                    get_origin, get_type_hints)
+                    Iterator, Literal, Reversible, Sequence, Sized, Tuple,
+                    TypeVar, Union, cast, get_args, get_origin, get_type_hints)
 
 T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
@@ -25,6 +25,7 @@ BézierCoord = Tuple[
     Tuple[float, float]
 ]
 
+OutlineMode = Literal['miter', 'bevel', 'round']
 AssBCurve = Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
 
 

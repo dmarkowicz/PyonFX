@@ -20,10 +20,8 @@ __all__ = ['Shape']
 
 import re
 from enum import Enum
-from functools import reduce
-from itertools import chain, zip_longest
-from math import (asin, atan, atan2, ceil, cos, degrees, dist, radians, sin,
-                  sqrt)
+from itertools import zip_longest
+from math import atan, ceil, cos, degrees, inf, radians, sqrt
 from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     NamedTuple, NoReturn, Optional, Sequence, SupportsIndex,
                     Tuple, cast, overload)
@@ -33,8 +31,12 @@ from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
 from .colourspace import Opacity
+from .geometry import (curve4_to_lines, get_line_intersect, get_ortho_vector,
+                       get_vector, get_vector_angle, get_vector_length,
+                       make_ellipse, make_parallelogram, make_triangle,
+                       rotate_point, split_line, stretch_vector)
 from .misc import chunk
-from .types import Alignment, BézierCoord, CoordinatesView, PropView
+from .types import Alignment, CoordinatesView, OutlineMode, PropView
 
 
 class Pixel(NamedTuple):
@@ -999,3 +1001,180 @@ class Shape(MutableSequence[DrawingCommand]):
             for x, alpha in enumerate(row)
             if alpha > 0
         ]
+
+    def to_outline(self, bord_xy: float, bord_y: Optional[float] = None, mode: OutlineMode = 'round', *,
+                   miter_limit: float = 200., max_circumference: float = 2.) -> None:
+        """
+        Converts Shape command for filling to a Shape command for stroking.
+
+        :param bord_xy:             Outline border
+        :param bord_y:              Y-axis outline border, defaults to None
+        :param mode:                Stroking mode, can be 'miter', 'bevel' ou 'round', defaults to "round"
+        """
+        if len(self) < 2:
+            raise ValueError(f'{self.__class__.__name__}: Shape must have at least 2 commands')
+
+        # -- Line width values
+        if bord_y and bord_xy != bord_y:
+            width = max(bord_xy, bord_y)
+            xscale, yscale = bord_xy / width, bord_y / width
+        else:
+            width, xscale, yscale = bord_xy, 1, 1
+
+        self.flatten()
+        shapes = self.split_shape()
+
+        def _unclose_shape(sh: Shape) -> Shape:
+            sh.unclose()
+            return sh
+
+        shapes = [_unclose_shape(s) for s in shapes]
+
+        # -- Create stroke shape out of figures
+        DC, DP = DrawingCommand, DrawingProp
+        m, l = DP.MOVE, DP.LINE
+        stroke_cmds: List[DrawingCommand] = []
+
+        for shape in shapes:
+            # Outer
+            rcmds = [shape[0]] + list(reversed(shape[1:]))
+            outline = self._stroke_lines(rcmds, width, xscale, yscale, mode, miter_limit, max_circumference)
+            stroke_cmds.append(DC(m, outline.pop(0)))
+            stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
+
+            # Inner
+            outline = self._stroke_lines(shape, width, xscale, yscale, mode, miter_limit, max_circumference)
+            stroke_cmds.append(DC(m, outline.pop(0)))
+            stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
+
+        self.clear()
+        self.extend(stroke_cmds)
+
+    def _stroke_lines(self, shape: MutableSequence[DrawingCommand], width: float,
+                      xscale: float, yscale: float, mode: str,
+                      miter_limit: float, max_circumference: float) -> List[Tuple[float, float]]:
+        outline: List[Tuple[float, float]] = []
+        for point, pre_point, post_point in zip(
+            shape,
+            [shape[-1]] + list(shape[:-1]),
+            list(shape[1:]) + [shape[0]]
+        ):
+            # -- Calculate orthogonal vectors to both neighbour points
+            p, pre_p, post_p = point[0], pre_point[0], post_point[0]
+            vec0, vec1 = get_vector(p, pre_p), get_vector(p, post_p)
+
+            o_vec0 = get_ortho_vector(*((*vec0, 0.), (0., 0., 1.)))
+            o_vec0 = stretch_vector(o_vec0[:-1], width)
+
+            o_vec1 = get_ortho_vector(*((*vec1, 0.), (0., 0., -1.)))
+            o_vec1 = stretch_vector(o_vec1[:-1], width)
+
+            # -- Check for gap or edge join
+            inter_x, inter_y = get_line_intersect(
+                (p[0] + o_vec0[0] - vec0[0], p[1] + o_vec0[1] - vec0[1]),
+                (p[0] + o_vec0[0],           p[1] + o_vec0[1]),  # noqa: E241
+                (p[0] + o_vec1[0] - vec1[0], p[1] + o_vec1[1] - vec1[1]),
+                (p[0] + o_vec1[0],           p[1] + o_vec1[1]),  # noqa: E241
+                True
+            )
+            if inter_y != inf:
+                # -- Add gap point
+                outline.append(
+                    (p[0] + (inter_x - p[0]) * xscale, p[1] + (inter_y - p[1]) * yscale)
+                )
+            else:
+                # -- Add first edge point
+                outline.append(
+                    (p[0] + o_vec0[0] * xscale, p[1] + o_vec0[1] * yscale)
+                )
+                # -- Create join by mode
+                if mode == 'bevel':
+                    continue
+                if mode == 'miter':
+                    outline.extend(self._join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
+
+                elif mode == 'round':
+                    outline.extend(self._join_mode_round(p, o_vec0, o_vec1, xscale, yscale, width, max_circumference))
+                else:
+                    raise ValueError(f'"{mode}" is not a supported mode!')
+                # -- Add end edge point
+                outline.append(
+                    (p[0] + o_vec1[0] * xscale, p[1] + o_vec1[1] * yscale)
+                )
+        return outline
+
+    @staticmethod
+    def _join_mode_miter(
+        p: Tuple[float, float],
+        vec0: Tuple[float, float], vec1: Tuple[float, float],
+        o_vec0: Tuple[float, float], o_vec1: Tuple[float, float],
+        xscale: float, yscale: float, miter_limit: float
+    ) -> List[Tuple[float, float]]:
+        """Internal function"""
+        outline: List[Tuple[float, float]] = []
+
+        inter_x, inter_y = get_line_intersect(
+            (p[0] + o_vec0[0] - vec0[0], p[1] + o_vec0[1] - vec0[1]),
+            (p[0] + o_vec0[0],           p[1] + o_vec0[1]),  # noqa: E241
+            (p[0] + o_vec1[0] - vec1[0], p[1] + o_vec1[1] - vec1[1]),
+            (p[0] + o_vec1[0],           p[1] + o_vec1[1]),  # noqa: E241
+            strict=False
+        )
+        # -- Vectors intersect
+        if inter_y != inf:
+            is_vec_x, is_vec_y = inter_x - p[0], inter_y - p[1]
+            is_vec_len = get_vector_length((is_vec_x, is_vec_y))
+            if is_vec_len > miter_limit:
+                fix_scale = miter_limit / is_vec_len
+                outline.append(
+                    (
+                        p[0] + (o_vec0[0] + (is_vec_x - o_vec0[0]) * fix_scale) * xscale,
+                        p[1] + (o_vec0[1] + (is_vec_y - o_vec0[1]) * fix_scale) * yscale
+                    )
+                )
+                outline.append(
+                    (
+                        p[0] + (o_vec1[0] + (is_vec_x - o_vec1[0]) * fix_scale) * xscale,
+                        p[1] + (o_vec1[1] + (is_vec_y - o_vec1[1]) * fix_scale) * yscale
+                    )
+                )
+            else:
+                outline.append(
+                    (p[0] + is_vec_x * xscale, p[1] + is_vec_y * yscale)
+                )
+        # -- Parallel vectors
+        else:
+            vec0, vec1 = stretch_vector(vec0, miter_limit), stretch_vector(vec1, miter_limit)
+            outline.append(
+                (p[0] + (o_vec0[0] + vec0[0]) * xscale, p[1] + (o_vec0[1] + vec0[1]) * yscale)
+            )
+            outline.append(
+                (p[0] + (o_vec1[0] + vec1[0]) * xscale, p[1] + (o_vec1[1] + vec1[1]) * yscale)
+            )
+        return outline
+
+    @staticmethod
+    def _join_mode_round(
+        p: Tuple[float, float],
+        o_vec0: Tuple[float, float], o_vec1: Tuple[float, float],
+        xscale: float, yscale: float, width: float, max_circumference: float
+    ) -> List[Tuple[float, float]]:
+        """Internal function"""
+        outline: List[Tuple[float, float]] = []
+
+        # -- Calculate degree & circumference between orthogonal vectors
+        degree = get_vector_angle(o_vec0, o_vec1)
+        circ = abs(radians(degree)) * width
+
+        if circ > max_circumference:
+            # -- Add curve edge points
+            circ_rest = circ % max_circumference
+            for cur_circ in np.arange(
+                circ_rest if circ_rest > 0 else max_circumference,
+                circ, max_circumference
+            ):
+                curve_vec = rotate_point(*o_vec0, 0, 0, cur_circ / circ * degree)
+                outline.append(
+                    (p[0] + curve_vec[0] * xscale, p[1] + curve_vec[1] * yscale)
+                )
+        return outline
