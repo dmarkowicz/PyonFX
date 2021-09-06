@@ -464,6 +464,12 @@ class Shape(MutableSequence[DrawingCommand]):
         if self[-1].coordinates != self[0].coordinates:
             self.append(DrawingCommand(DrawingProp.LINE, *tuple(self[0].coordinates)))
 
+    def unclose(self) -> None:
+        """
+        Unclose current shape if last point is the same as the first one
+        """
+        if self[-1].coordinates == self[0].coordinates and self[-1].prop == DrawingProp.LINE:
+            del self[-1]
 
     def split_shape(self) -> List[Shape]:
         """
