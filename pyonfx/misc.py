@@ -1,3 +1,5 @@
+"""Miscellaneous and utility functions"""
+
 __all__ = ['clamp_value', 'chunk']
 
 from itertools import islice
@@ -30,7 +32,7 @@ def chunk(iterable: Iterable[T_co], size: Literal[3]) -> Iterator[Tuple[T_co, T_
 
 def chunk(iterable: Iterable[T_co], size: int = 2) -> Iterator[Tuple[T_co, ...]]:  # type: ignore
     """
-    Split a iterable of arbitrary length into equal size chunks
+    Split an iterable of arbitrary length into equal size chunks
 
     :param iterable:        Iterable to be splitted it up
     :param size:            Chunk size, defaults to 2

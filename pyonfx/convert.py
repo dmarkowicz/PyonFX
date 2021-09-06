@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/.
-
+"""Conversion module"""
 from __future__ import annotations
 
 __all__ = [
@@ -32,6 +32,7 @@ from .types import Tup3
 
 
 class ConvertTime:
+    """Time conversion class"""
     # Seconds | Timestamp
     @staticmethod
     def ts2seconds(ts: str, /) -> float:
@@ -107,6 +108,7 @@ class ConvertTime:
 
 
 class ConvertColour:
+    """Colour conversion class"""
 
     # Reference white
     D65_XYZ_TRISTIMULUS_2: Final[Tup3[float]] = (0.95047, 1.00000, 1.08883)

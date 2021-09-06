@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/.
-
+"""Main core module"""
 from __future__ import annotations
 
 __all__ = [
@@ -499,6 +499,7 @@ class Line(AssText):
     """List containing objects :class:`Char` in this line (*)"""
 
     def compose_ass_line(self) -> str:
+        """Make an ASS line suitable for writing into ASS file"""
         ass_line = "Comment: " if self.comment else "Dialogue: "
         elements: List[Any] = [
             self.layer,

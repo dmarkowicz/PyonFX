@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/.
+"""Font getting data module"""
 from __future__ import annotations
 
 __all__ = ['Font']
@@ -194,6 +195,8 @@ if sys.platform == "win32":
                     (x1, y1), _ = next(points_types)
                     (x2, y2), _ = next(points_types)
                     cmds.append(DC(b, (x0, y0), (x1, y1), (x2, y2)))
+                else:
+                    pass
 
             # Clear device context path
             win32gui.AbortPath(self.dc)
