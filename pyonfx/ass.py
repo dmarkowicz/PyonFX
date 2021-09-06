@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program. If not, see http://www.gnu.org/licenses/.
+"""Initialisation module"""
 
 from __future__ import annotations
 
@@ -35,7 +36,7 @@ from .font import Font
 
 
 class Ass:
-    """Initialization class containing all the information about an ASS file"""
+    """Initialisation class containing all the information about an ASS file"""
     path_input: Path
     path_output: Path
     fps: Fraction
@@ -56,29 +57,18 @@ class Ass:
         text: str
         word_i: Optional[int] = None
 
-    def __init__(self, path_input: os.PathLike[str] | str, path_output: os.PathLike[str] | str | None = None,
+    def __init__(self, path_input: os.PathLike[str] | str, path_output: os.PathLike[str] | str | None = None, /,
                  fps: Fraction | float = Fraction(24000, 1001),
                  comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
         """
-        Args:
-            path_input (str, optional):
-                Input file path
-
-            path_output (str, optional):
-                Output file path
-
-            comment_original (bool, optional):
-                If True, you will find all the lines of the input file commented before the new lines generated.
-                Defaults to True.
-
-            extended (bool, optional):
-                Calculate more informations from lines.
-                Defaults to True.
-
-            vertical_kanji (bool, optional):
-                If True, line text with alignment 4, 5 or 6 will be positioned vertically.
-                Additionally, ``line`` fields will be re-calculated based on the re-positioned ``line.chars``.
-                Defaults to False.
+        :param path_input:          Input file path
+        :param path_output:         Output file path, defaults to None
+        :param fps:                 Framerate Per Second of the ASS file, defaults to Fraction(24000, 1001)
+        :param comment_original:    Keep original lines at the beginning of the output ass and comment them, defaults to True
+        :param extended:            Calculate more informations from lines, defaults to True
+        :param vertical_kanji:      Line text with alignment 4, 5 or 6 will be positioned vertically
+                                    Additionally, ``line`` fields will be re-calculated based on the re-positioned ``line.chars``,
+                                    defaults to False
         """
         # Starting to take process time
         self._ptime = time.time()
@@ -748,33 +738,31 @@ class Ass:
         return line
 
     def get_data(self) -> Tuple[Meta, List[Style], List[Line]]:
-        """Utility function to easily retrieve meta, styles and lines.
+        """
+        Utility function to easily retrieve meta, styles and lines.
 
-        Returns:
-            :attr:`meta`, :attr:`styles` and :attr:`lines`
+        :return:            :attr:`meta`, :attr:`styles` and :attr:`lines`
         """
         return self.meta, self.styles, self.lines
 
     def write_line(self, line: Line) -> None:
-        """Appends a line to the output list (which is private) that later on will be written to the output file when calling save().
+        """
+        Appends a line to the output list that later on will be written to the output file
+        when calling save().
+        Use it whenever you've prepared a line, it will not impact performance
+        since you will not actually write anything until :func:`save` will be called.
 
-        Use it whenever you've prepared a line, it will not impact performance since you
-        will not actually write anything until :func:`save` will be called.
-
-        Parameters:
-            line (:class:`Line`): A line object.
+        :param line:        Line object
         """
         self._output_lines += [line.compose_ass_line()]
 
     def save(self, quiet: bool = False) -> None:
-        """Write everything inside the private output list to a file.
-
-        Parameters:
-            quiet (bool): If True, you will not get printed any message.
         """
+        Write everything inside the output list to a file.
 
-        # Writing to file
-        with open(self.path_output, "w", encoding="utf-8-sig") as file:
+        :param quiet:       Don't show message, defaults to False
+        """
+        with self.path_output.open("w", encoding="utf-8-sig") as file:
             file.writelines(self._output + self._output_lines + ["\n"])
             if self._output_extradata:
                 file.write("\n[Aegisub Extradata]\n")
@@ -787,14 +775,14 @@ class Ass:
             )
 
     def open_aegisub(self) -> None:
-        """Open the output (specified in self.path_output) with Aegisub.
-
-        This can be usefull if you don't have MPV installed or you want to look at your output in detailed.
         """
-
+        Open the output (specified in path_output during the initialisation class) with Aegisub.
+        """
         # Check if it was saved
         if not self.path_output.exists():
-            warnings.warn("You've tried to open the output with Aegisub before having saved. Check your code.", Warning)
+            warnings.warn(
+                f'{self.__class__.__name__}: "path_output" not found!', Warning
+            )
         else:
             if sys.platform == "win32":
                 os.startfile(self.path_output)
@@ -802,25 +790,25 @@ class Ass:
                 try:
                     subprocess.call(["aegisub", self.path_output])
                 except FileNotFoundError:
-                    warnings.warn("Aegisub not found.", Warning)
+                    warnings.warn("Aegisub not found!", Warning)
 
-    def open_mpv(self, video_path: Optional[str] = None, video_start: Optional[str] = None, full_screen: bool = False) -> None:
-        """Open the output (specified in self.path_output) in softsub with the MPV player.
-        To utilize this function, MPV player is required. Additionally if you're on Windows,
-        MPV must be in the PATH (check https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step).
-
-        This is one of the fastest way to reproduce your output in a comfortable way.
-
-        Parameters:
-            video_path (string): The video file path (absolute) to reproduce. If not specified, **meta.video** is automatically taken.
-            video_start (string): The start time for the video (more info: https://mpv.io/manual/master/#options-start).
-                                  If not specified, 0 is automatically taken.
-            full_screen (bool): If True, it will reproduce the output in full screen. If not specified, False is automatically taken.
+    def open_mpv(self, video_path: os.PathLike[str] | str | None = None,
+                 video_start: Optional[str] = None, full_screen: bool = False) -> None:
         """
+        Open the output (specified in path_output during the initialisation class)
+        in softsub with MPV player.
+        You should add MPV in your PATH (check https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step).
 
+        :param video_path:          Video path. If not specified it will use the path in meta.video, defaults to None
+        :param video_start:         Start time for the video (more info: https://mpv.io/manual/master/#options-start)
+                                    If not specified, 0 is automatically taken, defaults to None
+        :param full_screen:         Launch MPV in full screen, defaults to False
+        """
         # Check if it was saved
         if not self.path_output.exists():
-            warnings.warn("You've tried to open the output with MPV before having saved. Check your code.", Warning)
+            warnings.warn(
+                f'{self.__class__.__name__}: "path_output" not found!', Warning
+            )
         else:
             # Check if mpv is usable
             if self.meta.video.startswith("?dummy") and not video_path:
@@ -834,7 +822,7 @@ class Ass:
                 cmd = ["mpv"]
 
                 if video_path:
-                    cmd.append(video_path)
+                    cmd.append(str(video_path))
                 else:
                     cmd.append(self.meta.video)
                 if video_start:
