@@ -27,6 +27,7 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
+from more_itertools import unzip
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
@@ -978,13 +979,13 @@ class Shape(MutableSequence[DrawingCommand]):
 
         # Build an image
         _, _, x1, y1 = wshape.bounding()
-        width, height = ceil(x1 + 1), ceil(y1 + 1)
+        width, height = ceil(x1 + supersampling * 2), ceil(y1 + supersampling * 2)
         image = np.zeros((height, width), np.uint8)
 
         # Extract coordinates
-        xs, ys = zip(*[c for cv in wshape.coordinates for c in cv])
+        xs, ys = unzip(c for cv in wshape.coordinates for c in cv)
         # Build rows and columns from coordinates
-        rows, columns = np.array(ys), np.array(xs)
+        rows, columns = np.array(list(ys)), np.array(list(xs))
         # Get polygons coordinates
         rr, cc = skimage_polygon(rows, columns)
         # Fill the image from the polygon coordinates
