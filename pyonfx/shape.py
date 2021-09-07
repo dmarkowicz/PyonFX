@@ -460,6 +460,19 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         self.map(lambda x, y: rotate_point(x, y, *(0., 0.) if not zero_pad else zero_pad, rotation))
 
+    def shear(self, fax: float = 0., fay: float = 0., /) -> None:
+        """
+        Perform a shearing (perspective distortion) transformation of the text.
+        A factor of 0 means no distortion.
+
+        :param fax:             X-axis factor, defaults to 0.
+        :param fay:             Y-axis factor, defaults to 0.
+        """
+        self.map(
+            lambda x, y:  # type: ignore
+            tuple(map(float, np.array([(1, fax), (fay, 1)]) @ np.array([(x, ), (y, )])))
+        )
+
     def close(self) -> None:
         """
         Close current shape if last point is not the same as the first one
