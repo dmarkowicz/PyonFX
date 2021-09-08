@@ -27,7 +27,7 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
-from more_itertools import unzip, zip_offset
+from more_itertools import sliced, unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
@@ -186,8 +186,7 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
     def __getitem__(self, index: SupportsIndex | slice) -> Tuple[float, float] | NoReturn:
         if isinstance(index, SupportsIndex):
             return self._coordinates[index]
-        else:
-            raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
+        raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
 
     def __len__(self) -> int:
         return len(self._coordinates)
@@ -275,8 +274,7 @@ class Shape(MutableSequence[DrawingCommand]):
     def __getitem__(self, index: SupportsIndex | slice) -> DrawingCommand | Shape:
         if isinstance(index, SupportsIndex):
             return self._commands[index]
-        else:
-            return Shape(self._commands[index])
+        return Shape(self._commands[index])
 
     @overload
     def __setitem__(self, index: SupportsIndex, value: DrawingCommand) -> None:
@@ -504,8 +502,8 @@ class Shape(MutableSequence[DrawingCommand]):
         :param fay:             Y-axis factor, defaults to 0.
         """
         self.map(
-            lambda x, y:  # type: ignore
-            tuple(map(float, np.array([(1, fax), (fay, 1)]) @ np.array([(x, ), (y, )])))
+            lambda x, y:
+            tuple(map(float, np.array([(1, fax), (fay, 1)]) @ np.array([(x, ), (y, )])))  # type: ignore
         )
 
     def close(self) -> None:
@@ -559,8 +557,7 @@ class Shape(MutableSequence[DrawingCommand]):
         # Work with the commands reversed
         self.reverse()
 
-        for cmd0, cmd1 in zip_longest(self, self[1:]):
-            cmd0, cmd1 = cast(DrawingCommand, cmd0), cast(DrawingCommand, cmd1)
+        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True, fillvalue=DrawingCommand(m, (0, 0))):
             if cmd0.prop in {m, n, l}:
                 ncmds.append(cmd0)
             elif cmd0.prop in {p, s, c}:
@@ -570,7 +567,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 )
             elif cmd0.prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = [DrawingCommand(l, c) for c in curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
+                flatten_cmds = [DrawingCommand(l, co) for co in curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
                 ncmds.extend(reversed(flatten_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -930,7 +927,7 @@ class Shape(MutableSequence[DrawingCommand]):
             elif prop == s:
                 coordinates += [inner_p, inner_p, outer_p]
                 if i == edges:
-                    cmds += [DC(DrawingProp.BSPLINE, *coordinates[:-1])] + [DC(DrawingProp.CLOSE_BSPLINE)]
+                    cmds += [DC(s, *coordinates[:-1])] + [DC(DrawingProp.CLOSE_BSPLINE)]
             else:
                 raise NotImplementedError(f'{cls.__name__}: prop "{prop}" not supported!')
 
@@ -972,7 +969,7 @@ class Shape(MutableSequence[DrawingCommand]):
                     DC(
                         DP._prop_drawing_dict()[p],
                         (float(x), float(y))
-                    ) for x, y in chunk(sdraw, 2)
+                    ) for x, y in sliced(sdraw, 2, strict=True)
                 )
             elif sdraw[0].startswith(('b', 's')) and lendraw >= 7:
                 p = sdraw.pop(0)
@@ -1112,11 +1109,11 @@ class Shape(MutableSequence[DrawingCommand]):
             p, pre_p, post_p = point[0], pre_point[0], post_point[0]
             vec0, vec1 = get_vector(p, pre_p), get_vector(p, post_p)
 
-            o_vec0 = get_ortho_vector(*((*vec0, 0.), (0., 0., 1.)))
-            o_vec0 = stretch_vector(o_vec0[:-1], width)
+            o_vec0 = get_ortho_vector(*((*vec0, 0.), (0., 0., 1.)))[:-1]
+            o_vec0 = stretch_vector(o_vec0, width)
 
-            o_vec1 = get_ortho_vector(*((*vec1, 0.), (0., 0., -1.)))
-            o_vec1 = stretch_vector(o_vec1[:-1], width)
+            o_vec1 = get_ortho_vector(*((*vec1, 0.), (0., 0., -1.)))[:-1]
+            o_vec1 = stretch_vector(o_vec1, width)
 
             # -- Check for gap or edge join
             inter_x, inter_y = get_line_intersect(
@@ -1141,7 +1138,6 @@ class Shape(MutableSequence[DrawingCommand]):
                     continue
                 if mode == 'miter':
                     outline.extend(self._join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
-
                 elif mode == 'round':
                     outline.extend(self._join_mode_round(p, o_vec0, o_vec1, xscale, yscale, width, max_circumference))
                 else:
