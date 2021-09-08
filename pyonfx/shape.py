@@ -31,7 +31,7 @@ from more_itertools import unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
-from .colourspace import Opacity
+from .colourspace import Opacity, ASSColor
 from .geometry import (curve4_to_lines, get_line_intersect, get_ortho_vector,
                        get_vector, get_vector_angle, get_vector_length,
                        make_ellipse, make_parallelogram, make_triangle,
@@ -45,27 +45,23 @@ class Pixel(NamedTuple):
     """A simple NamedTuple to represent pixels"""
     x: float
     y: float
-    opacity: Opacity
+    opacity: Optional[Opacity] = None
+    colour: Optional[ASSColor] = None
 
-    def to_ass_pixel(self, shift_x: float = 0, shift_y: float = 0,
-                     round_digits: int = 3, optimise: bool = True) -> str:
+    def to_ass_pixel(self, shift_x: float = 0, shift_y: float = 0, round_digits: int = 3) -> str:
         """
         Convenience function to get a ready-made line for the current pixel
 
         :param shift_x:         Shift number to add to the pixel abscissa, default to 0
         :param shift_y:         Shift number to add to the pixel ordinate, default to 0
         :param round_digits:    Decimal digits rounding precision, defaults to 3
-        :param optimise:        Optimise the string by not adding the alpha tag when the pixel
-                                is fully opaque, defaults to True
         :return:                Pixel in ASS format
         """
-        if optimise:
-            alpha = f'\\alpha{self.opacity}' if self.opacity.value < 1.0 else ''
-        else:
-            alpha = f'\\alpha{self.opacity}'
+        alpha = (f'\\alpha{self.opacity}' if self.opacity.value < 1.0 else '') if self.opacity else ''
+        colour = f'\\c{self.colour}' if self.colour else ''
         return (
             f'{{\\p1\\pos({round(self.x + shift_x, round_digits)},{round(self.y + shift_y, round_digits)})'
-            + alpha + f'}}{Shape.square(1).to_str()}'
+            + alpha + colour + f'}}{Shape.square(1.5).to_str()}'
         )
 
 
