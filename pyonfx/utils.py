@@ -45,10 +45,9 @@ def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
 
     if isinstance(val1, (float, int)) and isinstance(val2, (float, int)):
         return cast(I, val1 * (1 - pct) + val2 * pct)
-    elif isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
+    if isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
         return cast(I, val1.interpolate(val2, pct))
-    else:
-        raise ValueError('interpolate: va1 and val2 must be of the same type')
+    raise ValueError('interpolate: va1 and val2 must be of the same type')
 
 
 
@@ -74,9 +73,9 @@ class Frame(NamedTuple):
     """Start time in seconds"""
     end: float
     """End time in seconds"""
-    index: int
+    i: int
     """Index number"""
-    total: int
+    n: int
     """Total number of frames"""
 
 
@@ -99,7 +98,7 @@ class FrameUtility(Iterable[Frame]):
 
                 for frame in FrameUtility(0, 0.250):
                     print(
-                        f"Frame {frame.index}/{frame.total}: "
+                        f"Frame {frame.i}/{frame.n}: "
                         f'{round(frame.start, 3)} - {round(frame.end, 3)}'
                     )
 
