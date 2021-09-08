@@ -125,16 +125,20 @@ class Ass:
         if extended:
             lines_by_styles: Dict[Style, List[Line]] = {}
             for line in self.lines:
-                # Append dialog to styles (for leadin and leadout later)
-                lines_by_styles.setdefault(line.style, [])
-                lines_by_styles[line.style].append(line)
-
-                line.duration = line.end_time - line.start_time
-                line.text = re.sub(r"\{.*?\}", "", line.raw_text)
-
                 # Add dialog text sizes and positions (if possible)
-                if hasattr(line, 'style'):
-                    font = Font(line.style)
+                try:
+                    line_style = line.style
+                except AttributeError:
+                    warnings.warn(f'Line {line.i} is using an undefined style, skipping...', Warning)
+                else:
+                    # Append dialog to styles (for leadin and leadout later)
+                    lines_by_styles.setdefault(line_style, [])
+                    lines_by_styles[line_style].append(line)
+
+                    line.duration = line.end_time - line.start_time
+                    line.text = re.sub(r"\{.*?\}", "", line.raw_text)
+
+                    font = Font(line_style)
                     font_metrics = font.metrics
 
                     # Add line data
@@ -142,7 +146,7 @@ class Ass:
 
                     # Calculating space width and saving spacing
                     space_width = font.get_text_extents(" ")[0]
-                    style_spacing = line.style.spacing
+                    style_spacing = line_style.spacing
 
                     # Add words data
                     line = self._add_data_words(line, font, font_metrics, space_width, style_spacing)
@@ -157,8 +161,6 @@ class Ass:
 
                     # Getting chars
                     line = self._add_data_chars(line, font, font_metrics, style_spacing)
-                else:
-                    warnings.warn(f'Line {line.i} is using undefined style, skipping...', Warning)
 
             # Add durations between dialogs
             fps = float(self.fps)
@@ -303,8 +305,12 @@ class Ass:
         line.width, line.height = font.get_text_extents(line.text)
         line.ascent, line.descent, line.internal_leading, line.external_leading = font_metrics
 
-        # If self.meta has play_res_x then we assume it has play_res_y too
-        if hasattr(self.meta, 'play_res_x'):
+        try:
+            play_res_x = self.meta.play_res_x
+            play_res_y = self.meta.play_res_y
+        except AttributeError:
+            pass
+        else:
             # Horizontal position
             margin_l = (
                 line.margin_l if line.margin_l != 0 else line.style.margin_l
@@ -318,12 +324,12 @@ class Ass:
                 line.right = line.left + line.width
                 line.x = line.left
             elif line.style.an_is_center():
-                line.left = self.meta.play_res_x / 2 - line.width / 2 + margin_l / 2 - margin_r / 2
+                line.left = play_res_x / 2 - line.width / 2 + margin_l / 2 - margin_r / 2
                 line.center = line.left + line.width / 2
                 line.right = line.left + line.width
                 line.x = line.center
             else:
-                line.left = self.meta.play_res_x - margin_r - line.width
+                line.left = play_res_x - margin_r - line.width
                 line.center = line.left + line.width / 2
                 line.right = line.left + line.width
                 line.x = line.right
@@ -335,12 +341,12 @@ class Ass:
                 line.bottom = line.top + line.height
                 line.y = line.top
             elif line.style.an_is_middle():
-                line.top = self.meta.play_res_y / 2 - line.height / 2
+                line.top = play_res_y / 2 - line.height / 2
                 line.middle = line.top + line.height / 2
                 line.bottom = line.top + line.height
                 line.y = line.middle
             else:
-                line.top = self.meta.play_res_y - (line.margin_v if line.margin_v != 0 else line.style.margin_v) - line.height
+                line.top = play_res_y - (line.margin_v if line.margin_v != 0 else line.style.margin_v) - line.height
                 line.middle = line.top + line.height / 2
                 line.bottom = line.top + line.height
                 line.y = line.bottom
@@ -376,8 +382,12 @@ class Ass:
             line.words.append(word)
 
         # Calculate word positions with all words data already available
-        # If self.meta has play_res_x then we assume it has play_res_y too
-        if line.words and hasattr(self.meta, 'play_res_x'):
+        try:
+            play_res_x = self.meta.play_res_x
+            play_res_y = self.meta.play_res_y
+        except AttributeError:
+            pass
+        else:
             if line.style.an_is_top() or line.style.an_is_bottom():
                 cur_x = line.left
                 for word in line.words:
@@ -408,7 +418,7 @@ class Ass:
                     max_width = max(max_width, word.width)
                     sum_height = sum_height + word.height
 
-                cur_y = x_fix = self.meta.play_res_y / 2 - sum_height / 2
+                cur_y = x_fix = play_res_y / 2 - sum_height / 2
                 for word in line.words:
                     # Horizontal position
                     x_fix = (max_width - word.width) / 2
@@ -419,7 +429,7 @@ class Ass:
                         word.right = word.left + word.width
                         word.x = word.left
                     elif line.style.alignment == 5:
-                        word.left = self.meta.play_res_x / 2 - word.width / 2
+                        word.left = play_res_x / 2 - word.width / 2
                         word.center = word.left + word.width / 2
                         word.right = word.left + word.width
                         word.x = word.center
@@ -664,7 +674,12 @@ class Ass:
                 line.chars.append(char)
 
         # Calculate character positions with all characters data already available
-        if line.chars and hasattr(self.meta, 'play_res_x'):
+        try:
+            play_res_x = self.meta.play_res_x
+            play_res_y = self.meta.play_res_y
+        except AttributeError:
+            pass
+        else:
             if line.style.an_is_top() or line.style.an_is_bottom() or not self.vertical_kanji:
                 cur_x = line.left
                 for char in line.chars:
@@ -693,11 +708,11 @@ class Ass:
                     max_width = max(max_width, char.width)
                     sum_height = sum_height + char.height
 
-                cur_y = x_fix = self.meta.play_res_y / 2 - sum_height / 2
+                cur_y = x_fix = play_res_y / 2 - sum_height / 2
 
                 # Fixing line positions
                 line.top = cur_y
-                line.middle = self.meta.play_res_y / 2
+                line.middle = play_res_y / 2
                 line.bottom = line.top + sum_height
                 line.width = max_width
                 line.height = sum_height
@@ -720,7 +735,7 @@ class Ass:
                         char.right = char.left + char.width
                         char.x = char.left
                     elif line.style.alignment == 5:
-                        char.left = self.meta.play_res_x / 2 - char.width / 2
+                        char.left = play_res_x / 2 - char.width / 2
                         char.center = char.left + char.width / 2
                         char.right = char.left + char.width
                         char.x = char.center
