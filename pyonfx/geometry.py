@@ -12,6 +12,7 @@ from itertools import chain
 from math import asin, atan2, ceil, cos, degrees, dist, inf, radians, sin, sqrt
 from typing import List, Tuple, cast, overload
 
+import cv2
 import numpy as np
 
 from .misc import chunk
@@ -90,6 +91,32 @@ def split_line(p0: Tuple[float, float], p1: Tuple[float, float], max_length: flo
             ncoord.append(((x0 + (x1 - x0) * pct), (y0 + (y1 - y0) * pct)))
     ncoord.append(p1)
     return ncoord
+
+
+def rotate_and_project(x: float, y: float, z: float, rotations: Tuple[float, float, float],
+                       origin: Tuple[float, float] = (0., 0.),
+                       offset: Tuple[float, float] = (0., 0.)) -> Tuple[float, float]:
+    """
+    Rotate point by given rotations on all axis
+
+    :param x:               Abscissa of the point
+    :param y:               Ordinate of the point
+    :param z:               Applicate of the point
+    :param rotations:       Rotations in degrees in this order of X, Y and Z axis
+    :param origin:          Origin anchor, defaults to (0., 0.)
+    :param offset:          Offset coordinates, defaults to (0., 0.)
+    :return:                A tuple of 2D rotated coordinates
+    """
+    # https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#projectpoints
+    # Length of the camera seems to be 310 according to my tests
+    img_pts, _ = cv2.projectPoints(
+        objectPoints=np.array((x, y, z), np.float32),
+        rvec=np.array([radians(r) for r in rotations], np.float32),
+        tvec=np.array(([o * -1 for o in origin], -310), np.float32),
+        cameraMatrix=np.array([(-310, 0, offset[0]), (0, -310, offset[1]), (0, 0, 1)], np.float32),
+        distCoeffs=np.empty((4, 1), np.float32),
+    )
+    return img_pts[0][0][0], img_pts[0][0][1]
 
 
 def rotate_point(x: float, y: float, zpx: float, zpy: float, rotation: float) -> Tuple[float, float]:
