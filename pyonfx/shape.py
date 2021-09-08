@@ -27,7 +27,7 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
-from more_itertools import unzip
+from more_itertools import unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
@@ -35,7 +35,8 @@ from .colourspace import Opacity
 from .geometry import (curve4_to_lines, get_line_intersect, get_ortho_vector,
                        get_vector, get_vector_angle, get_vector_length,
                        make_ellipse, make_parallelogram, make_triangle,
-                       rotate_point, split_line, stretch_vector)
+                       rotate_and_project, rotate_point, split_line,
+                       stretch_vector)
 from .misc import chunk
 from .types import Alignment, CoordinatesView, OutlineMode, PropView
 
@@ -533,7 +534,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                List of Shape objects
         """
         m_indx = [i for i, cmd in enumerate(self) if cmd.prop == DrawingProp.MOVE]
-        return [self[i:j] for i, j in zip_longest(m_indx, m_indx[1:])]
+        return [self[i:j] for i, j in zip_offset(m_indx, m_indx, offsets=(0, 1), longest=True)]
 
     @classmethod
     def merge_shapes(cls, shapes: List[Shape]) -> Shape:
