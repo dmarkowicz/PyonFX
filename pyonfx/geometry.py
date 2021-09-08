@@ -170,7 +170,7 @@ def get_vector(p0: Tuple[float, float], p1: Tuple[float, float]) -> Tuple[float,
     :param p1:          Second point
     :return:            A vector
     """
-    return p0[0] - p1[0], p0[1] - p1[1]
+    return float(p0[0] - p1[0]), float(p0[1] - p1[1])
 
 
 @overload
@@ -255,7 +255,7 @@ def get_line_intersect(p0: Tuple[float, float], p1: Tuple[float, float],
     :return:            Coordinates of the intersection
     """
     v0, v1 = get_vector(p0, p1), get_vector(p2, p3)
-    if v0 == 0. or v1 == 0.:
+    if v0 == (0., 0.) or v1 == (0., 0.):
         raise ValueError('lines mustn\'t have zero length')
     det = np.linalg.det((v0, v1))
     if det != 0:
