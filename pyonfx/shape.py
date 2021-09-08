@@ -388,6 +388,15 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         self.map(lambda x, y: (x + _x, y + _y))
 
+    def scale(self, _x: float = 1., _y: float = 1., /) -> None:
+        """
+        Scale shape coordinates by given factors
+
+        :param _x:              X-axis scale factor, defaults to 1.
+        :param _y:              Y-axis scale factor, defaults to 1.
+        """
+        self.map(lambda x, y: (x * _x, y * _y))
+
     def bounding(self) -> Tuple[float, float, float, float]:
         """
         Calculates shape bounding box.
