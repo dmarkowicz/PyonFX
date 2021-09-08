@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import wraps
+from os import PathLike
 from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
                     Iterator, Literal, Reversible, Sequence, Sized, Tuple,
                     TypeVar, Union, cast, get_args, get_origin, get_type_hints)
@@ -17,6 +18,7 @@ Nb = TypeVar('Nb', bound=Union[float, int])  # Number
 Tup3 = Tuple[Nb, Nb, Nb]
 Tup4 = Tuple[Nb, Nb, Nb, Nb]
 Tup3Str = Tuple[str, str, str]
+AnyPath = Union[PathLike[str], str]
 
 BézierCoord = Tuple[
     Tuple[float, float],

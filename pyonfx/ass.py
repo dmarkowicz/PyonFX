@@ -33,6 +33,7 @@ from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
 from .core import Char, Line, Meta, PList, Style, Syllable, Word
 from .font import Font
+from .types import AnyPath
 
 
 class Ass:
@@ -57,7 +58,7 @@ class Ass:
         text: str
         word_i: Optional[int] = None
 
-    def __init__(self, path_input: os.PathLike[str] | str, path_output: os.PathLike[str] | str | None = None, /,
+    def __init__(self, path_input: AnyPath, path_output: Optional[AnyPath] = None, /,
                  fps: Fraction | float = Fraction(24000, 1001),
                  comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
         """
