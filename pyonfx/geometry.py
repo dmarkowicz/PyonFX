@@ -112,7 +112,7 @@ def rotate_and_project(x: float, y: float, z: float, rotations: Tuple[float, flo
     img_pts, _ = cv2.projectPoints(
         objectPoints=np.array((x, y, z), np.float32),
         rvec=np.array([radians(r) for r in rotations], np.float32),
-        tvec=np.array(([o * -1 for o in origin], -310), np.float32),
+        tvec=np.array((*[o * -1 for o in origin], -310), np.float32),
         cameraMatrix=np.array([(-310, 0, offset[0]), (0, -310, offset[1]), (0, 0, 1)], np.float32),
         distCoeffs=np.empty((4, 1), np.float32),
     )
