@@ -450,15 +450,53 @@ class Shape(MutableSequence[DrawingCommand]):
             )
         )
 
-    def rotate_shape(self, rotation: float, zero_pad: Optional[Tuple[float, float]] = None) -> None:
+    def rotate_x(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
         """
-        Rotate current shape to a given rotation
+        Rotate current shape to a given rotation in the X-axis
 
         :param rotation:        Rotation in degrees
-        :param zero_pad:        Point where the Z-axis rotation will be performed.
-                                If not specified, equivalent to (0., 0.), defaults to None
+        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
         """
-        self.map(lambda x, y: rotate_point(x, y, *(0., 0.) if not zero_pad else zero_pad, rotation))
+        self.rotate((rotation, 0., 0.), zero_pad)
+
+    def rotate_y(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
+        """
+        Rotate current shape to a given rotation in the Y-axis
+
+        :param rotation:        Rotation in degrees
+        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
+        """
+        self.rotate((0., rotation, 0.), zero_pad)
+
+    def rotate_z(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
+        """
+        Rotate current shape to a given rotation in the Z-axis
+
+        :param rotation:        Rotation in degrees
+        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
+        """
+        self.map(lambda x, y: rotate_point(x, y, *zero_pad, rotation))
+
+    def rotate(self, rotations: Tuple[float, float, float], zero_pad: Tuple[float, float] = (0., 0.), /,
+               origin: Tuple[float, float] = (0., 0.), offset: Tuple[float, float] = (0., 0.)) -> None:
+        """
+        Rotate current shape to given rotations for all axis
+
+        :param rotations:       Rotations in degrees in this order of X, Y and Z axis
+        :param zero_pad:        Point where the rotations will be performed, defaults to (0., 0.)
+        :param origin:          Origin anchor, defaults to (0., 0.)
+        :param offset:          Offset coordinates, defaults to (0., 0.)
+        """
+        def _func(x: float, y: float) -> Tuple[float, float]:
+            zpx, zpy = zero_pad
+            x -= zpx
+            y -= zpy
+            x, y = rotate_and_project(x, y, 0., rotations, origin, offset)
+            x += zpx
+            y += zpy
+            return x, y
+
+        self.map(_func)
 
     def shear(self, fax: float = 0., fay: float = 0., /) -> None:
         """
