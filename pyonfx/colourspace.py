@@ -300,7 +300,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
         return ASSColor(
             '&H'
             + ''.join(hex(x)[2:].zfill(2) for x in list(self.to_rgb(RGB))[::-1])
-            + 'H'
+            + '&'
         )
 
 
