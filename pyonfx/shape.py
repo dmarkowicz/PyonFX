@@ -416,14 +416,10 @@ class Shape(MutableSequence[DrawingCommand]):
 
         :return:                A tuple of coordinates of the bounding box
         """
-        all_x, all_y = set(), set()
+        all_x, all_y = [
+            set(c) for c in unzip([c for dc in self for c in dc])
+        ]
 
-        def _func(x: float, y: float) -> Tuple[float, float]:
-            all_x.add(x)
-            all_y.add(y)
-            return x, y
-
-        self.map(_func)
         return min(all_x), min(all_y), max(all_x), max(all_y)
 
     def align(self, an: Alignment = 7) -> None:
@@ -1176,7 +1172,7 @@ class Shape(MutableSequence[DrawingCommand]):
         )
         # -- Vectors intersect
         if inter_y != inf:
-            is_vec_x, is_vec_y = inter_x - p[0], inter_y - p[1]
+            is_vec_x, is_vec_y = get_vector((inter_x, inter_y), p)
             is_vec_len = get_vector_length((is_vec_x, is_vec_y))
             if is_vec_len > miter_limit:
                 fix_scale = miter_limit / is_vec_len
