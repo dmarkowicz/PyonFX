@@ -510,7 +510,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param fay:             Y-axis factor, defaults to 0.
         """
         self.map(
-            lambda x, y:
+            lambda x, y:  # type: ignore
             tuple(map(float, np.array([(1, fax), (fay, 1)]) @ np.array([(x, ), (y, )])))  # type: ignore
         )
 

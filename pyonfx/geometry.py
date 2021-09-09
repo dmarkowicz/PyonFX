@@ -12,7 +12,7 @@ from itertools import chain
 from math import asin, atan2, ceil, cos, degrees, dist, inf, radians, sin, sqrt
 from typing import List, Tuple, cast, overload
 
-import cv2
+import cv2  # type: ignore
 import numpy as np
 
 from .misc import chunk, frange

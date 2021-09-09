@@ -5,7 +5,7 @@ __all__ = ['Image']
 from pathlib import Path
 from typing import List, NoReturn
 
-import cv2
+import cv2  # type: ignore
 
 from .colourspace import ASSColor, Opacity
 from .shape import Pixel
