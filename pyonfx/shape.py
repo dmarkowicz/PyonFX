@@ -1011,6 +1011,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param anti_aliasing:       Downscale with anti_aliasing or not, default to True
         :return:                    List of Pixel
         """
+        ss = supersampling
         # Copy current shape object
         wshape = Shape(self)
         # Get shift
@@ -1018,7 +1019,7 @@ class Shape(MutableSequence[DrawingCommand]):
         # Align shape to 7 - Positive coordinates
         wshape.align(7)
         # Upscale it
-        wshape.map(lambda x, y: (x * supersampling, y * supersampling))
+        wshape.scale(ss, ss)
 
         # Flatten the shape to avoid working with bézier curves
         wshape.flatten()
@@ -1032,7 +1033,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
         # Build an image
         _, _, x1, y1 = wshape.bounding()
-        width, height = ceil(x1 + supersampling * 2), ceil(y1 + supersampling * 2)
+        width, height = ceil(x1), ceil(y1)
         image = np.zeros((height, width), np.uint8)
 
         # Extract coordinates
@@ -1040,12 +1041,12 @@ class Shape(MutableSequence[DrawingCommand]):
         # Build rows and columns from coordinates
         rows, columns = np.array(list(ys)), np.array(list(xs))
         # Get polygons coordinates
-        rr, cc = skimage_polygon(rows, columns)
+        rr, cc = skimage_polygon(rows, columns, shape=(height, width))
         # Fill the image from the polygon coordinates
         image[rr, cc] = 255
         # Downscale while avoiding aliasing
         image = skimage_rescale(
-            image, 1 / supersampling,
+            image, 1 / ss,
             preserve_range=True, anti_aliasing=anti_aliasing
         )
         # Return all those pixels
