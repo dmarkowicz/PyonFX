@@ -57,8 +57,10 @@ class Pixel(NamedTuple):
         :param round_digits:    Decimal digits rounding precision, defaults to 3
         :return:                Pixel in ASS format
         """
-        alpha = (f'\\alpha{self.opacity}' if self.opacity.value < 1.0 else '') if self.opacity else ''
-        colour = f'\\c{self.colour}' if self.colour else ''
+        alpha = (
+            f'\\alpha{self.opacity}' if self.opacity.data not in {'&HFF&', '&H00&'} else ''
+        ) if self.opacity is not None else ''
+        colour = f'\\c{self.colour}' if self.colour is not None else ''
         return (
             f'{{\\p1\\pos({round(self.x + shift_x, round_digits)},{round(self.y + shift_y, round_digits)})'
             + alpha + colour + f'}}{Shape.square(1.5).to_str()}'
@@ -446,12 +448,9 @@ class Shape(MutableSequence[DrawingCommand]):
         except KeyError as key_err:
             raise ValueError(f'{self.__class__.__name__}: Wrong "an" value!') from key_err
         x0, y0, x1, y1 = self.bounding()
-        self.map(
-            lambda x, y:
-            (
-                x + x0 * -1 + an_x * (x1 + x0 * -1),
-                y + y0 * -1 + an_y * (y1 + y0 * -1)
-            )
+        self.move(
+            x0 * -1 + an_x * (x1 + x0 * -1),
+            y0 * -1 + an_y * (y1 + y0 * -1)
         )
 
     def rotate_x(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
