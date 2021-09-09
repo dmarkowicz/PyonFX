@@ -15,7 +15,7 @@ from typing import List, Tuple, cast, overload
 import cv2
 import numpy as np
 
-from .misc import chunk
+from .misc import chunk, frange
 from .types import AssBCurve, BézierCoord
 
 
@@ -85,8 +85,8 @@ def split_line(p0: Tuple[float, float], p1: Tuple[float, float], max_length: flo
         # Equal step between the two points instead of having all points to 16
         # except the last for the remaining distance
         step = distance / ceil(distance / max_length)
-        # Step can be a float so numpy.arange is prefered
-        for i in np.arange(step, distance, step):
+        # Step can be a float so we're using frange
+        for i in frange(step, distance, step):
             pct = i / distance
             ncoord.append(((x0 + (x1 - x0) * pct), (y0 + (y1 - y0) * pct)))
     ncoord.append(p1)

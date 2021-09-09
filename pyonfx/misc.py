@@ -5,6 +5,8 @@ __all__ = ['clamp_value', 'chunk']
 from itertools import islice
 from typing import Iterable, Iterator, Literal, Tuple, overload
 
+import numpy as np
+
 from .types import Nb, T_co
 
 
@@ -41,3 +43,15 @@ def chunk(iterable: Iterable[T_co], size: int = 2) -> Iterator[Tuple[T_co, ...]]
     """
     niter = iter(iterable)
     return iter(lambda: tuple(islice(niter, size)), ())
+
+
+def frange(start: float, end: float, step: float) -> Iterator[float]:
+    """
+    Floating version of range() built-in
+
+    :param start:           Start value (inclusive)
+    :param end:             Stop value (exclusive)
+    :param step:            Increment value
+    :return:                A iterator of float values
+    """
+    return iter(map(lambda x: float(round(x, 15)), np.linspace(start, end, round((end-start)/step), endpoint=False)))

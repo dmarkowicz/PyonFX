@@ -37,7 +37,7 @@ from .geometry import (curve4_to_lines, get_line_intersect, get_ortho_vector,
                        make_ellipse, make_parallelogram, make_triangle,
                        rotate_and_project, rotate_point, split_line,
                        stretch_vector)
-from .misc import chunk
+from .misc import chunk, frange
 from .types import Alignment, CoordinatesView, OutlineMode, PropView
 
 
@@ -1223,7 +1223,7 @@ class Shape(MutableSequence[DrawingCommand]):
         if circ > max_circumference:
             # -- Add curve edge points
             circ_rest = circ % max_circumference
-            for cur_circ in np.arange(
+            for cur_circ in frange(
                 circ_rest if circ_rest > 0 else max_circumference,
                 circ, max_circumference
             ):
