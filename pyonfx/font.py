@@ -40,8 +40,6 @@ class _Font(ABC):
     upscale = FONT_PRECISION
     downscale = 1 / FONT_PRECISION
 
-    pycfont: PyCFont
-
     def __init__(self, style: Style) -> None:
         """
         Initialise a font object
@@ -98,6 +96,8 @@ if sys.platform == "win32":
 
     class Font(_Font):
         _metrics: Dict[str, float]
+
+        pycfont: PyCFont
 
         def __init__(self, style: Style) -> None:
             super().__init__(style)
@@ -171,7 +171,6 @@ if sys.platform == "win32":
                 )
 
             # Defining variables
-            mult_x, mult_y = self.downscale * self.xscale, self.downscale * self.yscale
             PT_MOVE, PT_LINE, PT_BÉZIER = win32con.PT_MOVETO, win32con.PT_LINETO, win32con.PT_BEZIERTO
             PT_CLOSE = win32con.PT_CLOSEFIGURE
             PT_LINE_OR_CLOSE, PT_BÉZIER_OR_CLOSE = PT_LINE | PT_CLOSE, PT_BÉZIER | PT_CLOSE
@@ -183,15 +182,14 @@ if sys.platform == "win32":
             points_types = iter(zip(points, type_points))
             while True:
                 try:
-                    (x, y), ptype = next(points_types)
+                    (x0, y0), ptype = next(points_types)
                 except StopIteration:
                     break
                 if ptype == PT_MOVE:
-                    cmds.append(DC(m, (x, y)))
+                    cmds.append(DC(m, (x0, y0)))
                 elif ptype in {PT_LINE, PT_LINE_OR_CLOSE}:
-                    cmds.append(DC(l, (x, y)))
+                    cmds.append(DC(l, (x0, y0)))
                 elif ptype in {PT_BÉZIER, PT_BÉZIER_OR_CLOSE}:
-                    x0, y0 = x, y
                     (x1, y1), _ = next(points_types)
                     (x2, y2), _ = next(points_types)
                     cmds.append(DC(b, (x0, y0), (x1, y1), (x2, y2)))
@@ -202,7 +200,7 @@ if sys.platform == "win32":
             win32gui.AbortPath(self.dc)
 
             shape = Shape(cmds)
-            shape.map(lambda x, y: (x * mult_x, y * mult_y))
+            shape.scale(self.downscale * self.xscale, self.downscale * self.yscale)
             return shape
 
 
