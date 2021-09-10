@@ -186,6 +186,8 @@ class ColourSpace(Sequence[TCV_co], ABC):
 
 
 class NumBased(ColourSpace[Nb], ABC):
+    """Number based colourspace"""
+
     def interpolate(self, nobj: TCS, pct: Pct, /) -> TCS:
         vals: List[ACV] = []
         for (cs1_name, cs1_val), (cs2_name, cs2_val) in zip(self._colour_values.items(), nobj._colour_values.items()):
@@ -217,6 +219,7 @@ class ForceNumber(NumBased[Nb], ABC):
 
 class ForceFloat(ForceNumber[float], ABC):
     """Force values to float and clamp in the range 0.0 - peak"""
+
     force_type = float
 
     def round(self, ndigits: int) -> None:
@@ -308,9 +311,19 @@ class RGBNoAlpha(BaseRGB[Nb], ABC):
     """Base class for RGB colourspaces without alpha"""
 
     def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBNoAlpha[Nb]:
+        """
+        Make a new RGB colourspace object
+
+        :param _x:          Colourspace object or tuple of three numbers R, G and B values
+        """
         return super().__new__(cls, _x)
 
     def __init__(self, _x: ColourSpace[ACV] | Tup3[Nb]) -> None:
+        """
+        Make a new RGB colourspace object
+
+        :param _x:          Colourspace object or tuple of three numbers R, G and B values
+        """
         super().__init__(_x)
 
 
@@ -320,10 +333,24 @@ class RGBAlpha(BaseRGB[Nb], ABC):
     a: Nb
     """Alpha value"""
 
-    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb]) -> RGBAlpha[Nb]:
+    def __new__(cls, _x: ColourSpace[ACV] | Tup3[Nb] | Tup4[Nb]) -> RGBAlpha[Nb]:
+        """
+        Make a new RGB colourspace object
+
+        :param _x:          Colourspace object
+                            or tuple of three numbers R, G and B values
+                            or tuple of four numbers R, G, B and Alpha values
+        """
         return super().__new__(cls, _x)
 
     def __init__(self, _x: ColourSpace[ACV] | Tup3[Nb] | Tup4[Nb]) -> None:
+        """
+        Make a new RGB colourspace object
+
+        :param _x:          Colourspace object
+                            or tuple of three numbers R, G and B values
+                            or tuple of four numbers R, G, B and Alpha values
+        """
         if isinstance(_x, tuple):
             super().__init__(_x[:3])
             if len(_x) > 3:
@@ -337,6 +364,7 @@ class RGBAlpha(BaseRGB[Nb], ABC):
 
 class RGBS(RGBNoAlpha[float], ForceFloat):
     """RGB colourspace in range 0.0 - 1.0"""
+
     peak = 1.0
 
     @overload
@@ -353,6 +381,7 @@ class RGBS(RGBNoAlpha[float], ForceFloat):
 
 class RGBAS(RGBAlpha[float], ForceFloat):
     """RGB with alpha colourspace in range 0.0 - 1.0"""
+
     peak = 1.0
 
     @overload
@@ -459,8 +488,14 @@ class RGBA64(RGBA):
 
 
 class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
+    """Base class for Hue and Saturation based colourspace"""
+
     h: float
+    """Hue value"""
+
     s: float
+    """Saturation"""
+
     peak = 1.0
 
     @abstractmethod
@@ -521,14 +556,26 @@ class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
 
 class HSL(HueSaturationBased):
     """HSL colourspace in range 0.0 - 1.0"""
+
     l: float
+    """Lightness value"""
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> HSL:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> HSL:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Tuple of three numbers H, S and L values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> HSL:
@@ -536,10 +583,20 @@ class HSL(HueSaturationBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Tuple of three numbers H, S and L values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -559,14 +616,26 @@ class HSL(HueSaturationBased):
 
 class HSV(HueSaturationBased):
     """HSV colourspace in range 0.0 - 1.0"""
+
     v: float
+    """Value value"""
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> HSV:
+        """
+        Make a new HSV colourspace object
+
+        :param _x:          Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> HSV:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Tuple of three numbers H, S and V values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> HSV:
@@ -574,10 +643,20 @@ class HSV(HueSaturationBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
+        """
+        Make a new HSV colourspace object
+
+        :param _x:          Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float], /) -> None:
+        """
+        Make a new HSL colourspace object
+
+        :param _x:          Tuple of three numbers H, S and V values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -596,12 +675,21 @@ class HSV(HueSaturationBased):
 
 
 class Opacity(ColourSpace[float]):
+    """Opacity colourspace like in range 0.0 - 1.0"""
+
     value: float
+    """Value in floating format in the range 0.0 - 1.0"""
+
     data: str
+    """ASS value, hexadecimal inversed"""
 
     def __init__(self, _x: Pct) -> None:
         """
-        :param _x: [description]
+        Make an Opacity colourspace object
+
+        :param _x:      Percentage of the opacity.
+                        1.0 means full opaque
+                        0.0 means full transparent
         """
         super().__init__()
         self.value = clamp_value(_x, 0., 1.0)
@@ -635,7 +723,9 @@ class Opacity(ColourSpace[float]):
             if match := re.fullmatch(r"&H([0-9A-F]{2})&", _x):
                 x = float(int(match.group(1), 16))
             else:
-                raise ValueError(f'Opacity: Provided ASS alpha string {_x} is not in the expected format &HXX&')
+                raise ValueError(
+                    f'Opacity: Provided ASS alpha string {_x} is not in the expected format &HXX&'
+                )
         else:
             x = float(_x)
         x = (255 - x) / 255
@@ -691,8 +781,12 @@ class Opacity(ColourSpace[float]):
 
 class HexBased(ColourSpace[str], ABC):
     """Hexadecimal based colourspace"""
+
     _rgb: RGB
+    """Internal RGB object corresponding to the hexadecimal value"""
+
     data: str
+    """Hexadecimal value"""
 
     def __str__(self) -> str:
         return self.data
@@ -732,27 +826,55 @@ class HexBased(ColourSpace[str], ABC):
 
     @staticmethod
     def hex_to_int(h: str) -> int:
+        """
+        Convert hexadecimal to based 10 integer
+
+        :param h:       Hexadecimal value
+        :return:        Base 10 value
+        """
         return int(h, 16)
 
 
 class HTML(HexBased):
+    """HTML colourspace object"""
+
     _rgb: RGB
     data: str
 
     @overload
     def __new__(cls, _x: str) -> HTML:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      HTML string
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3Str) -> HTML:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Tuple of three hexadecimal values
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[int]) -> HTML:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Tuple of three bases 10 values
+        """
         ...
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> HTML:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     def __new__(cls, _x: str | Tup3Str | Tup3[int] | ColourSpace[TCV_co]) -> HTML:
@@ -760,18 +882,38 @@ class HTML(HexBased):
 
     @overload
     def __init__(self, _x: str) -> None:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      HTML string
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3Str) -> None:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Tuple of three hexadecimal values
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[int]) -> None:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Tuple of three bases 10 values
+        """
         ...
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a HTML colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     def __init__(self, _x: str | Tup3Str | Tup3[int] | ColourSpace[TCV_co]) -> None:
@@ -806,7 +948,8 @@ class HTML(HexBased):
 
 
 class ASSColor(HexBased):
-    """AssColor object """
+    """AssColor colourspace object"""
+
     _rgb: RGB
     data: str
 
@@ -908,6 +1051,8 @@ class ASSColor(HexBased):
 
 
 class XYZBased(ForceFloat, ColourSpace[float], ABC):
+    """Base colourspace class for colourspace where the conversions need XYZ"""
+
     def to_hsl(self) -> HSL:
         return self.to_rgb(RGBS).to_hsl()
 
@@ -922,17 +1067,35 @@ class XYZBased(ForceFloat, ColourSpace[float], ABC):
 
 
 class XYZ(XYZBased):
+    """XYZ colourspace object"""
+
     x: float
+    """Mix of the three CIE RGB curves chosen to be nonnegative value"""
+
     y: float
+    """Luminance value"""
+
     z: float
+    """Quasi-equal to blue value"""
+
     peak = 1.0
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co], /) -> XYZ:
+        """
+        Make a XYZ colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float], /) -> XYZ:
+        """
+        Make a XYZ colourspace object
+
+        :param _x:      A tuple of three values in the range 0.0 - 1.0
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> XYZ:
@@ -940,10 +1103,20 @@ class XYZ(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
+        """
+        Make a XYZ colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float], /) -> None:
+        """
+        Make a XYZ colourspace object
+
+        :param _x:      A tuple of three values in the range 0.0 - 1.0
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -974,6 +1147,7 @@ class XYZ(XYZBased):
 
 
 class xyY(XYZBased):
+    """xyY colourspace object"""
     x: float
     y: float
     Y: float
@@ -981,10 +1155,20 @@ class xyY(XYZBased):
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> xyY:
+        """
+        Make a xyY colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> xyY:
+        """
+        Make a xyY colourspace object
+
+        :param _x:      A tuple of three values in the range 0.0 - 1.0
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> xyY:
@@ -992,10 +1176,20 @@ class xyY(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a xyY colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a xyY colourspace object
+
+        :param _x:      A tuple of three values in the range 0.0 - 1.0
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -1026,16 +1220,36 @@ class xyY(XYZBased):
 
 
 class Lab(XYZBased):
+    """Lab colourspace object based on Cartesian coordinates"""
     L: float
+    """Lightness value"""
     a: float
+    """
+    Relative to the green–red opponent colors,
+    with negative values toward green and positive values toward red
+    """
     b: float
+    """
+    The b* axis represents the blue–yellow opponents,
+    with negative numbers toward blue and positive toward yellow
+    """
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> Lab:
+        """
+        Make a Lab colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> Lab:
+        """
+        Make a Lab colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> Lab:
@@ -1043,10 +1257,20 @@ class Lab(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a Lab colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a Lab colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -1077,16 +1301,36 @@ class Lab(XYZBased):
 
 
 class LCHab(XYZBased):
+    """
+    LCHab colourspace object based on polar coordinates
+    Cylindrical model of the Lab colourspace
+    """
+
     L: float
+    """Lightness value"""
+
     C: float
+    """Chroma, relative saturation"""
+
     H: float
+    """Hue angle, angle of the hue in the CIELAB color wheel"""
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> LCHab:
+        """
+        Make a LCHab colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> LCHab:
+        """
+        Make a LCHab colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> LCHab:
@@ -1094,10 +1338,20 @@ class LCHab(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a LCHab colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a LCHab colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -1128,16 +1382,29 @@ class LCHab(XYZBased):
 
 
 class Luv(XYZBased):
+    """Luv colourspace object based on Cartesian coordinates"""
+
     L: float
+    """Lightness value"""
     u: float
     v: float
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> Luv:
+        """
+        Make a Luv colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> Luv:
+        """
+        Make a Luv colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> Luv:
@@ -1145,10 +1412,20 @@ class Luv(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a Luv colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a Luv colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -1179,16 +1456,36 @@ class Luv(XYZBased):
 
 
 class LCHuv(XYZBased):
+    """
+    LCHab colourspace object based on polar coordinates
+    Cylindrical model of the Luv colourspace
+    """
+
     L: float
+    """Lightness value"""
+
     C: float
+    """Chroma, relative saturation"""
+
     H: float
+    """Hue angle, angle of the hue in the CIELAB color wheel"""
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> LCHuv:
+        """
+        Make a LCHuv colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __new__(cls, _x: Tup3[float]) -> LCHuv:
+        """
+        Make a LCHuv colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __new__(cls, _x: ColourSpace[TCV_co] | Tup3[float]) -> LCHuv:
@@ -1196,10 +1493,20 @@ class LCHuv(XYZBased):
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co]) -> None:
+        """
+        Make a LCHuv colourspace object
+
+        :param _x:      Colourspace object
+        """
         ...
 
     @overload
     def __init__(self, _x: Tup3[float]) -> None:
+        """
+        Make a LCHuv colourspace object
+
+        :param _x:      A tuple of three values
+        """
         ...
 
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
