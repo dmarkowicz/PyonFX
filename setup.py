@@ -30,6 +30,7 @@ def get_requirements():
         requirements.extend(
             [
                 'pywin32; sys_platform == "win32"',
+                'pywin32-stubs; sys_platform == "win32"',
                 'pycairo; sys_platform == "linux" or sys_platform == "darwin"',
                 'PyGObject; sys_platform == "linux" or sys_platform == "darwin"',
             ]
