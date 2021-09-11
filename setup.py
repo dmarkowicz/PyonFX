@@ -19,7 +19,12 @@ def find_version(*file_paths):
 
 
 def get_requirements():
-    requirements = ["pyquaternion"]
+    requirements = [
+        "more-itertools",
+        "numpy",
+        "scikit-image",
+        "opencv-python",
+    ]
 
     if os.environ.get("READTHEDOCS") != "True":
         requirements.extend(
