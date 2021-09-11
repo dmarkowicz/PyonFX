@@ -399,6 +399,7 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         self.map(lambda x, y: (x * _x, y * _y))
 
+    @property
     def bounding(self) -> Tuple[float, float, float, float]:
         """
         Calculates shape bounding box.
@@ -408,7 +409,7 @@ class Shape(MutableSequence[DrawingCommand]):
         Examples:
             ..  code-block:: python3
 
-                x0, y0, x1, y1 = Shape.from_ass_string("m 10 5 l 25 5 25 42 10 42").bounding()
+                x0, y0, x1, y1 = Shape.from_ass_string("m 10 5 l 25 5 25 42 10 42").bounding
                 print(f"Left-top: {x0} {y0}\\nRight-bottom: {x1} {y1}")
 
             >>> Left-top: 10 5
@@ -443,7 +444,7 @@ class Shape(MutableSequence[DrawingCommand]):
             an_x, an_y = align[an]
         except KeyError as key_err:
             raise ValueError(f'{self.__class__.__name__}: Wrong "an" value!') from key_err
-        x0, y0, x1, y1 = self.bounding()
+        x0, y0, x1, y1 = self.bounding
         self.move(
             x0 * -1 + an_x * (x1 + x0 * -1),
             y0 * -1 + an_y * (y1 + y0 * -1)
@@ -847,7 +848,7 @@ class Shape(MutableSequence[DrawingCommand]):
         triangle = cls(cmds)
 
         if orthocentred:
-            _, yb0, _, yb1 = triangle.bounding()
+            _, yb0, _, yb1 = triangle.bounding
             triangle.move(0, (yb1 - yb0) / 6)
 
         return triangle
@@ -1011,7 +1012,7 @@ class Shape(MutableSequence[DrawingCommand]):
         # Copy current shape object
         wshape = Shape(self)
         # Get shift
-        shift_x, shift_y, _, _ = wshape.bounding()
+        shift_x, shift_y, _, _ = wshape.bounding
         # Align shape to 7 - Positive coordinates
         wshape.align(7)
         # Upscale it
@@ -1028,7 +1029,7 @@ class Shape(MutableSequence[DrawingCommand]):
         wshape = self.merge_shapes([_close_shape(wsh) for wsh in wshape.split_shape()])
 
         # Build an image
-        _, _, x1, y1 = wshape.bounding()
+        _, _, x1, y1 = wshape.bounding
         width, height = ceil(x1), ceil(y1)
         image = np.zeros((height, width), np.uint8)
 

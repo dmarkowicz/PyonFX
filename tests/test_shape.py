@@ -21,10 +21,10 @@ def test_transform():
 
 def test_bounding():
     original = Shape.from_ass_string("m -100.5 0 l 100 0 b 100 100 -100 100 -100.5 0 c")
-    assert original.bounding() == (-100.5, 0, 100, 100)
+    assert original.bounding == (-100.5, 0, 100, 100)
 
     original = Shape.from_ass_string("m 0 0 l 20 0 20 10 0 10")
-    assert original.bounding() == (0.0, 0.0, 20.0, 10.0)
+    assert original.bounding == (0.0, 0.0, 20.0, 10.0)
 
 
 def test_flatten():
