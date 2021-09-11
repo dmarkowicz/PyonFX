@@ -68,7 +68,7 @@ jobs:
       - name: Install fonts (non-Windows)
         if: matrix.os != 'windows-latest'
         run: |
-          GO111MODULE=auto GOBIN=$HOME/.local/bin go install github.com/Crosse/font-install
+          GO111MODULE=auto GOBIN=$HOME/.local/bin go install github.com/Crosse/font-install@v1.4.1
           $HOME/.local/bin/font-install https://mirrors.tuna.tsinghua.edu.cn/osdn/mix-mplus-ipa/58720/migu-1p-20130430.zip
         shell: bash
       - name: Install fonts (Windows)
