@@ -19,7 +19,7 @@ from __future__ import annotations
 __all__ = ['Shape']
 
 import re
-from enum import Enum
+from enum import Enum, auto
 from itertools import zip_longest
 from math import atan, ceil, cos, degrees, inf, radians, sqrt
 from typing import (Callable, Dict, Iterable, List, MutableSequence,
@@ -31,14 +31,11 @@ from more_itertools import sliced, unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
-from .colourspace import Opacity, ASSColor
-from .geometry import (curve4_to_lines, get_line_intersect, get_ortho_vector,
-                       get_vector, get_vector_angle, get_vector_length,
-                       make_ellipse, make_parallelogram, make_triangle,
-                       rotate_and_project, rotate_point, split_line,
-                       stretch_vector)
+from .colourspace import ASSColor, Opacity
+from .geometry import (CartesianAxis, Geometry, Point, PointCartesian2D,
+                       PointsView, VectorCartesian2D, VectorCartesian3D)
 from .misc import chunk, frange
-from .types import Alignment, CoordinatesView, OutlineMode, PropView
+from .types import Alignment, View
 
 
 class Pixel(NamedTuple):
@@ -65,6 +62,13 @@ class Pixel(NamedTuple):
             f'{{\\p1\\pos({round(self.x + shift_x, round_digits)},{round(self.y + shift_y, round_digits)})'
             + alpha + colour + f'}}{Shape.square(1.5).to_str()}'
         )
+
+
+class OutlineMode(Enum):
+    """Simple enum class for OutlineMode in Shape.to_outline method"""
+    MITER = auto()
+    BEVEL = auto()
+    ROUND = auto()
 
 
 class DrawingProp(Enum):
@@ -148,12 +152,17 @@ class DrawingProp(Enum):
         return cast(Dict[str, DrawingProp], cls._value2member_map_)
 
 
-class DrawingCommand(Sequence[Tuple[float, float]]):
+class PropsView(View[DrawingProp]):
+    """View for DrawingProps"""
+    ...
+
+
+class DrawingCommand(Sequence[Point]):
     """
     A drawing command is a DrawingProp and a number of coordinates
     """
     _prop: DrawingProp
-    _coordinates: List[Tuple[float, float]]
+    _coordinates: List[Point]
 
     @property
     def prop(self) -> DrawingProp:
@@ -161,11 +170,11 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         return self._prop
 
     @property
-    def coordinates(self) -> CoordinatesView[float]:
+    def coordinates(self) -> PointsView:
         """Coordinates of this DrawingCommand"""
-        return CoordinatesView(self)
+        return PointsView(self)
 
-    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float]) -> None:
+    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point) -> None:
         """
         Make a DrawingCommand object
 
@@ -173,19 +182,19 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         :param coordinates:     Coordinates of this DrawingCommand
         """
         self._prop = prop
-        self._coordinates = list(coordinates)
+        self._coordinates = [c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates]
         self.check_integrity()
         super().__init__()
 
     @overload
-    def __getitem__(self, index: SupportsIndex) -> Tuple[float, float]:
+    def __getitem__(self, index: SupportsIndex) -> Point:
         ...
 
     @overload
     def __getitem__(self, index: slice) -> NoReturn:
         ...
 
-    def __getitem__(self, index: SupportsIndex | slice) -> Tuple[float, float] | NoReturn:
+    def __getitem__(self, index: SupportsIndex | slice) -> Point | NoReturn:
         if isinstance(index, SupportsIndex):
             return self._coordinates[index]
         raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
@@ -199,7 +208,36 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
         return o._prop == self._prop and o._coordinates == self._coordinates
 
     def __str__(self) -> str:
-        return self._prop.value + ' ' + ' '.join(f'{x} {y}' for x, y in self)
+        return self._prop.value + ' ' + ' '.join(
+            f'{p.x} {p.y}'
+            for p in [
+                # Get the points and convert them to 2D
+                po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d() for po in self
+            ]
+        )
+
+    def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
+        """
+        Return the current command in ASS format
+
+        :param round_digits:    Decimal digits rounding precision, defaults to 3
+        :param optimise:        Optimise the string by removing redundant drawing prop, defaults to True
+        :return:                Shape in ASS format
+        """
+        if optimise:
+            points: List[PointCartesian2D] = []
+            for po in self:
+                # Get the points and convert them to 2D
+                po = po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
+                po.round(round_digits)
+                # Optimise by removing ".0" if the float can be interpreted as an integer
+                if (intx := int(po.x)) == po.x:
+                    po.x = intx
+                if (inty := int(po.y)) == po.y:
+                    po.y = inty
+                points.append(po)
+            return self._prop.value + ' ' + ' '.join(f'{p.x} {p.y}' for p in points)
+        return str(self)
 
     def __repr__(self) -> str:
         return repr(str(self._prop) + ', ' + ', '.join(map(str, self)))
@@ -231,13 +269,8 @@ class DrawingCommand(Sequence[Tuple[float, float]]):
 
         :param ndigits:         Number of digits
         """
-        for i, (x, y) in enumerate(self):
-            nx, ny = round(float(x), ndigits), round(float(y), ndigits)
-            if (intx := int(nx)) == nx:
-                nx = intx
-            if (inty := int(ny)) == ny:
-                ny = inty
-            self._coordinates[i] = nx, ny
+        for p in self:
+            p.round(ndigits)
 
 
 class Shape(MutableSequence[DrawingCommand]):
@@ -247,12 +280,12 @@ class Shape(MutableSequence[DrawingCommand]):
     _commands: List[DrawingCommand]
 
     @property
-    def props(self) -> PropView[DrawingProp]:
+    def props(self) -> PropsView:
         """The DrawingProp of this DrawingCommand"""
-        return PropView([c.prop for c in self])
+        return PropsView([c.prop for c in self])
 
     @property
-    def coordinates(self) -> List[CoordinatesView[float]]:
+    def coordinates(self) -> List[PointsView]:
         """Coordinates of this DrawingCommand"""
         return [c.coordinates for c in self]
 
@@ -347,12 +380,16 @@ class Shape(MutableSequence[DrawingCommand]):
         self.round(round_digits)
 
         if optimise:
+            # Last prop used, drawing to be str'd
             p, draw = DrawingProp.CLOSE_BSPLINE, ''
+
+            # Iterating over all the commands
             for cmd in self:
+                cmdstr = cmd.to_str(round_digits)
                 if cmd.prop != p:
-                    draw += str(cmd) + ' '
+                    draw += cmdstr + ' '
                 elif cmd.prop == p and cmd.prop in {DrawingProp.LINE, DrawingProp.CUBIC_BÉZIER_CURVE}:
-                    draw += ' '.join(f'{x} {y}' for x, y in cmd) + ' '
+                    draw += cmdstr[2:] + ' '
                 else:
                     raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd.prop} not recognised!"')
                 p = cmd.prop
@@ -369,7 +406,7 @@ class Shape(MutableSequence[DrawingCommand]):
         for cmd in self:
             cmd.round(ndigits)
 
-    def map(self, func: Callable[[float, float], Tuple[float, float]], /) -> None:
+    def map(self, func: Callable[[Point], Point | Tuple[float, float]], /) -> None:
         """
         Sends every point of a shape through given transformation function to change them.
 
@@ -379,7 +416,7 @@ class Shape(MutableSequence[DrawingCommand]):
                                 It will define how each coordinate will be changed.
         """
         for i, cmd in enumerate(self):
-            self[i] = DrawingCommand(cmd.prop, *[func(x, y) for x, y in cmd.coordinates])
+            self[i] = DrawingCommand(cmd.prop, *[func(p) for p in cmd.coordinates])
 
     def move(self, _x: float = 0., _y: float = 0., /) -> None:
         """
@@ -388,7 +425,12 @@ class Shape(MutableSequence[DrawingCommand]):
         :param _x:              Displacement along the x-axis, defaults to 0.
         :param _y:              Displacement along the y-axis, defaults to 0.
         """
-        self.map(lambda x, y: (x + _x, y + _y))
+        def _func(p: Point) -> Point:
+            p = p.to_2d()
+            p.x += _x
+            p.y += _y
+            return p
+        self.map(_func)
 
     def scale(self, _x: float = 1., _y: float = 1., /) -> None:
         """
@@ -397,10 +439,15 @@ class Shape(MutableSequence[DrawingCommand]):
         :param _x:              X-axis scale factor, defaults to 1.
         :param _y:              Y-axis scale factor, defaults to 1.
         """
-        self.map(lambda x, y: (x * _x, y * _y))
+        def _func(p: Point) -> Point:
+            p = p.to_2d()
+            p.x *= _x
+            p.y *= _y
+            return p
+        self.map(_func)
 
     @property
-    def bounding(self) -> Tuple[float, float, float, float]:
+    def bounding(self) -> Tuple[PointCartesian2D, PointCartesian2D]:
         """
         Calculates shape bounding box.
 
@@ -418,10 +465,10 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                A tuple of coordinates of the bounding box
         """
         all_x, all_y = [
-            set(c) for c in unzip([c for dc in self for c in dc])
+            set(c) for c in unzip([c.to_2d() for dc in self for c in dc])
         ]
 
-        return min(all_x), min(all_y), max(all_x), max(all_y)
+        return PointCartesian2D(min(all_x), min(all_y)), PointCartesian2D(max(all_x), max(all_y))
 
     def align(self, an: Alignment = 7) -> None:
         """
@@ -444,59 +491,21 @@ class Shape(MutableSequence[DrawingCommand]):
             an_x, an_y = align[an]
         except KeyError as key_err:
             raise ValueError(f'{self.__class__.__name__}: Wrong "an" value!') from key_err
-        x0, y0, x1, y1 = self.bounding
+        pb0, pb1 = self.bounding
         self.move(
-            x0 * -1 + an_x * (x1 + x0 * -1),
-            y0 * -1 + an_y * (y1 + y0 * -1)
+            pb0.x * -1 + an_x * (pb1.x + pb0.x * -1),
+            pb0.y * -1 + an_y * (pb1.y + pb0.y * -1)
         )
 
-    def rotate_x(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
+    def rotate(self, rot: float, axis: CartesianAxis, /, zero_pad: Optional[Tuple[float, ...]] = (0., 0., 0.)) -> None:
         """
-        Rotate current shape to a given rotation in the X-axis
+        Rotate current shape to given rotation in given axis
 
-        :param rotation:        Rotation in degrees
-        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
+        :param rot:             Rotation in degrees
+        :param axis:            Axis where the rotation will be performed
+        :param zero_pad:        Point where the rotations will be performed, defaults to None
         """
-        self.rotate((rotation, 0., 0.), zero_pad)
-
-    def rotate_y(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
-        """
-        Rotate current shape to a given rotation in the Y-axis
-
-        :param rotation:        Rotation in degrees
-        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
-        """
-        self.rotate((0., rotation, 0.), zero_pad)
-
-    def rotate_z(self, rotation: float, zero_pad: Tuple[float, float] = (0., 0.), /) -> None:
-        """
-        Rotate current shape to a given rotation in the Z-axis
-
-        :param rotation:        Rotation in degrees
-        :param zero_pad:        Point where the rotation will be performed, defaults to (0., 0.)
-        """
-        self.map(lambda x, y: rotate_point(x, y, *zero_pad, rotation))
-
-    def rotate(self, rotations: Tuple[float, float, float], zero_pad: Tuple[float, float] = (0., 0.), /,
-               origin: Tuple[float, float] = (0., 0.), offset: Tuple[float, float] = (0., 0.)) -> None:
-        """
-        Rotate current shape to given rotations for all axis
-
-        :param rotations:       Rotations in degrees in this order of X, Y and Z axis
-        :param zero_pad:        Point where the rotations will be performed, defaults to (0., 0.)
-        :param origin:          Origin anchor, defaults to (0., 0.)
-        :param offset:          Offset coordinates, defaults to (0., 0.)
-        """
-        def _func(x: float, y: float) -> Tuple[float, float]:
-            zpx, zpy = zero_pad
-            x -= zpx
-            y -= zpy
-            x, y = rotate_and_project(x, y, 0., rotations, origin, offset)
-            x += zpx
-            y += zpy
-            return x, y
-
-        self.map(_func)
+        self.map(lambda p: Geometry.rotate(p.to_3d(), rot, axis, zero_pad).project_2d())
 
     def shear(self, fax: float = 0., fay: float = 0., /) -> None:
         """
@@ -506,17 +515,18 @@ class Shape(MutableSequence[DrawingCommand]):
         :param fax:             X-axis factor, defaults to 0.
         :param fay:             Y-axis factor, defaults to 0.
         """
-        self.map(
-            lambda x, y:  # type: ignore
-            tuple(map(float, np.array([(1, fax), (fay, 1)]) @ np.array([(x, ), (y, )])))  # type: ignore
-        )
+        def _func(p: Point) -> PointCartesian2D:
+            p = p.to_2d()
+            return PointCartesian2D(*map(float, np.array([(1, fax), (fay, 1)]) @ p))
+
+        self.map(_func)
 
     def close(self) -> None:
         """
         Close current shape if last point is not the same as the first one
         """
-        if self[-1].coordinates != self[0].coordinates:
-            self.append(DrawingCommand(DrawingProp.LINE, *tuple(self[0].coordinates)))
+        if self.coordinates[0] != self.coordinates[-1]:
+            self.append(DrawingCommand(DrawingProp.LINE, next(reversed(self.coordinates[0]))))
 
     def unclose(self) -> None:
         """
@@ -572,7 +582,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 )
             elif cmd0.prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = [DrawingCommand(l, co) for co in curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
+                flatten_cmds = [DrawingCommand(l, co) for co in Geometry.curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
                 ncmds.extend(reversed(flatten_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -605,7 +615,9 @@ class Shape(MutableSequence[DrawingCommand]):
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
                 # Get the new points
-                splitted_cmds = [DrawingCommand(l, c) for c in split_line(cmd1[-1], cmd0[0], max_length)]
+                splitted_cmds = [
+                    DrawingCommand(l, c) for c in Geometry.split_line(cmd1[-1].to_2d(), cmd0[0].to_2d(), max_length)
+                ]
                 ncmds.extend(reversed(splitted_cmds))
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -657,7 +669,7 @@ class Shape(MutableSequence[DrawingCommand]):
         DP = DrawingCommand
         m, b = DrawingProp.MOVE, DrawingProp.BÉZIER
 
-        coordinates = make_ellipse(w, h, c_xy, clockwise)
+        coordinates = Geometry.make_ellipse(w, h, c_xy, clockwise)
 
         cmds = [
             DP(m, coordinates[0]),  # Start from bottom center
@@ -743,7 +755,7 @@ class Shape(MutableSequence[DrawingCommand]):
         DC = DrawingCommand
         m, l = DrawingProp.MOVE, DrawingProp.LINE
 
-        coordinates = make_parallelogram(w, h, angle, c_xy, clockwise)
+        coordinates = Geometry.make_parallelogram(w, h, angle, c_xy, clockwise)
 
         cmds = [
             DC(m, coordinates[0]),
@@ -836,7 +848,7 @@ class Shape(MutableSequence[DrawingCommand]):
         DC = DrawingCommand
         m, l = DrawingProp.MOVE, DrawingProp.LINE
 
-        coordinates = make_triangle(side, angle, c_xy, clockwise)
+        coordinates = Geometry.make_triangle(side, angle, c_xy, clockwise)
 
         cmds = [
             DC(m, coordinates[0]),
@@ -848,8 +860,8 @@ class Shape(MutableSequence[DrawingCommand]):
         triangle = cls(cmds)
 
         if orthocentred:
-            _, yb0, _, yb1 = triangle.bounding
-            triangle.move(0, (yb1 - yb0) / 6)
+            pb0, pb1 = triangle.bounding
+            triangle.move(0, (pb1.y - pb0.y) / 6)
 
         return triangle
 
@@ -918,13 +930,13 @@ class Shape(MutableSequence[DrawingCommand]):
         m, l, b, s = DrawingProp.MOVE, DrawingProp.LINE, DrawingProp.BÉZIER, DrawingProp.BSPLINE
 
         cmds: List[DrawingCommand] = []
-        coordinates: List[Tuple[float, float]] = []
+        coordinates: List[PointCartesian2D] = []
 
         cmds.append(DC(m, (0, -outer_size)))
 
         for i in range(1, edges + 1):
-            inner_p = rotate_point(0, -inner_size, 0, 0, ((i - 0.5) / edges) * 360)
-            outer_p = rotate_point(0, -outer_size, 0, 0, (i / edges) * 360)
+            inner_p = Geometry.rotate(PointCartesian2D(0, -inner_size), ((i - 0.5) / edges) * 360, None, (0., 0.))
+            outer_p = Geometry.rotate(PointCartesian2D(0, -outer_size), (i / edges) * 360, None, (0., 0.))
             if prop == l:
                 cmds += [DC(prop, inner_p), DC(prop, outer_p)]
             elif prop == b:
@@ -937,7 +949,8 @@ class Shape(MutableSequence[DrawingCommand]):
                 raise NotImplementedError(f'{cls.__name__}: prop "{prop}" not supported!')
 
         shape = cls(cmds)
-        shape.move(*c_xy)
+        if c_xy != (0., 0.):
+            shape.move(*c_xy)
 
         return shape
 
@@ -1012,7 +1025,7 @@ class Shape(MutableSequence[DrawingCommand]):
         # Copy current shape object
         wshape = Shape(self)
         # Get shift
-        shift_x, shift_y, _, _ = wshape.bounding
+        shiftp, _ = wshape.bounding
         # Align shape to 7 - Positive coordinates
         wshape.align(7)
         # Upscale it
@@ -1029,12 +1042,12 @@ class Shape(MutableSequence[DrawingCommand]):
         wshape = self.merge_shapes([_close_shape(wsh) for wsh in wshape.split_shape()])
 
         # Build an image
-        _, _, x1, y1 = wshape.bounding
-        width, height = ceil(x1), ceil(y1)
+        _, pb1 = wshape.bounding
+        width, height = ceil(pb1.x), ceil(pb1.y)
         image = np.zeros((height, width), np.uint8)
 
         # Extract coordinates
-        xs, ys = unzip(c for cv in wshape.coordinates for c in cv)
+        xs, ys = unzip(c.to_2d() for cv in wshape.coordinates for c in cv)
         # Build rows and columns from coordinates
         rows, columns = np.array(list(ys)), np.array(list(xs))
         # Get polygons coordinates
@@ -1048,13 +1061,14 @@ class Shape(MutableSequence[DrawingCommand]):
         )
         # Return all those pixels
         return [
-            Pixel(int(x - shift_x), int(y - shift_y), Opacity(alpha / 255))
+            Pixel(int(x - shiftp.x), int(y - shiftp.y), Opacity(alpha / 255))
             for y, row in enumerate(image)
             for x, alpha in enumerate(row)
             if alpha > 0
         ]
 
-    def to_outline(self, bord_xy: float, bord_y: Optional[float] = None, mode: OutlineMode = 'round', *,
+    def to_outline(self, bord_xy: float, bord_y: Optional[float] = None,
+                   mode: OutlineMode = OutlineMode.ROUND, *,
                    miter_limit: float = 200., max_circumference: float = 2.) -> None:
         """
         Converts Shape command for filling to a Shape command for stroking.
@@ -1103,119 +1117,117 @@ class Shape(MutableSequence[DrawingCommand]):
         self.extend(stroke_cmds)
 
     def _stroke_lines(self, shape: MutableSequence[DrawingCommand], width: float,
-                      xscale: float, yscale: float, mode: str,
-                      miter_limit: float, max_circumference: float) -> List[Tuple[float, float]]:
-        outline: List[Tuple[float, float]] = []
+                      xscale: float, yscale: float, mode: OutlineMode,
+                      miter_limit: float, max_circumference: float) -> List[PointCartesian2D]:
+        outline: List[PointCartesian2D] = []
         for point, pre_point, post_point in zip(
             shape,
             [shape[-1]] + list(shape[:-1]),
             list(shape[1:]) + [shape[0]]
         ):
             # -- Calculate orthogonal vectors to both neighbour points
-            p, pre_p, post_p = point[0], pre_point[0], post_point[0]
-            vec0, vec1 = get_vector(p, pre_p), get_vector(p, post_p)
+            p, pre_p, post_p = point[0].to_2d(), pre_point[0].to_2d(), post_point[0].to_2d()
+            vec0, vec1 = Geometry.vector(p, pre_p), Geometry.vector(p, post_p)
 
-            o_vec0 = get_ortho_vector(*((*vec0, 0.), (0., 0., 1.)))[:-1]
-            o_vec0 = stretch_vector(o_vec0, width)
+            o_vec0 = Geometry.orthogonal(vec0.to_3d(), VectorCartesian3D(0., 0., 1.)).to_2d()
+            o_vec0 = Geometry.stretch(o_vec0, width)
 
-            o_vec1 = get_ortho_vector(*((*vec1, 0.), (0., 0., -1.)))[:-1]
-            o_vec1 = stretch_vector(o_vec1, width)
+            o_vec1 = Geometry.orthogonal(vec1.to_3d(), VectorCartesian3D(0., 0., -1.)).to_2d()
+            o_vec1 = Geometry.stretch(o_vec1, width)
 
             # -- Check for gap or edge join
-            inter_x, inter_y = get_line_intersect(
-                (p[0] + o_vec0[0] - vec0[0], p[1] + o_vec0[1] - vec0[1]),
-                (p[0] + o_vec0[0],           p[1] + o_vec0[1]),  # noqa: E241
-                (p[0] + o_vec1[0] - vec1[0], p[1] + o_vec1[1] - vec1[1]),
-                (p[0] + o_vec1[0],           p[1] + o_vec1[1]),  # noqa: E241
+            inter = Geometry.line_intersect(
+                PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
+                PointCartesian2D(p.x + o_vec0.x,           p.y + o_vec0.y),  # noqa: E241
+                PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
+                PointCartesian2D(p.x + o_vec1.x,           p.y + o_vec1.y),  # noqa: E241
                 True
             )
-            if inter_y != inf:
+            if inter.y != inf:
                 # -- Add gap point
                 outline.append(
-                    (p[0] + (inter_x - p[0]) * xscale, p[1] + (inter_y - p[1]) * yscale)
+                    PointCartesian2D(p.x + (inter.x - p.x) * xscale, p.y + (inter.y - p.y) * yscale)
                 )
             else:
                 # -- Add first edge point
                 outline.append(
-                    (p[0] + o_vec0[0] * xscale, p[1] + o_vec0[1] * yscale)
+                    PointCartesian2D(p.x + o_vec0.x * xscale, p.y + o_vec0.y * yscale)
                 )
                 # -- Create join by mode
-                if mode == 'bevel':
-                    continue
-                if mode == 'miter':
-                    outline.extend(self._join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
-                elif mode == 'round':
+                if mode == OutlineMode.ROUND:
                     outline.extend(self._join_mode_round(p, o_vec0, o_vec1, xscale, yscale, width, max_circumference))
-                else:
-                    raise ValueError(f'"{mode}" is not a supported mode!')
+                elif mode == OutlineMode.MITER:
+                    outline.extend(self._join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
+                else:  # OutlineMode.BEVEL:
+                    continue
                 # -- Add end edge point
                 outline.append(
-                    (p[0] + o_vec1[0] * xscale, p[1] + o_vec1[1] * yscale)
+                    PointCartesian2D(p.x + o_vec1.x * xscale, p.y + o_vec1.y * yscale)
                 )
         return outline
 
     @staticmethod
     def _join_mode_miter(
-        p: Tuple[float, float],
-        vec0: Tuple[float, float], vec1: Tuple[float, float],
-        o_vec0: Tuple[float, float], o_vec1: Tuple[float, float],
+        p: PointCartesian2D,
+        vec0: VectorCartesian2D, vec1: VectorCartesian2D,
+        o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
         xscale: float, yscale: float, miter_limit: float
-    ) -> List[Tuple[float, float]]:
+    ) -> List[PointCartesian2D]:
         """Internal function"""
-        outline: List[Tuple[float, float]] = []
+        outline: List[PointCartesian2D] = []
 
-        inter_x, inter_y = get_line_intersect(
-            (p[0] + o_vec0[0] - vec0[0], p[1] + o_vec0[1] - vec0[1]),
-            (p[0] + o_vec0[0],           p[1] + o_vec0[1]),  # noqa: E241
-            (p[0] + o_vec1[0] - vec1[0], p[1] + o_vec1[1] - vec1[1]),
-            (p[0] + o_vec1[0],           p[1] + o_vec1[1]),  # noqa: E241
+        inter = Geometry.line_intersect(
+            PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
+            PointCartesian2D(p.x + o_vec0.x,           p.y + o_vec0.y),  # noqa: E241
+            PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
+            PointCartesian2D(p.x + o_vec1.x,           p.y + o_vec1.y),  # noqa: E241
             strict=False
         )
         # -- Vectors intersect
-        if inter_y != inf:
-            is_vec_x, is_vec_y = get_vector((inter_x, inter_y), p)
-            is_vec_len = get_vector_length((is_vec_x, is_vec_y))
+        if inter.y != inf:
+            is_vec = Geometry.vector(inter, p)
+            is_vec_len = is_vec.norm
             if is_vec_len > miter_limit:
                 fix_scale = miter_limit / is_vec_len
                 outline.append(
-                    (
-                        p[0] + (o_vec0[0] + (is_vec_x - o_vec0[0]) * fix_scale) * xscale,
-                        p[1] + (o_vec0[1] + (is_vec_y - o_vec0[1]) * fix_scale) * yscale
+                    PointCartesian2D(
+                        p.x + (o_vec0.x + (is_vec.x - o_vec0.x) * fix_scale) * xscale,
+                        p.y + (o_vec0.y + (is_vec.y - o_vec0.y) * fix_scale) * yscale
                     )
                 )
                 outline.append(
-                    (
-                        p[0] + (o_vec1[0] + (is_vec_x - o_vec1[0]) * fix_scale) * xscale,
-                        p[1] + (o_vec1[1] + (is_vec_y - o_vec1[1]) * fix_scale) * yscale
+                    PointCartesian2D(
+                        p.x + (o_vec1.x + (is_vec.x - o_vec1.x) * fix_scale) * xscale,
+                        p.y + (o_vec1.y + (is_vec.y - o_vec1.y) * fix_scale) * yscale
                     )
                 )
             else:
                 outline.append(
-                    (p[0] + is_vec_x * xscale, p[1] + is_vec_y * yscale)
+                    PointCartesian2D(p.x + is_vec.x * xscale, p.y + is_vec.y * yscale)
                 )
         # -- Parallel vectors
         else:
-            vec0, vec1 = stretch_vector(vec0, miter_limit), stretch_vector(vec1, miter_limit)
+            vec0, vec1 = Geometry.stretch(vec0, miter_limit), Geometry.stretch(vec1, miter_limit)
             outline.append(
-                (p[0] + (o_vec0[0] + vec0[0]) * xscale, p[1] + (o_vec0[1] + vec0[1]) * yscale)
+                PointCartesian2D(p.x + (o_vec0.x + vec0.x) * xscale, p.y + (o_vec0.y + vec0.y) * yscale)
             )
             outline.append(
-                (p[0] + (o_vec1[0] + vec1[0]) * xscale, p[1] + (o_vec1[1] + vec1[1]) * yscale)
+                PointCartesian2D(p.x + (o_vec1.x + vec1.x) * xscale, p.y + (o_vec1.y + vec1.y) * yscale)
             )
         return outline
 
     @staticmethod
     def _join_mode_round(
-        p: Tuple[float, float],
-        o_vec0: Tuple[float, float], o_vec1: Tuple[float, float],
+        p: PointCartesian2D,
+        o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
         xscale: float, yscale: float, width: float, max_circumference: float
-    ) -> List[Tuple[float, float]]:
+    ) -> List[PointCartesian2D]:
         """Internal function"""
-        outline: List[Tuple[float, float]] = []
+        outline: List[PointCartesian2D] = []
 
         # -- Calculate degree & circumference between orthogonal vectors
-        degree = get_vector_angle(o_vec0, o_vec1)
-        circ = abs(radians(degree)) * width
+        degree = Geometry.angle(o_vec0, o_vec1)
+        circ = abs(degree) * width
 
         if circ > max_circumference:
             # -- Add curve edge points
@@ -1224,8 +1236,8 @@ class Shape(MutableSequence[DrawingCommand]):
                 circ_rest if circ_rest > 0 else max_circumference,
                 circ, max_circumference
             ):
-                curve_vec = rotate_point(*o_vec0, 0, 0, cur_circ / circ * degree)
+                curve_vec = Geometry.rotate(o_vec0, cur_circ / circ * degree, None, (0., 0.))
                 outline.append(
-                    (p[0] + curve_vec[0] * xscale, p[1] + curve_vec[1] * yscale)
+                    PointCartesian2D(p.x + curve_vec.x * xscale, p.y + curve_vec.y * yscale)
                 )
         return outline

@@ -5,8 +5,11 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from os import PathLike
 from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
-                    Iterator, Literal, Reversible, Sequence, Sized, Tuple,
-                    TypeVar, Union, cast, get_args, get_origin, get_type_hints)
+                    Iterator, Literal, Reversible, Sequence, Set, Tuple,
+                    TypeVar, Union, cast, get_args, get_origin, get_type_hints,
+                    overload)
+
+from numpy.typing import NDArray
 
 T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
@@ -19,6 +22,7 @@ Tup3 = Tuple[Nb, Nb, Nb]
 Tup4 = Tuple[Nb, Nb, Nb, Nb]
 Tup3Str = Tuple[str, str, str]
 AnyPath = Union[PathLike[str], str]
+SomeArrayLike = Union[Sequence[float], NDArray[Any]]
 
 BézierCoord = Tuple[
     Tuple[float, float],
@@ -91,24 +95,28 @@ def check_annotations(func: F, /) -> F:
     return cast(F, wrapper)
 
 
-class View(Sized, Reversible[T_co], ABC):
+class View(Reversible[T], Set[T]):
     """Abstract View class"""
-    @abstractmethod
-    def __init__(self, __x: Sequence[T_co]) -> None:
+    def __init__(self, __x: Collection[T]) -> None:
         self.__x = __x
         super().__init__()
+
+    def __contains__(self, __x: object) -> bool:
+        return __x in self.__x
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self.__x)
 
     def __len__(self) -> int:
         return len(self.__x)
 
-    def __reversed__(self) -> Iterator[T_co]:
-        return reversed(self.__x)
+    def __reversed__(self) -> Iterator[T]:
+        return reversed(tuple(self.__x))
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}({self.__x})'
 
-    def __repr__(self) -> str:
-        return self.__str__()
+    __repr__ = __str__
 
 
 class NamedMutableSequence(Sequence[T_co], Generic[T_co], ABC):
