@@ -5,9 +5,8 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from os import PathLike
 from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
-                    Iterator, Literal, Reversible, Sequence, Set, Tuple,
-                    TypeVar, Union, cast, get_args, get_origin, get_type_hints,
-                    overload)
+                    Iterator, Reversible, Sequence, Set, Tuple, TypeVar, Union,
+                    cast, get_args, get_origin, get_type_hints, overload)
 
 from numpy.typing import NDArray
 
@@ -23,16 +22,6 @@ Tup4 = Tuple[Nb, Nb, Nb, Nb]
 Tup3Str = Tuple[str, str, str]
 AnyPath = Union[PathLike[str], str]
 SomeArrayLike = Union[Sequence[float], NDArray[Any]]
-
-BézierCoord = Tuple[
-    Tuple[float, float],
-    Tuple[float, float],
-    Tuple[float, float],
-    Tuple[float, float]
-]
-
-OutlineMode = Literal['miter', 'bevel', 'round']
-AssBCurve = Tuple[Tuple[float, float], Tuple[float, float], Tuple[float, float]]
 
 
 class CheckAnnotated(Generic[T], ABC):
