@@ -16,7 +16,7 @@ from .point import (Point, PointCartesian2D, PointCartesian3D,
                     PointT)
 from .polar import Cylindrical, Polar, PolarAxis, Spherical
 from .vector import (Vector, VectorCartesian2D, VectorCartesian3D,
-                     VectorCylindrical, VectorPolar, VectorSpherical, VectorT)
+                     VectorCylindrical, VectorPolar, VectorSpherical)
 
 __all__ = [
     'CartesianAxis', 'PolarAxis',
@@ -46,26 +46,65 @@ class Geometry:
     @overload
     @staticmethod
     def rotate(_o: _Cartesian2DT, /, rot: float, axis: None, zp: Tuple[float, ...]) -> _Cartesian2DT:
+        """
+        Rotate given Cartesian2D Point or Vector in given rotation
+
+        :param _o:          Point or vector
+        :param rot:         Rotation in degrees
+        :param zp:          Zero point where the rotation will be performed
+        :return:            Point or vector rotated
+        """
         ...
 
     @overload
     @staticmethod
     def rotate(_o: _Cartesian3DT, /, rot: float, axis: Axis, zp: Tuple[float, ...]) -> _Cartesian3DT:
+        """
+        Rotate given Cartesian3D Point or Vector in given rotation in a given axis
+
+        :param _o:          Point or vector
+        :param rot:         Rotation in degrees
+        :param axis:        Axis
+        :param zp:          Zero point where the rotation will be performed
+        :return:            Point or vector rotated
+        """
         ...
 
     @overload
     @staticmethod
     def rotate(_o: _PolarT, /, rot: float, axis: None, zp: None) -> _PolarT:
+        """
+        Rotate given Polar Point or Vector in given rotation
+
+        :param _o:          Point or vector
+        :param rot:         Rotation in degrees
+        :return:            Point or vector rotated
+        """
         ...
 
     @overload
     @staticmethod
     def rotate(_o: _CylindricalT, /, rot: float, axis: None, zp: None) -> _CylindricalT:
+        """
+        Rotate given Cylindrical Point or Vector in given rotation
+
+        :param _o:          Point or vector
+        :param rot:         Rotation in degrees
+        :return:            Point or vector rotated
+        """
         ...
 
     @overload
     @staticmethod
     def rotate(_o: _SphericalT, /, rot: float, axis: Axis, zp: None) -> _SphericalT:
+        """
+        Rotate given Spherical Point or Vector in given rotation in a given axis
+
+        :param _o:          Point or vector
+        :param rot:         Rotation in degrees
+        :param axis:        Axis
+        :return:            Point or vector rotated
+        """
         ...
 
     @overload
@@ -75,15 +114,7 @@ class Geometry:
 
     @staticmethod
     def rotate(_o: Any, rot: float, axis: Any, zp: Any) -> Any:
-        """
-        Rotate given point or vector in given rotation
-
-        :param _o:          Point or vector
-        :param rot:         Rotation in degrees
-        :param axis:        Axis
-        :param zp:          Zero point where the rotation will be performed
-        :return:            Point or vector rotated
-        """
+        """Implementaton"""
         if isinstance(_o, Cartesian3D):
             _o.__rotate__(rot, axis, zp if zp else (0, 0, 0))
         elif isinstance(_o, Cartesian2D):
@@ -99,26 +130,61 @@ class Geometry:
     @overload
     @staticmethod
     def vector(p0: PointCartesian2D, p1: PointCartesian2D) -> VectorCartesian2D:
+        """
+        Make a vector fom two PointCartesian2D
+
+        :param p0:          First point
+        :param p1:          Second point
+        :return:            Vector
+        """
         ...
 
     @overload
     @staticmethod
     def vector(p0: PointCartesian3D, p1: PointCartesian3D) -> VectorCartesian3D:
+        """
+        Make a vector fom two PointCartesian3D
+
+        :param p0:          First point
+        :param p1:          Second point
+        :return:            Vector
+        """
         ...
 
     @overload
     @staticmethod
     def vector(p0: PointPolar, p1: PointPolar) -> VectorPolar:
+        """
+        Make a vector fom two PointPolar
+
+        :param p0:          First point
+        :param p1:          Second point
+        :return:            Vector
+        """
         ...
 
     @overload
     @staticmethod
     def vector(p0: PointCylindrical, p1: PointCylindrical) -> VectorCylindrical:
+        """
+        Make a vector fom two PointCylindrical
+
+        :param p0:          First point
+        :param p1:          Second point
+        :return:            Vector
+        """
         ...
 
     @overload
     @staticmethod
     def vector(p0: PointSpherical, p1: PointSpherical) -> VectorSpherical:
+        """
+        Make a vector fom two PointSpherical
+
+        :param p0:          First point
+        :param p1:          Second point
+        :return:            Vector
+        """
         ...
 
     @overload
@@ -128,133 +194,211 @@ class Geometry:
 
     @staticmethod
     def vector(p0: Any, p1: Any) -> Any:
-        """
-        Make a vector fom two points
-
-        :param p0:          First point
-        :param p1:          Second point
-        :return:            Vector
-        """
+        """Implementaton"""
         return p0.__vector__(p1)
 
     @overload
     @staticmethod
     def angle(v0: VectorCartesian2D, v1: VectorCartesian2D) -> float:
-        ...
-
-    @overload
-    @staticmethod
-    def angle(v0: VectorCartesian3D, v1: VectorCartesian3D) -> float:
-        ...
-
-    @overload
-    @staticmethod
-    def angle(v0: VectorPolar, v1: VectorPolar) -> float:
-        ...
-
-    @overload
-    @staticmethod
-    def angle(v0: VectorCylindrical, v1: VectorCylindrical) -> float:
-        ...
-
-    @overload
-    @staticmethod
-    def angle(v0: VectorSpherical, v1: VectorSpherical) -> float:
-        ...
-
-    @staticmethod
-    def angle(v0: Any, v1: Any) -> Any:
         """
-        Get angle between two vectors
+        Get angle in radians between two VectorCartesian2D
 
         :param v0:          First vector
         :param v1:          Second vector
         :return:            Angle in radians
         """
+        ...
+
+    @overload
+    @staticmethod
+    def angle(v0: VectorCartesian3D, v1: VectorCartesian3D) -> float:
+        """
+        Get angle in radians between two VectorCartesian3D
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Angle in radians
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def angle(v0: VectorPolar, v1: VectorPolar) -> float:
+        """
+        Get angle in radians between two VectorPolar
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Angle in radians
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def angle(v0: VectorCylindrical, v1: VectorCylindrical) -> float:
+        """
+        Get angle in radians between two VectorCylindrical
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Angle in radians
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def angle(v0: VectorSpherical, v1: VectorSpherical) -> float:
+        """
+        Get angle in radians between two VectorSpherical
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Angle in radians
+        """
+        ...
+
+    @staticmethod
+    def angle(v0: Any, v1: Any) -> Any:
+        """Implementaton"""
         return v0.__angle__(v1)
 
     @overload
     @staticmethod
     def orthogonal(v0: VectorCartesian2D, v1: VectorCartesian2D) -> float:
+        """
+        Get orthogonal vector of two VectorCartesian2D
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Scalar
+        """
         ...
 
     @overload
     @staticmethod
     def orthogonal(v0: VectorCartesian3D, v1: VectorCartesian3D) -> VectorCartesian3D:
+        """
+        Get orthogonal vector of two VectorCartesian3D
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Orthogonal vector
+        """
         ...
 
     @overload
     @staticmethod
     def orthogonal(v0: VectorPolar, v1: VectorPolar) -> float:
+        """
+        Get orthogonal vector of two VectorPolar
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Scalar
+        """
         ...
 
     @overload
     @staticmethod
     def orthogonal(v0: VectorCylindrical, v1: VectorCylindrical) -> VectorCylindrical:
+        """
+        Get orthogonal vector of two VectorCylindrical
+
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Orthogonal vector
+        """
         ...
 
     @overload
     @staticmethod
     def orthogonal(v0: VectorSpherical, v1: VectorSpherical) -> VectorSpherical:
-        ...
+        """
+        Get orthogonal vector of two VectorSpherical
 
-    @overload
-    @staticmethod
-    def orthogonal(v0: VectorT, v1: VectorT) -> Vector:
+        :param v0:          First vector
+        :param v1:          Second vector
+        :return:            Orthogonal vector
+        """
         ...
 
     @staticmethod
     def orthogonal(v0: Any, v1: Any) -> Any:
-        """
-        Get orthogonal vector of two vectors
-
-        :param v0:          First vector
-        :param v1:          Second vector
-        :return:            Scalar if 2D dimensions else a vector
-        """
+        """Implementaton"""
         return v0.__orthogonal__(v1)
 
     @overload
     @staticmethod
     def stretch(v: VectorCartesian2D, /, length: float) -> VectorCartesian2D:
-        ...
-
-    @overload
-    @staticmethod
-    def stretch(v: VectorCartesian3D, /, length: float) -> VectorCartesian3D:
-        ...
-
-    @overload
-    @staticmethod
-    def stretch(v: VectorPolar, /, length: float) -> VectorPolar:
-        ...
-
-    @overload
-    @staticmethod
-    def stretch(v: VectorCylindrical, /, length: float) -> VectorCylindrical:
-        ...
-
-    @overload
-    @staticmethod
-    def stretch(v: VectorSpherical, /, length: float) -> VectorSpherical:
-        ...
-
-    @staticmethod
-    def stretch(v: Any, length: float) -> Any:
         """
-        Scale vector to given length
+        Scale VectorCartesian2D to given length
 
         :param v:           Vector
         :param length:      Required length
         :return:            Vector stretched
         """
+        ...
+
+    @overload
+    @staticmethod
+    def stretch(v: VectorCartesian3D, /, length: float) -> VectorCartesian3D:
+        """
+        Scale VectorCartesian3D to given length
+
+        :param v:           Vector
+        :param length:      Required length
+        :return:            Vector stretched
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def stretch(v: VectorPolar, /, length: float) -> VectorPolar:
+        """
+        Scale VectorPolar to given length
+
+        :param v:           Vector
+        :param length:      Required length
+        :return:            Vector stretched
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def stretch(v: VectorCylindrical, /, length: float) -> VectorCylindrical:
+        """
+        Scale VectorCylindrical to given length
+
+        :param v:           Vector
+        :param length:      Required length
+        :return:            Vector stretched
+        """
+        ...
+
+    @overload
+    @staticmethod
+    def stretch(v: VectorSpherical, /, length: float) -> VectorSpherical:
+        """
+        Scale VectorSpherical to given length
+
+        :param v:           Vector
+        :param length:      Required length
+        :return:            Vector stretched
+        """
+        ...
+
+    @staticmethod
+    def stretch(v: Any, length: float) -> Any:
+        """Implementation"""
         return v.__stretch__(length)
 
     @classmethod
-    def line_intersect(cls,
-                       p0: PointCartesian2D, p1: PointCartesian2D,
-                       p2: PointCartesian2D, p3: PointCartesian2D,
-                       strict: bool = True) -> PointCartesian2D:
+    def line_intersect(
+        cls,
+        p0: PointCartesian2D, p1: PointCartesian2D,
+        p2: PointCartesian2D, p3: PointCartesian2D,
+        strict: bool = True
+    ) -> PointCartesian2D:
         """
         Get line intersection coordinates between 4 points in the cartesian system
 
@@ -294,7 +438,7 @@ class Geometry:
         ncoord: List[PointCartesian2D] = []
         distance = dist(p0, p1)
         if distance > max_length:
-            # Equal step between the two points instead of having all points to 16
+            # Equal step between the two points instead of having all points to max_length
             # except the last for the remaining distance
             step = distance / ceil(distance / max_length)
             # Step can be a float so we're using frange
@@ -311,9 +455,9 @@ class Geometry:
         """
         Convert 4th degree curve to line points
 
-        :param b_coord:         Bézier curve
-        :param tolerance:       Tolerance in degrees
-        :return:                List of PointCartesian2D
+        :param b_coord:     Bézier curve
+        :param tolerance:   Tolerance in degrees
+        :return:            List of PointCartesian2D
         """
         P = PointCartesian2D
         V = VectorCartesian2D
@@ -357,7 +501,7 @@ class Geometry:
             vecsp.reverse()
 
             for v0, v1 in reversed(list(zip(vecsp[1:], vecsp))):
-                if abs(cls.angle(V(v0[0], v0[1]), V(v1[0], v1[1]))) > tolerance:
+                if abs(cls.angle(V(*v0), V(*v1))) > tolerance:
                     return False
             return True
 
@@ -376,7 +520,8 @@ class Geometry:
 
     @staticmethod
     def make_ellipse(
-        w: float, h: float, c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True
+        w: float, h: float,
+        c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True
     ) -> Tuple[
         PointCartesian2D,
         AssBézierCurve, AssBézierCurve, AssBézierCurve, AssBézierCurve
@@ -420,7 +565,8 @@ class Geometry:
 
     @staticmethod
     def make_parallelogram(
-        w: float, h: float, angle: float, c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True
+        w: float, h: float, angle: float,
+        c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True
     ) -> Tuple[PointCartesian2D, PointCartesian2D, PointCartesian2D, PointCartesian2D, PointCartesian2D]:
         """
         Make parallelogram coordinates with given width, height and angle, centered around (c_xy)
@@ -430,7 +576,7 @@ class Geometry:
         :param angle:           First angle of the parallelogram in degrees
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
-        :return:                A Shape object representing a parallelogram
+        :return:                Parallelogram coordinates
         """
         cl = - int((-1) ** clockwise)
         cx, cy = c_xy
@@ -465,7 +611,7 @@ class Geometry:
         :param c_xy:            Center (x, y) coordinate, defaults to (0., 0.)
         :param clockwise:       Direction of point creation, defaults to True
         :param orthocentred:    Centred in the orthocenter, defaults to True
-        :return:                A Shape object representing a triangle
+        :return:                Triangle coordinates
         """
         cl = - int((-1) ** clockwise)
         cx, cy = c_xy

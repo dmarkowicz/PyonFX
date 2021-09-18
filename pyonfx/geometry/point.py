@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from math import atan2, cos, radians, sin, sqrt
 from typing import TypeVar, cast
 
-import cv2
+import cv2  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
 
