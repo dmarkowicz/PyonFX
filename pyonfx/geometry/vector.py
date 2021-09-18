@@ -1,3 +1,4 @@
+"""Vector interface"""
 
 from __future__ import annotations
 

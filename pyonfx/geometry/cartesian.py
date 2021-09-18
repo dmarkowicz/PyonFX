@@ -1,3 +1,4 @@
+"""Coordinates cartesian system interface"""
 
 from abc import ABC
 from math import cos, radians, sin

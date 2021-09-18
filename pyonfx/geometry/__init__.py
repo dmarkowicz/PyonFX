@@ -1,4 +1,4 @@
-"""Geometry module"""
+"""Geometry submodule"""
 from __future__ import annotations
 
 from functools import reduce
