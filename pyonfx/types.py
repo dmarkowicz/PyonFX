@@ -111,37 +111,46 @@ class View(Sized, Reversible[T_co], ABC):
         return self.__str__()
 
 
-class PropView(View[T_co], Collection[T_co]):
-    """View for DrawingProp"""
-    def __init__(self, __props: Iterable[T_co], /) -> None:
-        self.__props = list(__props)
-        super().__init__(self.__props)
+class NamedMutableSequence(Sequence[T_co], Generic[T_co], ABC):
+    """ABC for named mutable sequence"""
+    __slots__: Tuple[str, ...] = ()
 
-    def __contains__(self, __x: object) -> bool:
-        return __x in self.__props
+    def __init__(self, *args: T_co, **kwargs: T_co) -> None:
+        for k in self.__slots__:
+            setattr(self, k, kwargs.get(k))
 
-    def __iter__(self) -> Iterator[T_co]:
-        return iter(self.__props)
+        if args:
+            for k, v in zip(self.__slots__, args):
+                setattr(self, k, v)
 
-    def __eq__(self, o: object) -> bool:
-        if not isinstance(o, PropView):
-            return NotImplemented
-        return self.__props == o.__props
+    def __str__(self) -> str:
+        clsname = self.__class__.__name__
+        values = ', '.join('%s=%r' % (k, getattr(self, k))
+                           for k in self.__slots__)
+        return '%s(%s)' % (clsname, values)
 
+    __repr__ = __str__
 
-class CoordinatesView(View[Tuple[Nb, Nb]], Collection[Tuple[Nb, Nb]]):
-    """View for coordinates"""
-    def __init__(self, __coordinates: Iterable[Tuple[Nb, Nb]], /) -> None:
-        self.__coordinates = list(__coordinates)
-        super().__init__(self.__coordinates)
+    @overload
+    def __getitem__(self, index: int) -> T_co:
+        ...
 
-    def __contains__(self, __x: object) -> bool:
-        return __x in self.__coordinates
+    @overload
+    def __getitem__(self, index: slice) -> Tuple[T_co, ...]:
+        ...
 
-    def __iter__(self) -> Iterator[Tuple[Nb, Nb]]:
-        return iter(self.__coordinates)
+    def __getitem__(self, index: int | slice) -> T_co | Tuple[T_co, ...]:
+        if isinstance(index, slice):
+            return tuple(
+                getattr(self, self.__slots__[i])
+                for i in range(
+                    index.start, index.stop
+                )
+            )
+        return getattr(self, self.__slots__[index])
 
-    def __eq__(self, o: object) -> bool:
-        if not isinstance(o, CoordinatesView):
-            return NotImplemented
-        return self.__coordinates == o.__coordinates
+    def __setitem__(self, item: int, value: Any) -> None:
+        setattr(self, self.__slots__[item], value)
+
+    def __len__(self) -> int:
+        return self.__slots__.__len__()
