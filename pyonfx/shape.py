@@ -40,8 +40,7 @@ from .types import Alignment, View
 
 class Pixel(NamedTuple):
     """A simple NamedTuple to represent pixels"""
-    x: float
-    y: float
+    pos: PointCartesian2D
     opacity: Optional[Opacity] = None
     colour: Optional[ASSColor] = None
 
@@ -59,7 +58,7 @@ class Pixel(NamedTuple):
         ) if self.opacity is not None else ''
         colour = f'\\c{self.colour}' if self.colour is not None else ''
         return (
-            f'{{\\p1\\pos({round(self.x + shift_x, round_digits)},{round(self.y + shift_y, round_digits)})'
+            f'{{\\p1\\pos({round(self.pos.x + shift_x, round_digits)},{round(self.pos.y + shift_y, round_digits)})'
             + alpha + colour + f'}}{Shape.square(1.5).to_str()}'
         )
 
@@ -1106,7 +1105,7 @@ class Shape(MutableSequence[DrawingCommand]):
         )
         # Return all those pixels
         return [
-            Pixel(int(x - shiftp.x), int(y - shiftp.y), Opacity(alpha / 255))
+            Pixel(PointCartesian2D(x - shiftp.x, y - shiftp.y), Opacity(alpha / 255))
             for y, row in enumerate(image)
             for x, alpha in enumerate(row)
             if alpha > 0
