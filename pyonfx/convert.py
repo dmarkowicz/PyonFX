@@ -208,10 +208,14 @@ class ConvertColour:
     @classmethod
     def xyz_to_luv(cls, x: float, y: float, z: float) -> Tuple[float, float, float]:
         # http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Luv.html
+        if x == y == z == 0.:
+            return 0, 0, 0
+
         x_ref, y_ref, z_ref = cls.D65_XYZ_TRISTIMULUS_10
         yr = y / y_ref
         up = 4 * x / (x + 15 * y + 3 * z)
         vp = 9 * y / (x + 15 * y + 3 * z)
+
         up_ref = 4 * x_ref / (x_ref + 15 * y_ref + 3 * z_ref)
         vp_ref = 9 * y_ref / (x_ref + 15 * y_ref + 3 * z_ref)
 
