@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from os import PathLike
 from typing import (Annotated, Any, Callable, Collection, Generic, Iterable,
-                    Iterator, Reversible, Sequence, Set, Tuple, TypeVar, Union,
+                    Iterator, Reversible, Sequence, Tuple, TypeVar, Union,
                     cast, get_args, get_origin, get_type_hints, overload)
 
 from numpy.typing import NDArray
@@ -84,7 +84,7 @@ def check_annotations(func: F, /) -> F:
     return cast(F, wrapper)
 
 
-class View(Reversible[T], Set[T]):
+class View(Reversible[T], Collection[T]):
     """Abstract View class"""
     def __init__(self, __x: Collection[T]) -> None:
         self.__x = __x
