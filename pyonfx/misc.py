@@ -19,7 +19,8 @@ def clamp_value(val: Nb, min_val: Nb, max_val: Nb) -> Nb:
     :param max_val:     Maximum value
     :return:            Clamped value
     """
-    return min(max_val, max(min_val, val))
+    # return min(max_val, max(min_val, val))
+    return min_val if val < min_val else max_val if val > max_val else val
 
 
 @overload
