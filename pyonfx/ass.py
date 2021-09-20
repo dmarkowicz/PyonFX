@@ -643,12 +643,13 @@ class Ass:
         words_or_syls: Union[PList[Syllable], PList[Word]] = line.syls if line.syls else line.words
 
         # Getting chars
-        # char_index = 0
+        char_index = 0
         for el in words_or_syls:
             el_text = "{}{}{}".format(" " * el.prespace, el.text, " " * el.postspace)
             for ci, char_text in enumerate(el_text):
                 char = Char()
-                char.i = ci
+                char.i = char_index
+                char_index += 1
 
                 # If we're working with syls, we can add some indexes
                 if line.syls:
