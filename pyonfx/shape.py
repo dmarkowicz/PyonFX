@@ -34,7 +34,7 @@ from skimage.transform import rescale as skimage_rescale  # type: ignore
 from .colourspace import ASSColor, Opacity
 from .geometry import (CartesianAxis, Geometry, Point, PointCartesian2D,
                        PointsView, VectorCartesian2D, VectorCartesian3D)
-from .misc import chunk, frange
+from .misc import chunk, clamp_value, frange
 from .types import Alignment, View
 
 
@@ -624,6 +624,51 @@ class Shape(MutableSequence[DrawingCommand]):
 
         self.clear()
         self.extend(reversed(ncmds))
+
+    def round_vertices(self, deviation: float = 15, tolerance: float = 157.5, tension: float = 0.5) -> None:
+        """
+        Round vertices of the current shape
+
+        :param deviation:       Length in pixel of the deviation from each vertex, defaults to 15
+        :param tolerance:       Angle in degree to define a vertex to be rounded.
+                                If the vertex's angle is lower than tolerance then it will be rounded.
+                                Valid ranges are 0.0 - 180.0, defaults to 157.5
+        :param tension:         Adjust point tension in percentage, defaults to 0.5
+        """
+        # Aliases
+        DP = DrawingProp
+        m, n, l, b = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.BÉZIER
+
+        shapes = self.split_shape()
+
+        for i, shape in enumerate(shapes):
+            shape.unclose()
+            ncmds: List[DrawingCommand] = []
+            ncmds.clear()
+
+            pres = list(shape)
+            pres.insert(0, pres.pop(-1))
+            posts = list(shape)
+            posts.append(posts.pop(0))
+
+            for pre, curr, post in zip(pres, shape, posts):
+                if curr.prop in {m, n, l}:
+                    curve = Geometry.round_vertex(
+                        pre[-1].to_2d(), curr[0].to_2d(), post[0].to_2d(),
+                        deviation, tolerance, clamp_value(tension, 0., 1.)
+                    )
+                    ncmds.append(DrawingCommand(curr.prop, curve.pop(0)))
+                    if curve:
+                        ncmds.append(DrawingCommand(b, *curve))
+                else:
+                    ncmds.append(curr)
+            shape.clear()
+            shape.extend(ncmds)
+            shapes[i] = shape
+
+        shape = self.merge_shapes(shapes)
+        self.clear()
+        self.extend(shape)
 
     @classmethod
     def ring(cls, out_rad: float, in_rad: float, c_xy: Tuple[float, float] = (0., 0.), /) -> Shape:
