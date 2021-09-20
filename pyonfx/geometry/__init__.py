@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from functools import reduce
 from itertools import chain
-from math import asin, ceil, cos, dist, inf, radians, sin, sqrt
+from math import asin, ceil, cos, degrees, dist, inf, radians, sin, sqrt
 from typing import Any, List, Optional, Tuple, TypeVar, overload
 
 import numpy as np
 
-from ..misc import chunk, frange
+from ..misc import chunk, clamp_value, frange
 from .cartesian import Cartesian2D, Cartesian3D, CartesianAxis
 from .coordinates import Axis
 from .point import (Point, PointCartesian2D, PointCartesian3D,
@@ -517,6 +517,50 @@ class Geometry:
         # Splitting curve recursively until we're not satisfied (angle <= tolerance)
         _convert_recursive(b_coord)
         return ncoord
+
+    @staticmethod
+    def point_on_segment(p0: PointCartesian2D, p1: PointCartesian2D, factor: float = 0.5) -> PointCartesian2D:
+        """
+        Calculate new point on the line segment formed by p0 and p1
+
+        :param p0:          First point
+        :param p1:          Second point
+        :param factor:      Factor parameter where the point is, defaults to 0.5
+        :return:            Point in this line segment
+        """
+        return PointCartesian2D(
+            p0.x + factor * (p1.x - p0.x),
+            p0.y + factor * (p1.y - p0.y)
+        )
+
+    @classmethod
+    def round_vertex(
+        cls,
+        p0: PointCartesian2D, p1: PointCartesian2D, p2: PointCartesian2D,
+        deviation: float, tolerance: float = 157.5, tension: float = 0.5
+    ) -> List[PointCartesian2D]:
+        """
+        Round vertex in a cubic bézier curve
+
+        :param p0:          First point
+        :param p1:          Second point
+        :param p2:          Third point
+        :param deviation:   Length in pixel of the deviation from each vertex
+        :param tolerance:   Angle in degree to define a vertex to be rounded.
+                            If the vertex's angle is lower than tolerance then it will be rounded.
+                            Valid ranges are 0.0 - 180.0, defaults to 157.5
+        :param tension:     Adjust point tension in percentage, defaults to 0.5
+        :return:            List of one point if the angle is lower than tolerance else 4 points
+        """
+        v0 = cls.vector(p0, p1)
+        v1 = cls.vector(p2, p1)
+        if degrees(cls.angle(v0, v1)) < tolerance:
+            b0 = cls.point_on_segment(p1, p0, clamp_value(deviation / v0.norm, 0., 1.))
+            b3 = cls.point_on_segment(p1, p2, clamp_value(deviation / v1.norm, 0., 1.))
+            b1 = cls.point_on_segment(p1, b0, tension)
+            b2 = cls.point_on_segment(p1, b3, tension)
+            return [b0, b1, b2, b3]
+        return [p1]
 
     @staticmethod
     def make_ellipse(
