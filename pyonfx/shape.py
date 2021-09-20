@@ -542,7 +542,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
         :return:                List of Shape objects
         """
-        m_indx = [i for i, cmd in enumerate(self) if cmd.prop == DrawingProp.MOVE]
+        m_indx = [i for i, cmd in enumerate(self) if cmd.prop in {DrawingProp.MOVE, DrawingProp.MOVE_NC}]
         return [self[i:j] for i, j in zip_offset(m_indx, m_indx, offsets=(0, 1), longest=True)]
 
     @classmethod
