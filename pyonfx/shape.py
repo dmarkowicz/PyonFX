@@ -27,7 +27,7 @@ from typing import (Callable, Dict, Iterable, List, MutableSequence,
                     Tuple, cast, overload)
 
 import numpy as np
-from more_itertools import sliced, unzip, zip_offset
+from more_itertools import flatten, sliced, unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
@@ -368,6 +368,15 @@ class Shape(MutableSequence[DrawingCommand]):
     def __repr__(self) -> str:
         return repr(self._commands)
 
+    def replace(self, other: Iterable[DrawingCommand]) -> None:
+        """
+        Replace every DrawingCommand in the current Shape by other's DrawingCommand
+
+        :param other:           Iterable of DrawingCommands
+        """
+        self.clear()
+        self.extend(other)
+
     def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
         """
         Return the current shape in ASS format
@@ -586,8 +595,7 @@ class Shape(MutableSequence[DrawingCommand]):
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
-        self.clear()
-        self.extend(reversed(ncmds))
+        self.replace(reversed(ncmds))
 
     def split_lines(self, max_length: float = 16., tolerance: float = 1.) -> None:
         """
@@ -621,8 +629,7 @@ class Shape(MutableSequence[DrawingCommand]):
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
-        self.clear()
-        self.extend(reversed(ncmds))
+        self.replace(reversed(ncmds))
 
     def round_vertices(self, deviation: float = 15, tolerance: float = 157.5, tension: float = 0.5) -> None:
         """
@@ -640,7 +647,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
         shapes = self.split_shape()
 
-        for i, shape in enumerate(shapes):
+        for shape in shapes:
             shape.unclose()
             ncmds: List[DrawingCommand] = []
             ncmds.clear()
@@ -661,13 +668,8 @@ class Shape(MutableSequence[DrawingCommand]):
                         ncmds.append(DrawingCommand(b, *curve))
                 else:
                     ncmds.append(curr)
-            shape.clear()
-            shape.extend(ncmds)
-            shapes[i] = shape
-
-        shape = self.merge_shapes(shapes)
-        self.clear()
-        self.extend(shape)
+            shape.replace(ncmds)
+        self.replace(flatten(shapes))
 
     @classmethod
     def ring(cls, out_rad: float, in_rad: float, c_xy: Tuple[float, float] = (0., 0.), /) -> Shape:
@@ -1157,8 +1159,7 @@ class Shape(MutableSequence[DrawingCommand]):
             stroke_cmds.append(DC(m, outline.pop(0)))
             stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
 
-        self.clear()
-        self.extend(stroke_cmds)
+        self.replace(stroke_cmds)
 
     def _stroke_lines(self, shape: MutableSequence[DrawingCommand], width: float,
                       xscale: float, yscale: float, mode: OutlineMode,
