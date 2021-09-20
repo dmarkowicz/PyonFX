@@ -201,7 +201,7 @@ class NumBased(ColourSpace[Nb], ABC):
 class ForceNumber(NumBased[Nb], ABC):
     """Base class for clamping and forcing type values"""
 
-    peak: ClassVar[Nb]
+    peaks: ClassVar[Tuple[Nb, Nb]]
     """Max value allowed"""
 
     force_type: ClassVar[Type[Nb]]
@@ -211,14 +211,14 @@ class ForceNumber(NumBased[Nb], ABC):
         if not name.startswith('_'):
             value = clamp_value(
                 self.force_type(value),
-                self.force_type(0),
-                self.force_type(self.peak)
+                self.force_type(self.peaks[0]),
+                self.force_type(self.peaks[1])
             )
         super().__setattr__(name, value)
 
 
 class ForceFloat(ForceNumber[float], ABC):
-    """Force values to float and clamp in the range 0.0 - peak"""
+    """Force values to float and clamp in the range peaks"""
 
     force_type = float
 
@@ -233,7 +233,7 @@ class ForceFloat(ForceNumber[float], ABC):
 
 
 class ForceInt(ForceNumber[int], ABC):
-    """Force values to int (truncate them if necessary) and clamp in the range 0 - peak"""
+    """Force values to int (truncate them if necessary) and clamp in the range peaks"""
     force_type = int
 
 
@@ -246,7 +246,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
     b: Nb
     """Blue value"""
 
-    peak: ClassVar[Nb]
+    peaks: ClassVar[Tuple[Nb, Nb]]
     """Max value allowed"""
 
     def __new__(cls: Type[TRGB], _x: ColourSpace[TCV_co] | Tuple[Nb, ...]) -> TRGB:
@@ -261,12 +261,12 @@ class BaseRGB(ColourSpace[Nb], ABC):
         if type(self) == rgb_type:
             return cast(TRGB, self)
 
-        newpeak = rgb_type.peak
+        newpeaks = rgb_type.peaks
 
-        nvalues = tuple((1 / self.peak) * val for val in self)
-        svalues = tuple(v * newpeak for v in nvalues)
+        nvalues = tuple((1 / self.peaks[1]) * val for val in self)
+        svalues = tuple(v * newpeaks[1] for v in nvalues)
 
-        if newpeak != 1:
+        if newpeaks[1] != 1:
             svalues = tuple(round(sval) for sval in svalues)
 
         return rgb_type(svalues)
@@ -356,7 +356,7 @@ class RGBAlpha(BaseRGB[Nb], ABC):
             if len(_x) > 3:
                 self.a = _x[-1]
             else:
-                self.a = self.peak  # type: ignore # pylance's complaining
+                self.a = self.peaks[1]  # type: ignore # pylance's complaining
         else:
             super().__init__(_x)
 
@@ -365,7 +365,7 @@ class RGBAlpha(BaseRGB[Nb], ABC):
 class RGBS(RGBNoAlpha[float], ForceFloat):
     """RGB colourspace in range 0.0 - 1.0"""
 
-    peak = 1.0
+    peaks = (0., 1.)
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
@@ -382,7 +382,7 @@ class RGBS(RGBNoAlpha[float], ForceFloat):
 class RGBAS(RGBAlpha[float], ForceFloat):
     """RGB with alpha colourspace in range 0.0 - 1.0"""
 
-    peak = 1.0
+    peaks = (0., 1.)
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
@@ -402,7 +402,7 @@ class RGBAS(RGBAlpha[float], ForceFloat):
 
 class RGB(RGBNoAlpha[int], ForceInt):
     """RGB colourspace in range 0 - 255"""
-    peak = (2 ** 8) - 1
+    peaks = (0, (2 ** 8) - 1)
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
@@ -423,28 +423,28 @@ class RGB24(RGB):
 
 class RGB30(RGB):
     """RGB colourspace in range 0 - 1023"""
-    peak = (2 ** 10) - 1
+    peaks = (0, (2 ** 10) - 1)
 
 
 class RGB36(RGB):
     """RGB colourspace in range 0 - 4095"""
-    peak = (2 ** 12) - 1
+    peaks = (0, (2 ** 12) - 1)
 
 
 class RGB42(RGB):
     """RGB colourspace in range 0 - 16383"""
-    peak = (2 ** 14) - 1
+    peaks = (0, (2 ** 14) - 1)
 
 
 class RGB48(RGB):
     """RGB colourspace in range 0 - 65535"""
-    peak = (2 ** 16) - 1
+    peaks = (0, (2 ** 16) - 1)
 
 
 class RGBA(RGBAlpha[int], ForceInt):
     """RGB with alpha colourspace in range 0 - 255"""
 
-    peak = (2 ** 8) - 1
+    peaks = (0, (2 ** 8) - 1)
 
     @overload
     def __init__(self, _x: ColourSpace[TCV_co], /) -> None:
@@ -469,22 +469,22 @@ class RGBA32(RGBA):
 
 class RGBA40(RGBA):
     """RGB with alpha colourspace in range 0 - 1023"""
-    peak = (2 ** 10) - 1
+    peaks = (0, (2 ** 10) - 1)
 
 
 class RGBA48(RGBA):
     """RGB with alpha colourspace in range 0 - 4095"""
-    peak = (2 ** 12) - 1
+    peaks = (0, (2 ** 12) - 1)
 
 
 class RGBA56(RGBA):
     """RGB with alpha colourspace in range 0 - 16383"""
-    peak = (2 ** 14) - 1
+    peaks = (0, (2 ** 14) - 1)
 
 
 class RGBA64(RGBA):
     """RGB with alpha colourspace in range 0 - 65535"""
-    peak = (2 ** 16) - 1
+    peaks = (0, (2 ** 16) - 1)
 
 
 class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
@@ -496,7 +496,7 @@ class HueSaturationBased(ForceFloat, ColourSpace[float], ABC):
     s: float
     """Saturation"""
 
-    peak = 1.0
+    peaks = (0., 1.)
 
     @abstractmethod
     def __init__(self, _x: ColourSpace[TCV_co] | Tup3[float]) -> None:
@@ -1078,7 +1078,7 @@ class XYZ(XYZBased):
     z: float
     """Quasi-equal to blue value"""
 
-    peak = 1.0
+    peaks = (0, 1.)
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co], /) -> XYZ:
@@ -1151,7 +1151,8 @@ class xyY(XYZBased):
     x: float
     y: float
     Y: float
-    peak = 1.0
+
+    peaks = (0, 1.)
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> xyY:
@@ -1234,6 +1235,8 @@ class Lab(XYZBased):
     with negative numbers toward blue and positive toward yellow
     """
 
+    peaks = (-50000., 50000)
+
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> Lab:
         """
@@ -1315,6 +1318,8 @@ class LCHab(XYZBased):
     H: float
     """Hue angle, angle of the hue in the CIELAB color wheel"""
 
+    peaks = (-50000., 50000)
+
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> LCHab:
         """
@@ -1388,6 +1393,8 @@ class Luv(XYZBased):
     """Lightness value"""
     u: float
     v: float
+
+    peaks = (-50000., 50000)
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> Luv:
@@ -1469,6 +1476,8 @@ class LCHuv(XYZBased):
 
     H: float
     """Hue angle, angle of the hue in the CIELAB color wheel"""
+
+    peaks = (-50000., 50000)
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co]) -> LCHuv:
