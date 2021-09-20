@@ -172,7 +172,7 @@ class DrawingCommand(Sequence[Point]):
     @property
     def coordinates(self) -> PointsView:
         """Coordinates of this DrawingCommand"""
-        return PointsView(self)
+        return PointsView(self._coordinates)
 
     def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point) -> None:
         """
