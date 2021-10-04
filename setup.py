@@ -54,6 +54,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     version=find_version("pyonfx", "__init__.py"),
     packages=["pyonfx"],
+    package_data={
+        'pyonfx': ['geometry', 'py.typed'],
+    },
     python_requires=">=3.7",
     install_requires=get_requirements(),
     extras_require={
