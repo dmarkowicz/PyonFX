@@ -53,9 +53,9 @@ setuptools.setup(
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     version=find_version("pyonfx", "__init__.py"),
-    packages=["pyonfx"],
+    packages=["pyonfx", "pyonfx.geometry"],
     package_data={
-        'pyonfx': ['geometry', 'py.typed'],
+        'pyonfx': ['py.typed'],
     },
     python_requires=">=3.7",
     install_requires=get_requirements(),
