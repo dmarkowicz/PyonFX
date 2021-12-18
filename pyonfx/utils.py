@@ -20,18 +20,34 @@ __all__ = ['FrameUtility', 'ColorUtility', 'interpolate']
 
 import re
 from typing import (TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List,
-                    NamedTuple, Optional, TypeVar, Union, cast)
+                    NamedTuple, Optional, cast, overload)
+
+from typing_extensions import TypeGuard
 
 from .colourspace import ColourSpace
-from .types import Pct
+from .geometry import Geometry, Point, PointCartesian3D
+from .types import Nb, TCV_co
 
 if TYPE_CHECKING:
     from .core import Line
 
-I = TypeVar('I', bound=Union[float, int, ColourSpace])  # type: ignore
+
+@overload
+def interpolate(val1: Nb, val2: Nb, pct: float = 0.5, acc: float = 1.0) -> Nb:
+    ...
 
 
-def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
+@overload
+def interpolate(val1: ColourSpace[TCV_co], val2: ColourSpace[TCV_co], pct: float = 0.5, acc: float = 1.0) -> ColourSpace[TCV_co]:
+    ...
+
+
+@overload
+def interpolate(val1: List[Point], val2: None = ..., pct: float = 0.5, acc: float = 1.0) -> PointCartesian3D:
+    ...
+
+
+def interpolate(val1: object, val2: Optional[object] = None, pct: float = 0.5, acc: float = 1.0) -> Any:
     """
     Interpolate val1 and val2 (ColourSpace objects or numbers) by percent value
 
@@ -44,11 +60,19 @@ def interpolate(val1: I, val2: I, pct: Pct, acc: float = 1.0) -> I:
     pct = pct ** acc
 
     if isinstance(val1, (float, int)) and isinstance(val2, (float, int)):
-        return cast(I, val1 * (1 - pct) + val2 * pct)
+        return val1 * (1 - pct) + val2 * pct
     if isinstance(val1, ColourSpace) and isinstance(val2, ColourSpace):
-        return cast(I, val1.interpolate(val2, pct))
-    raise ValueError('interpolate: va1 and val2 must be of the same type')
+        return val1.interpolate(val2, pct)
 
+    val1 = cast(List[object], val1)
+    if _is_point_seq(val1):
+        return Geometry.point_on_bézier_curve(val1, pct)
+
+    raise ValueError(f'interpolate: couldn\'t interpolate val1 "{val1}" and val2 "{val2}"')
+
+
+def _is_point_seq(val: List[object]) -> TypeGuard[List[Point]]:
+    return all(isinstance(p, Point) for p in val)
 
 
 class Utils:

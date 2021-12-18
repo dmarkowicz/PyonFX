@@ -3,14 +3,15 @@ from __future__ import annotations
 
 from functools import reduce
 from itertools import chain
-from math import asin, ceil, cos, degrees, dist, inf, radians, sin, sqrt
-from typing import Any, List, Optional, Tuple, TypeVar, overload
+from math import (asin, ceil, comb, cos, degrees, dist, fsum, inf, radians,
+                  sin, sqrt)
+from typing import Any, List, Optional, Sequence, Tuple, TypeVar, overload
 
 import numpy as np
 
 from ..misc import chunk, clamp_value, frange
 from .cartesian import Cartesian2D, Cartesian3D, CartesianAxis
-from .coordinates import Axis
+from .coordinates import Axis, Coordinates
 from .point import (Point, PointCartesian2D, PointCartesian3D,
                     PointCylindrical, PointPolar, PointSpherical, PointsView,
                     PointT)
@@ -19,6 +20,7 @@ from .vector import (Vector, VectorCartesian2D, VectorCartesian3D,
                      VectorCylindrical, VectorPolar, VectorSpherical)
 
 __all__ = [
+    'Coordinates',
     'CartesianAxis', 'PolarAxis',
     'Point',
     'PointsView',
@@ -531,6 +533,29 @@ class Geometry:
         return PointCartesian2D(
             p0.x + factor * (p1.x - p0.x),
             p0.y + factor * (p1.y - p0.y)
+        )
+
+    @staticmethod
+    def point_on_bézier_curve(curv: Sequence[Point], factor: float = 0.5, *, use_fsum: bool = False) -> PointCartesian3D:
+        """
+        Calculate the coordinates of a point on a Bézier curve
+
+        :param curv:        List of Point representing a Bézier curve of any degree n.
+        :param factor:      Factor parameter where the point is, defaults to 0.5
+        :param use_fsum:    If True use math.fnum otherwise ``sum`` python built-in
+        :return:            Point in this Bézier curve
+        """
+        n = len(curv) - 1
+
+        def calc_c(c: float, i: int) -> float:
+            return comb(n, i) * (1 - factor) ** (n - i) * factor ** i * c
+
+        _sum = fsum if use_fsum else sum
+
+        return PointCartesian3D(
+            *[_sum(calc_c(v, i)
+              for i, v in enumerate(coord_zip))
+              for coord_zip in zip(*(p.to_3d() for p in curv))]
         )
 
     @classmethod
