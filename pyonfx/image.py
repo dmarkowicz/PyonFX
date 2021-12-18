@@ -8,6 +8,7 @@ from typing import List, NoReturn
 import cv2  # type: ignore
 
 from .colourspace import ASSColor, Opacity
+from .geometry import PointCartesian2D
 from .shape import Pixel
 from .types import AnyPath
 
@@ -36,8 +37,7 @@ class Image:
         rows, columns, channels = img_bgr.shape
         return [
             Pixel(
-                co, ro,
-                Opacity(1.0),
+                PointCartesian2D(co, ro), Opacity(1.0),
                 ASSColor(tuple(map(int, (img_bgr[ro, co, ch] for ch in range(channels)))))  # type: ignore
             )
             for ro in range(rows)

@@ -82,7 +82,7 @@ class Cartesian3D(Cartesian2D, ABC):
         :param axis:            The rotation will be performed on this axis
         :param zp:              Zero point where the rotation will be performed, defaults to (0, 0, 0)
         """
-        rot_mats = (self._rot_mat_x, self._rot_mat_y, self._rot_mat_z)
+        rot_mats = (_rot_mat_x, _rot_mat_y, _rot_mat_z)
         try:
             rmat = rot_mats[axis]
         except IndexError as i_err:
@@ -95,26 +95,26 @@ class Cartesian3D(Cartesian2D, ABC):
         for attr, value in zip(self.__slots__, nvals):
             setattr(self, attr, float(value))
 
-    @staticmethod
-    def _rot_mat_x(theta: float) -> NDArray[np.float64]:
-        return np.array(
-            [(1, 0, 0),
-             (0, cos(theta), -sin(theta)),
-             (0, sin(theta), cos(theta))], np.float64
-        )
 
-    @staticmethod
-    def _rot_mat_y(theta: float) -> NDArray[np.float64]:
-        return np.array(
-            [(cos(theta), 0, sin(theta)),
-             (0, 1, 0),
-             (-sin(theta), 0, cos(theta))], np.float64
-        )
+def _rot_mat_x(theta: float) -> NDArray[np.float64]:
+    return np.array(
+        [(1, 0, 0),
+            (0, cos(theta), -sin(theta)),
+            (0, sin(theta), cos(theta))], np.float64
+    )
 
-    @staticmethod
-    def _rot_mat_z(theta: float) -> NDArray[np.float64]:
-        return np.array(
-            [(cos(theta), -sin(theta), 0),
-             (sin(theta), cos(theta), 0),
-             (0, 0, 1)], np.float64
-        )
+
+def _rot_mat_y(theta: float) -> NDArray[np.float64]:
+    return np.array(
+        [(cos(theta), 0, sin(theta)),
+            (0, 1, 0),
+            (-sin(theta), 0, cos(theta))], np.float64
+    )
+
+
+def _rot_mat_z(theta: float) -> NDArray[np.float64]:
+    return np.array(
+        [(cos(theta), -sin(theta), 0),
+            (sin(theta), cos(theta), 0),
+            (0, 0, 1)], np.float64
+    )
