@@ -540,10 +540,14 @@ class Shape(MutableSequence[DrawingCommand]):
 
     def unclose(self) -> None:
         """
-        Unclose current shape if last point is the same as the first one
+        Unclose current shape if last point(s) are the same as the first one
         """
-        if self[-1].coordinates == self[0].coordinates and self[-1].prop == DrawingProp.LINE:
-            del self[-1]
+        first = self._commands[0][0]
+        for cmd in reversed(self):
+            if cmd.prop == DrawingProp.LINE and list(cmd.coordinates)[-1] == first:
+                del self[-1]
+            else:
+                break
 
     def split_shape(self) -> List[Shape]:
         """
