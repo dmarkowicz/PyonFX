@@ -1190,10 +1190,10 @@ class Shape(MutableSequence[DrawingCommand]):
             # -- Check for gap or edge join
             inter = Geometry.line_intersect(
                 PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
-                PointCartesian2D(p.x + o_vec0.x,           p.y + o_vec0.y),  # noqa: E241
+                PointCartesian2D(p.x + o_vec0.x,          p.y + o_vec0.y),  # noqa: E241
                 PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
-                PointCartesian2D(p.x + o_vec1.x,           p.y + o_vec1.y),  # noqa: E241
-                True
+                PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
+                strict=True
             )
             if inter.y != inf:
                 # -- Add gap point
@@ -1230,9 +1230,9 @@ class Shape(MutableSequence[DrawingCommand]):
 
         inter = Geometry.line_intersect(
             PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
-            PointCartesian2D(p.x + o_vec0.x,           p.y + o_vec0.y),  # noqa: E241
+            PointCartesian2D(p.x + o_vec0.x,          p.y + o_vec0.y),  # noqa: E241
             PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
-            PointCartesian2D(p.x + o_vec1.x,           p.y + o_vec1.y),  # noqa: E241
+            PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
             strict=False
         )
         # -- Vectors intersect
