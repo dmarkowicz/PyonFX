@@ -529,11 +529,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param fax:             X-axis factor, defaults to 0.
         :param fay:             Y-axis factor, defaults to 0.
         """
-        def _func(p: Point) -> PointCartesian2D:
-            p = p.to_2d()
-            return PointCartesian2D(*map(float, np.array([(1, fax), (fay, 1)]) @ p))
-
-        self.map(_func)
+        self.map(lambda p: PointCartesian2D(*map(float, np.array([(1, fax), (fay, 1)]) @ p.to_2d())))
 
     def close(self) -> None:
         """
