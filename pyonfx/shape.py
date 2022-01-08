@@ -567,7 +567,8 @@ class Shape(MutableSequence[DrawingCommand]):
         :param shapes:          List of Shape objects
         :return:                A new merged Shape
         """
-        return sum(shapes[1:], shapes[0])
+        start = shapes.pop(0)
+        return sum(shapes, start=start)
 
     def flatten(self, tolerance: float = 1.) -> None:
         """
