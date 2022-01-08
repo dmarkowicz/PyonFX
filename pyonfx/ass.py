@@ -27,7 +27,7 @@ import time
 import warnings
 from fractions import Fraction
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Union, cast
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
@@ -774,14 +774,20 @@ class Ass:
         """
         self._output_lines += [line.compose_ass_line()]
 
-    def save(self, quiet: bool = False) -> None:
+    def save(self, lines: Optional[Iterable[Line]] = None, quiet: bool = False) -> None:
         """
         Write everything inside the output list to a file.
 
+        :param lines:       Additional Line objects to be written
         :param quiet:       Don't show message, defaults to False
         """
         with self.path_output.open("w", encoding="utf-8-sig") as file:
-            file.writelines(self._output + self._output_lines + ["\n"])
+            file.writelines(
+                self._output
+                + self._output_lines
+                + ([line.compose_ass_line() for line in lines] if lines else [])
+                + ["\n"]
+            )
             if self._output_extradata:
                 file.write("\n[Aegisub Extradata]\n")
                 file.writelines(self._output_extradata)
