@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 __all__ = [
+    'ColourSpace',
     'RGBS', 'RGBAS',
     'RGB', 'RGB24', 'RGB30', 'RGB36', 'RGB42', 'RGB48',
     'RGBA', 'RGBA32', 'RGBA40', 'RGBA48', 'RGBA56', 'RGBA64',
     'HSL', 'HSV',
-    'HTML', 'ASSColor',
+    'HTML', 'ASSColor', 'Opacity',
     'XYZ', 'xyY', 'Lab', 'LCHab', 'Luv', 'LCHuv'
 ]
 
@@ -740,7 +741,7 @@ class Opacity(ColourSpace[float]):
         return self.data
 
     def __repr__(self) -> str:
-        return repr(self.value)
+        return f'Opacity({self.value})'
 
     def interpolate(self, nobj: TCS, pct: Pct, /) -> TCS:
         return cast(
