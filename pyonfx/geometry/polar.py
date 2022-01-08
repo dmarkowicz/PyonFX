@@ -25,14 +25,14 @@ class Polar(Coordinates, ABC):
 
     __slots__ = ('r', 'phi')
 
-    def __init__(self, _r: float, _phi: float) -> None:
+    def __init__(self, r: float, phi: float) -> None:
         """
         Make a new object in the polar system
 
         :param _r:              Radial distance
         :param _phi:            Azimuth angle in radians
         """
-        super().__init__(_r, _phi)
+        super().__init__(r, phi)
 
     def __rotate__(self, rot: float) -> None:
         """
@@ -51,7 +51,7 @@ class Cylindrical(Polar, ABC):
 
     __slots__ = ('r', 'phi', 'z')
 
-    def __init__(self, _r: float, _phi: float, _z: float) -> None:
+    def __init__(self, r: float, phi: float, z: float) -> None:
         """
         Make a new object in the cylindrical system
 
@@ -59,8 +59,8 @@ class Cylindrical(Polar, ABC):
         :param _phi:            Azimuth angle in radians
         :param _z:              Height
         """
-        super().__init__(_r, _phi)
-        self.z = _z
+        super().__init__(r, phi)
+        self.z = z
 
     def __rotate__(self, rot: float) -> None:
         """

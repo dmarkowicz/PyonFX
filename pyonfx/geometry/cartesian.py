@@ -28,14 +28,14 @@ class Cartesian2D(Coordinates, ABC):
 
     __slots__ = ('x', 'y')
 
-    def __init__(self, _x: float, _y: float) -> None:
+    def __init__(self, x: float, y: float) -> None:
         """
         Make a new object in the 2D cartesian system
 
         :param _x:              Abscissa
         :param _y:              Ordinate
         """
-        super().__init__(_x, _y)
+        super().__init__(x, y)
 
     def __rotate__(self, rot: float, axis: CartesianAxis = CartesianAxis.Z, zp: Tuple[float, ...] = (0., 0.)) -> None:
         """
@@ -61,7 +61,7 @@ class Cartesian3D(Cartesian2D, ABC):
 
     __slots__ = ('x', 'y', 'z')
 
-    def __init__(self, _x: float, _y: float, _z: float) -> None:
+    def __init__(self, x: float, y: float, z: float) -> None:
         """
         Make a new object in the 3D cartesian system
 
@@ -69,8 +69,8 @@ class Cartesian3D(Cartesian2D, ABC):
         :param _y:              Ordinate
         :param _z:              Applicate
         """
-        super().__init__(_x, _y)
-        self.z = _z
+        super().__init__(x, y)
+        self.z = z
 
     def __rotate__(self, rot: float, axis: CartesianAxis = CartesianAxis.Z, zp: Tuple[float, ...] = (0., 0., 0.)) -> None:
         """
