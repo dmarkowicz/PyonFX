@@ -261,7 +261,7 @@ class DrawingCommand(Sequence[Point]):
         elif self._prop == c:
             check_len = len(self) == 0
         else:
-            raise NotImplementedError(f'{self.__class__.__name__}: Undefined DrawingProp!')
+            raise NotImplementedError(f'{self.__class__.__name__}: "{self._prop}" is an undefined DrawingProp!')
         if not check_len:
             raise ValueError(
                 f'{self.__class__.__name__}: "{self._prop}" does not correspond to the length of the coordinates'
