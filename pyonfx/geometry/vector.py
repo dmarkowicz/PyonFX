@@ -72,7 +72,7 @@ class VectorCartesian2D(Vector, Cartesian2D):
 
     def __angle__(self, v: VectorCartesian2D) -> float:
         # https://stackoverflow.com/a/35134034
-        angle = atan2(np.linalg.det(np.asarray((self, v))), np.dot(self, v))
+        angle = atan2(np.linalg.det(np.array((self, v))), np.dot(self, v))
         # Return with sign by clockwise direction
         return - angle if np.cross(self, v) < 0 else angle
 
