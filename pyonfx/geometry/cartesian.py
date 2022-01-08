@@ -2,7 +2,7 @@
 
 from abc import ABC
 from math import cos, radians, sin
-from typing import Tuple, cast
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -45,10 +45,8 @@ class Cartesian2D(Coordinates, ABC):
         :param zp:              Zero point where the rotation will be performed, defaults to (0, 0)
         """
         theta = radians(rot)
-        R = np.array([(cos(theta), -sin(theta)), (sin(theta), cos(theta))], np.float64)
-        O, P = np.atleast_2d(zp), np.atleast_2d(self)
-        R = cast(NDArray[np.float64], R)
-        O, P = cast(NDArray[np.float64], O), cast(NDArray[np.float64], P)
+        R = np.array([(cos(theta), -sin(theta)), (sin(theta), cos(theta))], np.float64)  # type: ignore[var-annotated]
+        O, P = np.atleast_2d(np.asarray(zp)), np.atleast_2d(self)  # type: ignore[var-annotated]
         nvals = map(float, np.squeeze((R @ (P.T - O.T) + O.T).T))  # type: ignore[attr-defined]
 
         for attr, value in zip(self.__slots__, nvals):
@@ -88,9 +86,10 @@ class Cartesian3D(Cartesian2D, ABC):
         except IndexError as i_err:
             raise ValueError(f'{self.__class__.__name__}: Wrong axis number') from i_err
 
-        R, O, P = rmat(radians(rot)), np.atleast_3d(zp), np.atleast_3d(self)
-        O, P = cast(NDArray[np.float64], O), cast(NDArray[np.float64], P)
-        nvals = np.squeeze((R @ (P.T - O.T) + O.T).T)  # type: ignore[attr-defined]
+        R = rmat(radians(rot))
+        O = np.atleast_3d(np.asarray(zp))  # type: ignore[var-annotated]
+        P = np.atleast_3d(self)  # type: ignore[var-annotated]
+        nvals = np.squeeze((R @ (P.T - O.T) + O.T).T)
 
         for attr, value in zip(self.__slots__, nvals):
             setattr(self, attr, float(value))

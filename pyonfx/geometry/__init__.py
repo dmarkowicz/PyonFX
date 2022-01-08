@@ -74,9 +74,9 @@ class Geometry:
 
     @overload
     @staticmethod
-    def rotate(_o: _PolarT, /, rot: float, axis: None, zp: None) -> _PolarT:
+    def rotate(_o: _CylindricalT, /, rot: float, axis: None, zp: None) -> _CylindricalT:
         """
-        Rotate given Polar Point or Vector in given rotation
+        Rotate given Cylindrical Point or Vector in given rotation
 
         :param _o:          Point or vector
         :param rot:         Rotation in degrees
@@ -86,9 +86,9 @@ class Geometry:
 
     @overload
     @staticmethod
-    def rotate(_o: _CylindricalT, /, rot: float, axis: None, zp: None) -> _CylindricalT:
+    def rotate(_o: _PolarT, /, rot: float, axis: None, zp: None) -> _PolarT:
         """
-        Rotate given Cylindrical Point or Vector in given rotation
+        Rotate given Polar Point or Vector in given rotation
 
         :param _o:          Point or vector
         :param rot:         Rotation in degrees
@@ -414,9 +414,9 @@ class Geometry:
         v0, v1 = cls.vector(p0, p1), cls.vector(p2, p3)
         if v0.norm * v1.norm == 0:
             raise ValueError(f'{cls.__name__}: lines mustn\'t have zero length')
-        det = float(np.linalg.det((v0, v1)))
+        det = float(np.linalg.det(np.asarray((v0, v1))))
         if det != 0:
-            pre, post = float(np.linalg.det((p0, p1))), float(np.linalg.det((p2, p3)))
+            pre, post = float(np.linalg.det(np.asarray((p0, p1)))), float(np.linalg.det(np.asarray((p2, p3))))
             ix, iy = (pre * v1.x - v0.x * post) / det, (pre * v1.y - v0.y * post) / det
             if strict:
                 s = (ix - p1.x) / v0.x if v0.x != 0 else (iy - p1.y) / v0.y
@@ -550,7 +550,8 @@ class Geometry:
         def calc_c(c: float, i: int) -> float:
             return comb(n, i) * (1 - factor) ** (n - i) * factor ** i * c
 
-        _sum = fsum if use_fsum else sum
+        def _sum(_seq: Iterable[float]) -> float:
+            return fsum(_seq) if use_fsum else sum(_seq)
 
         return PointCartesian3D(
             *[_sum(calc_c(v, i)

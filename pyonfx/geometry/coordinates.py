@@ -7,6 +7,7 @@ from enum import IntEnum
 from typing import Any, Callable, NoReturn, Tuple, TypeVar
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..types import NamedMutableSequence, SomeArrayLike
 
@@ -55,6 +56,9 @@ class Coordinates(NamedMutableSequence[float], ABC):
 
     def __rmatmul__(self: _CT, _mat: SomeArrayLike) -> _CT:
         return self.__class__(*self.__matmul_func__(_mat, self.__self[:len(_mat)]))
+
+    def __array__(self) -> NDArray[np.float64]:
+        return np.asarray(self)
 
     def __neg__(self: _CT) -> _CT:
         return self.__class__(*[- a for a in self])

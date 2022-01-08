@@ -72,7 +72,7 @@ class VectorCartesian2D(Vector, Cartesian2D):
 
     def __angle__(self, v: VectorCartesian2D) -> float:
         # https://stackoverflow.com/a/35134034
-        angle = atan2(np.linalg.det((self, v)), np.dot(self, v))
+        angle = atan2(np.linalg.det(np.asarray((self, v))), np.dot(self, v))
         # Return with sign by clockwise direction
         return - angle if np.cross(self, v) < 0 else angle
 
@@ -111,7 +111,7 @@ class VectorCartesian3D(Vector, Cartesian3D):
             return 0.
         angle = float(np.arccos(np.clip(np.dot(self, v) / norm0 / norm1, -1., 1.)))
         # Return with sign by clockwise direction
-        return - angle if np.cross(self, v)[-1] < 0 else angle
+        return - angle if np.cross(self, v)[-1] < 0 else angle  # type: ignore[index]
 
     def __orthogonal__(self, v: VectorCartesian3D) -> VectorCartesian3D:
         return VectorCartesian3D(*map(float, np.cross(self, v)))

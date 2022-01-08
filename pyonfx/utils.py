@@ -286,13 +286,13 @@ class ColorUtility:
                 # If we found something, add to the list as a color change
                 if c1 or c3 or c4:
                     if c1:
-                        c1 = c1.group(0)
+                        c1 = c1.group(0)  # type: ignore[assignment]
                         self.c1_req = True
                     if c3:
-                        c3 = c3.group(0)
+                        c3 = c3.group(0)  # type: ignore[assignment]
                         self.c3_req = True
                     if c4:
-                        c4 = c4.group(0)
+                        c4 = c4.group(0)  # type: ignore[assignment]
                         self.c4_req = True
 
                     self.color_changes.append(
@@ -335,13 +335,13 @@ class ColorUtility:
 
                     # If found, extract from groups
                     if c1:
-                        c1 = c1.group(0)
+                        c1 = c1.group(0)  # type: ignore[assignment]
                         self.c1_req = True
                     if c3:
-                        c3 = c3.group(0)
+                        c3 = c3.group(0)  # type: ignore[assignment]
                         self.c3_req = True
                     if c4:
-                        c4 = c4.group(0)
+                        c4 = c4.group(0)  # type: ignore[assignment]
                         self.c4_req = True
 
                     # Saving in the list

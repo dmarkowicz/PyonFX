@@ -1090,12 +1090,12 @@ class Shape(MutableSequence[DrawingCommand]):
         # Build an image
         _, pb1 = wshape.bounding
         width, height = ceil(pb1.x), ceil(pb1.y)
-        image = np.zeros((height, width), np.uint8)
+        image = np.zeros((height, width), np.uint8)  # type: ignore[var-annotated]
 
         # Extract coordinates
         xs, ys = unzip(c.to_2d() for cv in wshape.coordinates for c in cv)
         # Build rows and columns from coordinates
-        rows, columns = np.array(list(ys)), np.array(list(xs))
+        rows, columns = np.array(list(ys)), np.array(list(xs))  # type: ignore[var-annotated]
         # Get polygons coordinates
         rr, cc = skimage_polygon(rows, columns, shape=(height, width))
         # Fill the image from the polygon coordinates

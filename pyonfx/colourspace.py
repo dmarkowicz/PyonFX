@@ -12,13 +12,11 @@ __all__ = [
 
 import re
 from abc import ABC, abstractmethod
-from typing import (Any, ClassVar, Dict, List, Sequence, Tuple, Type, TypeVar,
-                    cast, overload)
+from typing import Any, Dict, List, Sequence, Tuple, Type, TypeVar, cast, overload
 
 from .convert import ConvertColour as CC
 from .misc import clamp_value
-from .types import (ACV, Nb, Nb8bit, Pct, TCV_co, Tup3, Tup3Str, Tup4,
-                    check_annotations)
+from .types import ACV, Nb, Nb8bit, Pct, TCV_co, Tup3, Tup3Str, Tup4, check_annotations
 
 TRGB = TypeVar('TRGB', bound='BaseRGB[Any]')  # type: ignore
 THSX = TypeVar('THSX', bound='HueSaturationBased')  # Type Hue Saturation ___
@@ -201,10 +199,10 @@ class NumBased(ColourSpace[Nb], ABC):
 class ForceNumber(NumBased[Nb], ABC):
     """Base class for clamping and forcing type values"""
 
-    peaks: ClassVar[Tuple[Nb, Nb]]
+    peaks: Tuple[Nb, Nb]
     """Max value allowed"""
 
-    force_type: ClassVar[Type[Nb]]
+    force_type: Type[Nb]
     """Forcing type"""
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -246,7 +244,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
     b: Nb
     """Blue value"""
 
-    peaks: ClassVar[Tuple[Nb, Nb]]
+    peaks: Tuple[Nb, Nb]
     """Max value allowed"""
 
     def __new__(cls: Type[TRGB], _x: ColourSpace[TCV_co] | Tuple[Nb, ...]) -> TRGB:
@@ -259,7 +257,7 @@ class BaseRGB(ColourSpace[Nb], ABC):
 
     def to_rgb(self, rgb_type: Type[TRGB], /) -> TRGB:
         if type(self) == rgb_type:
-            return cast(TRGB, self)
+            return self  # type: ignore[pylance]
 
         newpeaks = rgb_type.peaks
 
