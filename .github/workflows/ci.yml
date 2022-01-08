@@ -25,6 +25,7 @@ jobs:
 
       - name: Cache Python
         uses: actions/cache@v2
+        if: matrix.os == 'macos-latest' || matrix.os == 'ubuntu-latest'
         with:
           path: ${{ env.pythonLocation }}
           key: ${{matrix.os}}-${{matrix.python-version}}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
@@ -93,6 +94,7 @@ jobs:
 
       - name: Cache Python
         uses: actions/cache@v2
+        if: matrix.os == 'macos-latest' || matrix.os == 'ubuntu-latest'
         with:
           path: ${{ env.pythonLocation }}
           key: ${{matrix.os}}-${{matrix.python-version}}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
