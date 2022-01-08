@@ -16,7 +16,13 @@
 """Shape module"""
 from __future__ import annotations
 
-__all__ = ['Shape']
+__all__ = [
+    'Shape',
+    'Pixel',
+    'DrawingProp',
+    'DrawingCommand',
+    'OutlineMode'
+]
 
 import re
 from enum import Enum, auto
