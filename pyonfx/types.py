@@ -5,11 +5,12 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from os import PathLike
 from typing import (
-    Annotated, Any, Callable, Collection, Generic, Iterable, Iterator, Reversible, Sequence, Tuple,
-    TypeVar, Union, cast, get_args, get_origin, get_type_hints, overload
+    Any, Callable, Collection, Generic, Iterable, Iterator, Reversible, Sequence, Tuple, TypeVar,
+    Union, cast, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray
+from typing_extensions import Annotated, get_type_hints
 
 T = TypeVar('T')
 T_co = TypeVar('T_co', covariant=True)
