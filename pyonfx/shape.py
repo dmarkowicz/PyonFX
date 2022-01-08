@@ -22,9 +22,10 @@ import re
 from enum import Enum, auto
 from itertools import zip_longest
 from math import atan, ceil, cos, degrees, inf, radians, sqrt
-from typing import (Callable, Dict, Iterable, List, MutableSequence,
-                    NamedTuple, NoReturn, Optional, Sequence, SupportsIndex,
-                    Tuple, cast, overload)
+from typing import (
+    Callable, Dict, Iterable, List, MutableSequence, NamedTuple, NoReturn, Optional, Sequence,
+    SupportsIndex, Tuple, cast, overload
+)
 
 import numpy as np
 from more_itertools import flatten, sliced, unzip, zip_offset
@@ -32,8 +33,7 @@ from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
 from .colourspace import ASSColor, Opacity
-from .geometry import (CartesianAxis, Geometry, Point, PointCartesian2D,
-                       PointsView, VectorCartesian2D, VectorCartesian3D)
+from .geometry import CartesianAxis, Geometry, Point, PointCartesian2D, PointsView, VectorCartesian2D, VectorCartesian3D
 from .misc import chunk, clamp_value, frange
 from .types import Alignment, View
 

@@ -3,21 +3,20 @@ from __future__ import annotations
 
 from functools import reduce
 from itertools import chain
-from math import (asin, ceil, comb, cos, degrees, dist, fsum, inf, radians,
-                  sin, sqrt)
-from typing import Any, List, Optional, Sequence, Tuple, TypeVar, overload
+from math import asin, ceil, comb, cos, degrees, dist, fsum, inf, radians, sin, sqrt
+from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, overload
 
 import numpy as np
 
 from ..misc import chunk, clamp_value, frange
 from .cartesian import Cartesian2D, Cartesian3D, CartesianAxis
 from .coordinates import Axis, Coordinates
-from .point import (Point, PointCartesian2D, PointCartesian3D,
-                    PointCylindrical, PointPolar, PointSpherical, PointsView,
-                    PointT)
+from .point import (
+    Point, PointCartesian2D, PointCartesian3D, PointCylindrical, PointPolar, PointSpherical,
+    PointsView, PointT
+)
 from .polar import Cylindrical, Polar, PolarAxis, Spherical
-from .vector import (Vector, VectorCartesian2D, VectorCartesian3D,
-                     VectorCylindrical, VectorPolar, VectorSpherical)
+from .vector import Vector, VectorCartesian2D, VectorCartesian3D, VectorCylindrical, VectorPolar, VectorSpherical
 
 __all__ = [
     'Coordinates',

@@ -19,8 +19,7 @@ from __future__ import annotations
 __all__ = ['FrameUtility', 'ColorUtility', 'interpolate']
 
 import re
-from typing import (TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List,
-                    NamedTuple, Optional, cast, overload)
+from typing import TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List, NamedTuple, Optional, cast, overload
 
 from typing_extensions import TypeGuard
 

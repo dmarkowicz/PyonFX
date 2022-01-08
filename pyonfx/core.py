@@ -24,8 +24,7 @@ __all__ = [
 import copy
 from abc import ABC
 from fractions import Fraction
-from typing import (Any, Dict, Iterable, List, Literal, MutableSequence,
-                    Optional, SupportsIndex, TypeVar, cast, overload)
+from typing import Any, Dict, Iterable, List, Literal, MutableSequence, Optional, SupportsIndex, TypeVar, cast, overload
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime

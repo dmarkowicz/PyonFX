@@ -14,8 +14,7 @@ from ..types import View
 from .cartesian import Cartesian2D, Cartesian3D
 from .coordinates import Coordinates
 from .polar import Cylindrical, Polar, Spherical
-from .vector import (Vector, VectorCartesian2D, VectorCartesian3D,
-                     VectorCylindrical, VectorPolar, VectorSpherical)
+from .vector import Vector, VectorCartesian2D, VectorCartesian3D, VectorCylindrical, VectorPolar, VectorSpherical
 
 PointT = TypeVar('PointT', bound='Point')
 
