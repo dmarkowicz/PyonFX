@@ -1,45 +1,22 @@
-import os
-import re
-import setuptools
+from distutils.util import convert_path
+from typing import Any, Dict
 
-here = os.path.abspath(os.path.dirname(__file__))
+from setuptools import setup
 
+meta: Dict[str, Any] = {}
+with open(convert_path('pyonfx/__init.py'), encoding='utf-8') as f:
+    exec(f.read(), meta)
 
-def read(*parts):
-    with open(os.path.join(here, *parts), "r") as fp:
-        return fp.read()
+with open('requirements.txt', encoding='utf-8') as fh:
+    reqs = fh.readlines()
 
+with open('requirements-dev.txt', encoding='utf-8') as fh:
+    reqs_dev = fh.readlines()
 
-def find_version(*file_paths):
-    version_file = read(*file_paths)
-    version_match = re.search(r"^__version__ = [\'\"](.+)[\'\"]", version_file, re.M)
-    if version_match:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
+with open('README.md', encoding='utf-8') as fh:
+    long_description = fh.read()
 
-
-def get_requirements():
-    requirements = [
-        "more-itertools",
-        "numpy",
-        "scikit-image",
-        "opencv-python",
-    ]
-
-    if os.environ.get("READTHEDOCS") != "True":
-        requirements.extend(
-            [
-                'pywin32; sys_platform == "win32"',
-                'pywin32-stubs; sys_platform == "win32"',
-                'pycairo; sys_platform == "linux" or sys_platform == "darwin"',
-                'PyGObject; sys_platform == "linux" or sys_platform == "darwin"',
-            ]
-        )
-
-    return requirements
-
-
-setuptools.setup(
+setup(
     name="pyonfx",
     url="https://github.com/CoffeeStraw/PyonFX/",
     project_urls={
@@ -50,32 +27,21 @@ setuptools.setup(
     author="Antonio Strippoli",
     author_email="clarantonio98@gmail.com",
     description="An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).",
-    long_description=open("README.md", encoding="utf-8").read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
-    version=find_version("pyonfx", "__init__.py"),
+    version=meta['__version__'],
     packages=["pyonfx", "pyonfx.geometry"],
     package_data={
         'pyonfx': ['py.typed'],
     },
-    python_requires=">=3.7",
-    install_requires=get_requirements(),
-    extras_require={
-        "dev": [
-            "black",
-            "pytest",
-            "pytest-check",
-            "sphinx_panels",
-            "sphinx_rtd_theme",
-            "sphinxcontrib-napoleon",
-        ]
-    },
+    python_requires=">=3.8",
+    install_requires=reqs,
+    extras_require={"dev": reqs_dev},
     keywords="typesetting ass subtitle aegisub karaoke kfx advanced-substation-alpha karaoke-effect",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",

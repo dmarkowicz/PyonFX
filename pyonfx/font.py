@@ -207,11 +207,11 @@ if sys.platform == "win32":
 elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
     import html
 
-    import cairo
-    import gi
+    import cairo  # type: ignore
+    import gi  # type: ignore
     gi.require_version("Pango", "1.0")
     gi.require_version("PangoCairo", "1.0")
-    from gi.repository import Pango, PangoCairo
+    from gi.repository import Pango, PangoCairo  # type: ignore
 
     LIBASS_FONTHACK: Final[bool] = True
     """Scale font data to fontsize? (no effect on windows)"""
@@ -271,7 +271,7 @@ elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
             if not text:
                 return 0.0, 0.0
 
-            def get_rect(new_text):
+            def get_rect(new_text: str) -> Any:
                 self.layout.set_markup(
                     f"<span "
                     f'strikethrough="{str(self.style.strikeout).lower()}" '
@@ -302,7 +302,7 @@ elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
         def text_to_shape(self, text: str) -> Shape:
             if not text:
                 raise ValueError(f'{self.__class__.__name__}: Text is empty!')
-            curr_width = 0
+            curr_width = 0.
             cmds: List[DrawingCommand] = []
             DC, DP = DrawingCommand, DrawingProp
             m, l, b = DP.MOVE, DP.LINE, DP.BÉZIER
@@ -330,7 +330,7 @@ elif sys.platform in ["linux", "darwin"] and "sphinx" not in sys.modules:
                 path = self.context.copy_path()
 
                 # Convert points to shape
-                for ptype, ppath in path:
+                for ptype, ppath in path:  # type: ignore[attr-defined]
                     if ptype == 0:
                         cmds.append(DC(m, (ppath[0] + x_add, ppath[1])))
                     elif ptype == 1:
