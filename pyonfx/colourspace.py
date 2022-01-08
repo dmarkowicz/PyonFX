@@ -212,7 +212,14 @@ class ForceNumber(NumBased[Nb], ABC):
                 self.force_type(self.peaks[0]),
                 self.force_type(self.peaks[1])
             )
+        if name in {'peaks', 'force_type'}:
+            raise ValueError(f'Can\'t change {name}')
         super().__setattr__(name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in {'peaks', 'force_type'}:
+            raise ValueError(f'Can\'t delete {name}')
+        return super().__delattr__(name)
 
 
 class ForceFloat(ForceNumber[float], ABC):
