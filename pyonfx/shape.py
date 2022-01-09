@@ -26,7 +26,6 @@ __all__ = [
 
 import re
 from enum import Enum, auto
-from itertools import zip_longest
 from math import atan, ceil, cos, degrees, inf, radians, sqrt
 from typing import (
     Callable, Dict, Iterable, List, MutableSequence, NamedTuple, NoReturn, Optional, Sequence,
@@ -166,6 +165,7 @@ class DrawingCommand(Sequence[Point]):
     """
     A drawing command is a DrawingProp and a number of coordinates
     """
+    __slots__ = ('_prop', '_coordinates')
     _prop: DrawingProp
     _coordinates: Tuple[Point, ...]
 
@@ -192,14 +192,14 @@ class DrawingCommand(Sequence[Point]):
         super().__init__()
 
     @overload
-    def __getitem__(self, index: SupportsIndex) -> Point:
+    def __getitem__(self, index: int) -> Point:
         ...
 
     @overload
     def __getitem__(self, index: slice) -> NoReturn:
         ...
 
-    def __getitem__(self, index: SupportsIndex | slice) -> Point | NoReturn:
+    def __getitem__(self, index: int | slice) -> Point | NoReturn:
         if isinstance(index, SupportsIndex):
             return self._coordinates[index]
         raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
@@ -282,6 +282,7 @@ class Shape(MutableSequence[DrawingCommand]):
     """
     Class for creating, handling, making transformations from an ASS shape
     """
+    __slots__ = ('_commands', )
     _commands: List[DrawingCommand]
 
     @property
@@ -360,13 +361,13 @@ class Shape(MutableSequence[DrawingCommand]):
             response = all(scmd == so for scmd, so in zip(self, o))
         return response
 
-    def __add__(self, other: Shape) -> Shape:
+    def __add__(self, other: Iterable[DrawingCommand]) -> Shape:
         new = Shape(self)
-        new += other
+        new.extend(other)
         return new
 
     def __iadd__(self, x: Iterable[DrawingCommand]) -> Shape:
-        return Shape(super().__iadd__(x))
+        return self.__add__(x)
 
     def __str__(self) -> str:
         return ' '.join(map(str, self._commands))
@@ -623,12 +624,13 @@ class Shape(MutableSequence[DrawingCommand]):
         # Work with the commands reversed
         self.reverse()
 
-        for cmd0, cmd1 in zip_longest(self, self[1:]):
-            cmd0, cmd1 = cast(DrawingCommand, cmd0), cast(DrawingCommand, cmd1)
+        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True):
+            assert cmd0
             if cmd0.prop in {m, n}:
                 ncmds.append(cmd0)
             elif cmd0.prop == l:
                 # Get the new points
+                assert cmd1
                 splitted_cmds = [
                     DrawingCommand(l, c) for c in Geometry.split_line(cmd1[-1].to_2d(), cmd0[0].to_2d(), max_length)
                 ]
@@ -1173,11 +1175,13 @@ def _stroke_lines(shape: MutableSequence[DrawingCommand], width: float,
                   xscale: float, yscale: float, mode: OutlineMode,
                   miter_limit: float, max_circumference: float) -> List[PointCartesian2D]:
     outline: List[PointCartesian2D] = []
-    for point, pre_point, post_point in zip(
-        shape,
-        [shape[-1]] + list(shape[:-1]),
-        list(shape[1:]) + [shape[0]]
-    ):
+
+    pre_points = list(shape)
+    pre_points.insert(0, pre_points.pop(-1))
+    post_points = list(shape)
+    post_points.append(post_points.pop(0))
+
+    for point, pre_point, post_point in zip(shape, pre_points, post_points):
         # -- Calculate orthogonal vectors to both neighbour points
         p, pre_p, post_p = point[0].to_2d(), pre_point[0].to_2d(), post_point[0].to_2d()
         vec0, vec1 = Geometry.vector(p, pre_p), Geometry.vector(p, post_p)
