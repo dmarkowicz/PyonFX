@@ -1,7 +1,5 @@
 # flake8: noqa
 
-import math
-
 import pytest_check as check
 from pyonfx import OutlineMode, Shape
 
