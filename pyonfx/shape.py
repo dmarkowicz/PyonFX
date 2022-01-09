@@ -167,7 +167,7 @@ class DrawingCommand(Sequence[Point]):
     A drawing command is a DrawingProp and a number of coordinates
     """
     _prop: DrawingProp
-    _coordinates: List[Point]
+    _coordinates: Tuple[Point, ...]
 
     @property
     def prop(self) -> DrawingProp:
@@ -187,7 +187,7 @@ class DrawingCommand(Sequence[Point]):
         :param coordinates:     Coordinates of this DrawingCommand
         """
         self._prop = prop
-        self._coordinates = [c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates]
+        self._coordinates = tuple(c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates)
         self.check_integrity()
         super().__init__()
 
@@ -1157,139 +1157,140 @@ class Shape(MutableSequence[DrawingCommand]):
         for shape in shapes:
             # Outer
             rcmds = [shape[0]] + list(reversed(shape[1:]))
-            outline = self._stroke_lines(rcmds, width, xscale, yscale, mode, miter_limit, max_circumference)
+            outline = _stroke_lines(rcmds, width, xscale, yscale, mode, miter_limit, max_circumference)
             stroke_cmds.append(DC(m, outline.pop(0)))
             stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
 
             # Inner
-            outline = self._stroke_lines(shape, width, xscale, yscale, mode, miter_limit, max_circumference)
+            outline = _stroke_lines(shape, width, xscale, yscale, mode, miter_limit, max_circumference)
             stroke_cmds.append(DC(m, outline.pop(0)))
             stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
 
         self.replace(stroke_cmds)
 
-    def _stroke_lines(self, shape: MutableSequence[DrawingCommand], width: float,
-                      xscale: float, yscale: float, mode: OutlineMode,
-                      miter_limit: float, max_circumference: float) -> List[PointCartesian2D]:
-        outline: List[PointCartesian2D] = []
-        for point, pre_point, post_point in zip(
-            shape,
-            [shape[-1]] + list(shape[:-1]),
-            list(shape[1:]) + [shape[0]]
-        ):
-            # -- Calculate orthogonal vectors to both neighbour points
-            p, pre_p, post_p = point[0].to_2d(), pre_point[0].to_2d(), post_point[0].to_2d()
-            vec0, vec1 = Geometry.vector(p, pre_p), Geometry.vector(p, post_p)
 
-            o_vec0 = Geometry.orthogonal(vec0.to_3d(), VectorCartesian3D(0., 0., 1.)).to_2d()
-            o_vec0 = Geometry.stretch(o_vec0, width)
+def _stroke_lines(shape: MutableSequence[DrawingCommand], width: float,
+                  xscale: float, yscale: float, mode: OutlineMode,
+                  miter_limit: float, max_circumference: float) -> List[PointCartesian2D]:
+    outline: List[PointCartesian2D] = []
+    for point, pre_point, post_point in zip(
+        shape,
+        [shape[-1]] + list(shape[:-1]),
+        list(shape[1:]) + [shape[0]]
+    ):
+        # -- Calculate orthogonal vectors to both neighbour points
+        p, pre_p, post_p = point[0].to_2d(), pre_point[0].to_2d(), post_point[0].to_2d()
+        vec0, vec1 = Geometry.vector(p, pre_p), Geometry.vector(p, post_p)
 
-            o_vec1 = Geometry.orthogonal(vec1.to_3d(), VectorCartesian3D(0., 0., -1.)).to_2d()
-            o_vec1 = Geometry.stretch(o_vec1, width)
+        o_vec0 = Geometry.orthogonal(vec0.to_3d(), VectorCartesian3D(0., 0., 1.)).to_2d()
+        o_vec0 = Geometry.stretch(o_vec0, width)
 
-            # -- Check for gap or edge join
-            inter = Geometry.line_intersect(
-                PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
-                PointCartesian2D(p.x + o_vec0.x,          p.y + o_vec0.y),  # noqa: E241
-                PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
-                PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
-                strict=True
-            )
-            if inter.y != inf:
-                # -- Add gap point
-                outline.append(
-                    PointCartesian2D(p.x + (inter.x - p.x) * xscale, p.y + (inter.y - p.y) * yscale)
-                )
-            else:
-                # -- Add first edge point
-                outline.append(
-                    PointCartesian2D(p.x + o_vec0.x * xscale, p.y + o_vec0.y * yscale)
-                )
-                # -- Create join by mode
-                if mode == OutlineMode.ROUND:
-                    outline.extend(self._join_mode_round(p, o_vec0, o_vec1, xscale, yscale, width, max_circumference))
-                elif mode == OutlineMode.MITER:
-                    outline.extend(self._join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
-                else:  # OutlineMode.BEVEL:
-                    continue
-                # -- Add end edge point
-                outline.append(
-                    PointCartesian2D(p.x + o_vec1.x * xscale, p.y + o_vec1.y * yscale)
-                )
-        return outline
+        o_vec1 = Geometry.orthogonal(vec1.to_3d(), VectorCartesian3D(0., 0., -1.)).to_2d()
+        o_vec1 = Geometry.stretch(o_vec1, width)
 
-    @staticmethod
-    def _join_mode_miter(
-        p: PointCartesian2D,
-        vec0: VectorCartesian2D, vec1: VectorCartesian2D,
-        o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
-        xscale: float, yscale: float, miter_limit: float
-    ) -> List[PointCartesian2D]:
-        """Internal function"""
-        outline: List[PointCartesian2D] = []
-
+        # -- Check for gap or edge join
         inter = Geometry.line_intersect(
             PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
             PointCartesian2D(p.x + o_vec0.x,          p.y + o_vec0.y),  # noqa: E241
             PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
             PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
-            strict=False
+            strict=True
         )
-        # -- Vectors intersect
         if inter.y != inf:
-            is_vec = Geometry.vector(inter, p)
-            is_vec_len = is_vec.norm
-            if is_vec_len > miter_limit:
-                fix_scale = miter_limit / is_vec_len
-                outline.append(
-                    PointCartesian2D(
-                        p.x + (o_vec0.x + (is_vec.x - o_vec0.x) * fix_scale) * xscale,
-                        p.y + (o_vec0.y + (is_vec.y - o_vec0.y) * fix_scale) * yscale
-                    )
-                )
-                outline.append(
-                    PointCartesian2D(
-                        p.x + (o_vec1.x + (is_vec.x - o_vec1.x) * fix_scale) * xscale,
-                        p.y + (o_vec1.y + (is_vec.y - o_vec1.y) * fix_scale) * yscale
-                    )
-                )
-            else:
-                outline.append(
-                    PointCartesian2D(p.x + is_vec.x * xscale, p.y + is_vec.y * yscale)
-                )
-        # -- Parallel vectors
+            # -- Add gap point
+            outline.append(
+                PointCartesian2D(p.x + (inter.x - p.x) * xscale, p.y + (inter.y - p.y) * yscale)
+            )
         else:
-            vec0, vec1 = Geometry.stretch(vec0, miter_limit), Geometry.stretch(vec1, miter_limit)
+            # -- Add first edge point
             outline.append(
-                PointCartesian2D(p.x + (o_vec0.x + vec0.x) * xscale, p.y + (o_vec0.y + vec0.y) * yscale)
+                PointCartesian2D(p.x + o_vec0.x * xscale, p.y + o_vec0.y * yscale)
             )
+            # -- Create join by mode
+            if mode == OutlineMode.ROUND:
+                outline.extend(_join_mode_round(p, o_vec0, o_vec1, xscale, yscale, width, max_circumference))
+            elif mode == OutlineMode.MITER:
+                outline.extend(_join_mode_miter(p, vec0, vec1, o_vec0, o_vec1, xscale, yscale, miter_limit))
+            else:  # OutlineMode.BEVEL:
+                continue
+            # -- Add end edge point
             outline.append(
-                PointCartesian2D(p.x + (o_vec1.x + vec1.x) * xscale, p.y + (o_vec1.y + vec1.y) * yscale)
+                PointCartesian2D(p.x + o_vec1.x * xscale, p.y + o_vec1.y * yscale)
             )
-        return outline
+    return outline
 
-    @staticmethod
-    def _join_mode_round(
-        p: PointCartesian2D,
-        o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
-        xscale: float, yscale: float, width: float, max_circumference: float
-    ) -> List[PointCartesian2D]:
-        """Internal function"""
-        outline: List[PointCartesian2D] = []
 
-        # -- Calculate degree & circumference between orthogonal vectors
-        degree = Geometry.angle(o_vec0, o_vec1)
-        circ = abs(degree) * width
+def _join_mode_miter(
+    p: PointCartesian2D,
+    vec0: VectorCartesian2D, vec1: VectorCartesian2D,
+    o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
+    xscale: float, yscale: float, miter_limit: float
+) -> List[PointCartesian2D]:
+    """Internal function"""
+    outline: List[PointCartesian2D] = []
 
-        if circ > max_circumference:
-            # -- Add curve edge points
-            circ_rest = circ % max_circumference
-            for cur_circ in frange(
-                circ_rest if circ_rest > 0 else max_circumference,
-                circ, max_circumference
-            ):
-                curve_vec = Geometry.rotate(o_vec0, cur_circ / circ * degree, None, (0., 0.))
-                outline.append(
-                    PointCartesian2D(p.x + curve_vec.x * xscale, p.y + curve_vec.y * yscale)
+    inter = Geometry.line_intersect(
+        PointCartesian2D(p.x + o_vec0.x - vec0.x, p.y + o_vec0.y - vec0.y),
+        PointCartesian2D(p.x + o_vec0.x,          p.y + o_vec0.y),  # noqa: E241
+        PointCartesian2D(p.x + o_vec1.x - vec1.x, p.y + o_vec1.y - vec1.y),
+        PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
+        strict=False
+    )
+    # -- Vectors intersect
+    if inter.y != inf:
+        is_vec = Geometry.vector(inter, p)
+        is_vec_len = is_vec.norm
+        if is_vec_len > miter_limit:
+            fix_scale = miter_limit / is_vec_len
+            outline.append(
+                PointCartesian2D(
+                    p.x + (o_vec0.x + (is_vec.x - o_vec0.x) * fix_scale) * xscale,
+                    p.y + (o_vec0.y + (is_vec.y - o_vec0.y) * fix_scale) * yscale
                 )
-        return outline
+            )
+            outline.append(
+                PointCartesian2D(
+                    p.x + (o_vec1.x + (is_vec.x - o_vec1.x) * fix_scale) * xscale,
+                    p.y + (o_vec1.y + (is_vec.y - o_vec1.y) * fix_scale) * yscale
+                )
+            )
+        else:
+            outline.append(
+                PointCartesian2D(p.x + is_vec.x * xscale, p.y + is_vec.y * yscale)
+            )
+    # -- Parallel vectors
+    else:
+        vec0, vec1 = Geometry.stretch(vec0, miter_limit), Geometry.stretch(vec1, miter_limit)
+        outline.append(
+            PointCartesian2D(p.x + (o_vec0.x + vec0.x) * xscale, p.y + (o_vec0.y + vec0.y) * yscale)
+        )
+        outline.append(
+            PointCartesian2D(p.x + (o_vec1.x + vec1.x) * xscale, p.y + (o_vec1.y + vec1.y) * yscale)
+        )
+    return outline
+
+
+def _join_mode_round(
+    p: PointCartesian2D,
+    o_vec0: VectorCartesian2D, o_vec1: VectorCartesian2D,
+    xscale: float, yscale: float, width: float, max_circumference: float
+) -> List[PointCartesian2D]:
+    """Internal function"""
+    outline: List[PointCartesian2D] = []
+
+    # -- Calculate degree & circumference between orthogonal vectors
+    degree = Geometry.angle(o_vec0, o_vec1)
+    circ = abs(degree) * width
+
+    if circ > max_circumference:
+        # -- Add curve edge points
+        circ_rest = circ % max_circumference
+        for cur_circ in frange(
+            circ_rest if circ_rest > 0 else max_circumference,
+            circ, max_circumference
+        ):
+            curve_vec = Geometry.rotate(o_vec0, cur_circ / circ * degree, None, (0., 0.))
+            outline.append(
+                PointCartesian2D(p.x + curve_vec.x * xscale, p.y + curve_vec.y * yscale)
+            )
+    return outline
