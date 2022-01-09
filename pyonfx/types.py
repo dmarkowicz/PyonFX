@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import sys
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from functools import wraps
 from os import PathLike
 from typing import (
-    Any, Callable, Collection, Generic, Iterable, Iterator, Reversible, Sequence, Tuple, TypeVar,
-    Union, cast, get_args, get_origin, overload
+    Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Reversible, Sequence, Tuple,
+    TypeVar, Union, cast, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray
@@ -23,10 +23,7 @@ Nb = TypeVar('Nb', bound=Union[float, int])  # Number
 Tup3 = Tuple[Nb, Nb, Nb]
 Tup4 = Tuple[Nb, Nb, Nb, Nb]
 Tup3Str = Tuple[str, str, str]
-if sys.version_info[:2] >= (3, 9):
-    AnyPath = Union[PathLike[str], str]
-else:
-    AnyPath = Union[PathLike, str]
+AnyPath = Union[PathLike[str], str] if sys.version_info >= (3, 9) else Union[PathLike, str]
 SomeArrayLike = Union[Sequence[float], NDArray[Any]]
 
 
@@ -92,6 +89,8 @@ def check_annotations(func: F, /) -> F:
 
 class View(Reversible[T], Collection[T]):
     """Abstract View class"""
+    __slots__ = '__x'
+
     def __init__(self, __x: Collection[T]) -> None:
         self.__x = __x
         super().__init__()
@@ -114,22 +113,43 @@ class View(Reversible[T], Collection[T]):
     __repr__ = __str__
 
 
-class NamedMutableSequence(Sequence[T_co], Generic[T_co], ABC):
-    """ABC for named mutable sequence"""
+class NamedMutableSequenceMeta(ABCMeta):
     __slots__: Tuple[str, ...] = ()
 
-    def __init__(self, *args: T_co, **kwargs: T_co) -> None:
+    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
+                ignore_slots: bool = False, **kwargs: Any) -> NamedMutableSequenceMeta:
+        if not ignore_slots:
+            types: Dict[str, Any] = namespace.get('__annotations__', {})
+            for base in set(b for base in bases for b in base.mro()):
+                try:
+                    types.update(base.__annotations__)
+                except AttributeError:
+                    # We're trying to get __annotations__ from object
+                    pass
+            try:
+                del types['__slots__']
+            except KeyError:
+                pass
+
+            namespace['__slots__'] = tuple(types.keys())
+
+        return super().__new__(cls, name, bases, namespace, **kwargs)
+
+
+class NamedMutableSequence(Sequence[T_co], ABC, ignore_slots=True, metaclass=NamedMutableSequenceMeta):
+    __slots__: Tuple[str, ...] = ()
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         for k in self.__slots__:
-            setattr(self, k, kwargs.get(k))
+            self.__setattr__(k, kwargs.get(k))
 
         if args:
             for k, v in zip(self.__slots__, args):
-                setattr(self, k, v)
+                self.__setattr__(k, v)
 
     def __str__(self) -> str:
         clsname = self.__class__.__name__
-        values = ', '.join('%s=%r' % (k, getattr(self, k))
-                           for k in self.__slots__)
+        values = ', '.join('%s=%r' % (k, self.__getattribute__(k)) for k in self.__slots__)
         return '%s(%s)' % (clsname, values)
 
     __repr__ = __str__
@@ -145,15 +165,13 @@ class NamedMutableSequence(Sequence[T_co], Generic[T_co], ABC):
     def __getitem__(self, index: int | slice) -> T_co | Tuple[T_co, ...]:
         if isinstance(index, slice):
             return tuple(
-                getattr(self, self.__slots__[i])
-                for i in range(
-                    index.start, index.stop
-                )
+                self.__getattribute__(self.__slots__[i])
+                for i in range(index.start, index.stop)
             )
-        return getattr(self, self.__slots__[index])
+        return self.__getattribute__(self.__slots__[index])
 
     def __setitem__(self, item: int, value: Any) -> None:
-        setattr(self, self.__slots__[item], value)
+        self.__setattr__(self.__slots__[item], value)
 
     def __len__(self) -> int:
         return self.__slots__.__len__()

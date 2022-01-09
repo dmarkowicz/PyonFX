@@ -16,46 +16,41 @@ _CT = TypeVar('_CT', bound='Coordinates')
 
 class Coordinates(NamedMutableSequence[float], ABC):
     """Abstract coordinate system"""
-    __slots__: Tuple[str, ...] = ()
 
     def __contains__(self, o: object) -> NoReturn:
         raise NotImplementedError
 
     @property
-    def __self(self) -> Coordinates:
+    def __self_proxy(self) -> Coordinates:
         return self
 
     def __add__(self: _CT, _p: Tuple[float, ...]) -> _CT:
-        return self.__class__(*[sum(r, start=0.0) for r in zip(self.__self, _p)])
+        return self.__class__(*[sum(r, start=0.0) for r in zip(self.__self_proxy, _p)])
 
     def __radd__(self: _CT, _p: Tuple[float, ...]) -> _CT:
         return self.__add__(_p)
 
     def __sub__(self: _CT, _p: Tuple[float, ...]) -> _CT:
-        return self.__class__(*[c0 - c1 for (c0, c1) in zip(self.__self, _p)])
+        return self.__class__(*[c0 - c1 for (c0, c1) in zip(self.__self_proxy, _p)])
 
     def __rsub__(self: _CT, _p: Tuple[float, ...]) -> _CT:
-        return self.__class__(*[c1 - c0 for (c0, c1) in zip(self.__self, _p)])
+        return self.__class__(*[c1 - c0 for (c0, c1) in zip(self.__self_proxy, _p)])
 
     def __mul__(self: _CT, _p: int | Tuple[float, ...]) -> _CT:
         if isinstance(_p, int):
             nattrs = [getattr(self, attr) * _p for attr in self.__slots__]
         else:
-            nattrs = [c0 * c1 for (c0, c1) in zip(self.__self, _p)]
+            nattrs = [c0 * c1 for (c0, c1) in zip(self.__self_proxy, _p)]
         return self.__class__(*nattrs)
 
     def __rmul__(self: _CT, _p: int | Tuple[float, ...]) -> _CT:
         return self.__mul__(_p)
 
-    @staticmethod
-    def __matmul_func__(_mat1: SomeArrayLike, _mat2: SomeArrayLike) -> map[float]:
-        return map(float, np.asarray(_mat1) @ np.asarray(_mat2))
-
     def __matmul__(self: _CT, _mat: SomeArrayLike) -> _CT:
-        return self.__class__(*self.__matmul_func__(self.__self[:len(_mat)], _mat))
+        return self.__class__(*_get_matmul_func(self.__self_proxy[:len(_mat)], _mat))
 
     def __rmatmul__(self: _CT, _mat: SomeArrayLike) -> _CT:
-        return self.__class__(*self.__matmul_func__(_mat, self.__self[:len(_mat)]))
+        return self.__class__(*_get_matmul_func(_mat, self.__self_proxy[:len(_mat)]))
 
     def __array__(self, dtype: Optional[DTypeLike] = None) -> NDArray[np.float64]:
         return np.array(tuple(self), dtype)
@@ -77,7 +72,7 @@ class Coordinates(NamedMutableSequence[float], ABC):
             for ss, os in zip(self.__slots__, o.__slots__)
         )
 
-    def __setattr_with_func__(self, func: Callable[[Coordinates], Any]) -> None:
+    def __setattr_with_func(self, func: Callable[[Coordinates], Any]) -> None:
         for attr, value in zip(self.__slots__, func(self)):
             setattr(self, attr, value)
 
@@ -87,13 +82,13 @@ class Coordinates(NamedMutableSequence[float], ABC):
 
         :param ndigits:         Number of digits, defaults to None
         """
-        self.__setattr_with_func__(lambda x: np.around(x, ndigits))
+        self.__setattr_with_func(lambda x: np.around(x, ndigits))
 
     def trunc(self) -> None:
         """
         Truncates the Point to the nearest integer toward 0.
         """
-        self.__setattr_with_func__(np.trunc)
+        self.__setattr_with_func(np.trunc)
 
     def floor(self) -> None:
         """
@@ -101,13 +96,13 @@ class Coordinates(NamedMutableSequence[float], ABC):
 
         :return:                New floored Point
         """
-        self.__setattr_with_func__(np.floor)
+        self.__setattr_with_func(np.floor)
 
     def ceil(self) -> None:
         """
         Return the ceiling of the Point as an integer.
         """
-        self.__setattr_with_func__(np.ceil)
+        self.__setattr_with_func(np.ceil)
 
     @abstractmethod
     def to_2d(self) -> Any:
@@ -155,3 +150,7 @@ class Coordinates(NamedMutableSequence[float], ABC):
 class Axis(IntEnum):
     """Base axis enum"""
     ...
+
+
+def _get_matmul_func(_mat1: SomeArrayLike, _mat2: SomeArrayLike) -> map[float]:
+    return map(float, np.asarray(_mat1) @ np.asarray(_mat2))

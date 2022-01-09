@@ -26,8 +26,6 @@ class Cartesian2D(Coordinates, ABC):
     y: float
     """Ordinate coordinate"""
 
-    __slots__ = ('x', 'y')
-
     def __init__(self, x: float, y: float) -> None:
         """
         Make a new object in the 2D cartesian system
@@ -58,8 +56,6 @@ class Cartesian3D(Cartesian2D, ABC):
 
     z: float
     """Applicate coordinate"""
-
-    __slots__ = ('x', 'y', 'z')
 
     def __init__(self, x: float, y: float, z: float) -> None:
         """

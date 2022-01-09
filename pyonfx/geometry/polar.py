@@ -23,8 +23,6 @@ class Polar(Coordinates, ABC):
     phi: float
     """Azimuth φ angle in radians"""
 
-    __slots__ = ('r', 'phi')
-
     def __init__(self, r: float, phi: float) -> None:
         """
         Make a new object in the polar system
@@ -48,8 +46,6 @@ class Cylindrical(Polar, ABC):
 
     z: float
     """Axial coordinate or height"""
-
-    __slots__ = ('r', 'phi', 'z')
 
     def __init__(self, r: float, phi: float, z: float) -> None:
         """
@@ -76,8 +72,6 @@ class Spherical(Polar, ABC):
 
     theta: float
     """Inclination (or polar angle) θ in radians"""
-
-    __slots__ = ('r', 'phi', 'theta')
 
     def __init__(self, r: float, phi: float, theta: float) -> None:
         """
