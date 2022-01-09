@@ -94,22 +94,22 @@ class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
 def _rot_mat_x(theta: float) -> NDArray[np.float64]:
     return np.array(
         [(1, 0, 0),
-            (0, cos(theta), -sin(theta)),
-            (0, sin(theta), cos(theta))], np.float64
+         (0, cos(theta), -sin(theta)),
+         (0, sin(theta), cos(theta))], np.float64
     )
 
 
 def _rot_mat_y(theta: float) -> NDArray[np.float64]:
     return np.array(
         [(cos(theta), 0, sin(theta)),
-            (0, 1, 0),
-            (-sin(theta), 0, cos(theta))], np.float64
+         (0, 1, 0),
+         (-sin(theta), 0, cos(theta))], np.float64
     )
 
 
 def _rot_mat_z(theta: float) -> NDArray[np.float64]:
     return np.array(
         [(cos(theta), -sin(theta), 0),
-            (sin(theta), cos(theta), 0),
-            (0, 0, 1)], np.float64
+         (sin(theta), cos(theta), 0),
+         (0, 0, 1)], np.float64
     )
