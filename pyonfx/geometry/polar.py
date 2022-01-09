@@ -14,7 +14,7 @@ class PolarAxis(Axis):
     THETA = 2
 
 
-class Polar(Coordinates, ABC):
+class Polar(Coordinates, ABC, ignore_slots=True):
     """Polar coordinate system in two dimensions"""
 
     r: float
@@ -41,7 +41,7 @@ class Polar(Coordinates, ABC):
         self.phi += radians(rot)
 
 
-class Cylindrical(Polar, ABC):
+class Cylindrical(Polar, ABC, ignore_slots=True):
     """Polar cylindrical coordinate system in three dimensions"""
 
     z: float
@@ -67,7 +67,7 @@ class Cylindrical(Polar, ABC):
         self.phi += radians(rot)
 
 
-class Spherical(Polar, ABC):
+class Spherical(Polar, ABC, ignore_slots=True):
     """Polar spherical coordinate system in three dimensions"""
 
     theta: float

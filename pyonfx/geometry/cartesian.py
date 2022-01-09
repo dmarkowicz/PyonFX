@@ -17,7 +17,7 @@ class CartesianAxis(Axis):
     Z = 2
 
 
-class Cartesian2D(Coordinates, ABC):
+class Cartesian2D(Coordinates, ABC, ignore_slots=True):
     """Cartesian coordinate system in two dimensions"""
 
     x: float
@@ -51,7 +51,7 @@ class Cartesian2D(Coordinates, ABC):
             setattr(self, attr, value)
 
 
-class Cartesian3D(Cartesian2D, ABC):
+class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
     """Cartesian coordinate system in three dimensions"""
 
     z: float
@@ -83,8 +83,8 @@ class Cartesian3D(Cartesian2D, ABC):
             raise ValueError(f'{self.__class__.__name__}: Wrong axis number') from i_err
 
         R = rmat(radians(rot))
-        O = np.atleast_3d(np.asarray(zp))  # type: ignore[var-annotated]
-        P = np.atleast_3d(self)  # type: ignore[var-annotated]
+        O = np.atleast_3d(np.asanyarray(zp))  # type: ignore[var-annotated]
+        P = np.atleast_3d(np.asanyarray(self))  # type: ignore[var-annotated]
         nvals = np.squeeze((R @ (P.T - O.T) + O.T).T)
 
         for attr, value in zip(self.__slots__, nvals):

@@ -16,7 +16,7 @@ from .polar import Cylindrical, Polar, Spherical
 VectorT = TypeVar('VectorT', bound='Vector')
 
 
-class Vector(Coordinates, ABC):
+class Vector(Coordinates, ABC, ignore_slots=True):
     """Abstract Point Vector with"""
 
     @property

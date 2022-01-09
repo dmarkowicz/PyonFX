@@ -3,6 +3,12 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, ABCMeta, abstractmethod
+from collections.abc import Collection as CollectionABC
+from collections.abc import Container as ContainerABC
+from collections.abc import Iterable as IterableABC
+from collections.abc import Reversible as ReversibleABC
+from collections.abc import Sequence as SequenceABC
+from collections.abc import Sized as SizedABC
 from functools import wraps
 from os import PathLike
 from typing import (
@@ -121,19 +127,29 @@ class NamedMutableSequenceMeta(ABCMeta):
 
     def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
                 ignore_slots: bool = False, **kwargs: Any) -> NamedMutableSequenceMeta:
+        # Let's use __slots__ only if the class is a concrete application
         if not ignore_slots:
-            types: Dict[str, Any] = namespace.get('__annotations__', {})
-            for base in set(b for base in bases for b in base.mro()):
+            types: Dict[str, Any] = {}
+            # dict.fromkeys works as an OrderedSet
+            abases = dict.fromkeys(b for base in bases for b in base.mro())
+            # Remove useless base classes
+            for clsb in [
+                NamedMutableSequence, SequenceABC, ReversibleABC, CollectionABC,
+                SizedABC, IterableABC, ContainerABC, ABC, object
+            ]:
+                del abases[clsb]
+
+            for base in reversed(abases):
                 try:
                     types.update(base.__annotations__)
+                # Python 3.8 has Generic too
                 except AttributeError:
-                    # We're trying to get __annotations__ from object
                     pass
             try:
                 del types['__slots__']
             except KeyError:
                 pass
-
+            types.update(namespace.get('__annotations__', {}))
             namespace['__slots__'] = tuple(types.keys())
 
         return super().__new__(cls, name, bases, namespace, **kwargs)
