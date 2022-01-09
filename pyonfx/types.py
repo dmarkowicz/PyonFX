@@ -129,7 +129,11 @@ class NamedMutableSequenceMeta(ABCMeta):
             for clsb in NamedMutableSequence.mro():
                 del abases[clsb]
             # Get annotations in reverse mro order for the variable names
-            types = reduce(lambda x, y: {**x, **y}, (base.__annotations__ for base in reversed(abases)), {})
+            types = reduce(
+                lambda x, y: {**x, **y},
+                (base.__annotations__ for base in reversed(abases)),
+                cast(Dict[str, Any], {})
+            )
             types.update(namespace.get('__annotations__', {}))
             # Finally add the variable names
             namespace['__slots__'] = tuple(types.keys())
@@ -138,7 +142,7 @@ class NamedMutableSequenceMeta(ABCMeta):
 
 class NamedMutableSequence(Sequence[T_co], ABC, ignore_slots=True, metaclass=NamedMutableSequenceMeta):
     __slots__: Tuple[str, ...] = ()
-    __annotations__ = {}
+    __annotations__ = {}  # type: ignore[var-annotated]
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         for k in self.__slots__:
