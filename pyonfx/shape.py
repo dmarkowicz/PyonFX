@@ -410,7 +410,7 @@ class Shape(MutableSequence[DrawingCommand]):
                 elif cmd.prop == p and cmd.prop in {DrawingProp.LINE, DrawingProp.CUBIC_BÉZIER_CURVE}:
                     draw += cmdstr[2:] + ' '
                 else:
-                    raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd.prop} not recognised!"')
+                    raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd.prop}" not recognised!')
                 p = cmd.prop
         else:
             draw = str(self)

@@ -77,9 +77,9 @@ class Spherical(Polar, ABC, ignore_slots=True):
         """
         Make a new object in the spherical system
 
-        :param _r:              Radial distance
-        :param _phi:            Azimuth angle in radians
-        :param _z:              Inclinaison in radians
+        :param r:                Radial distance
+        :param phi:              Azimuth angle in radians
+        :param theta:            Inclinaison in radians
         """
         super().__init__(r, phi)
         self.theta = theta
