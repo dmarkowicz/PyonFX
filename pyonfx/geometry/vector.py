@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from math import atan2, cos, radians, sin, sqrt
+from math import acos, atan2, cos, hypot, radians, sin, sqrt
 from typing import TypeVar
 
-import numpy as np
+from more_itertools import dotproduct
 
+from ..misc import clamp_value
 from .cartesian import Cartesian2D, Cartesian3D
 from .coordinates import Coordinates
 from .polar import Cylindrical, Polar, Spherical
-
 
 VectorT = TypeVar('VectorT', bound='Vector')
 
@@ -68,16 +68,17 @@ class VectorCartesian2D(Vector, Cartesian2D):
 
     @property
     def norm(self) -> float:
-        return float(np.linalg.norm(self))
+        return hypot(*self)
 
     def __angle__(self, v: VectorCartesian2D) -> float:
         # https://stackoverflow.com/a/35134034
-        angle = atan2(np.linalg.det(np.array((self, v))), np.dot(self, v))
+        angle = atan2(self.__orthogonal__(v), dotproduct(self, v))
         # Return with sign by clockwise direction
-        return - angle if np.cross(self, v) < 0 else angle
+        return - angle if self.__orthogonal__(v) < 0 else angle
 
     def __orthogonal__(self, v: VectorCartesian2D) -> float:
-        return float(np.cross(self, v))
+        """AKA cross product"""
+        return self.x * v.y - self.y * v.x
 
     def to_2d(self) -> VectorCartesian2D:
         return self
@@ -103,18 +104,25 @@ class VectorCartesian3D(Vector, Cartesian3D):
 
     @property
     def norm(self) -> float:
-        return float(np.linalg.norm(self))
+        return hypot(*self)
+
+    def cross(self, v1: VectorCartesian3D) -> VectorCartesian3D:
+        return VectorCartesian3D(
+            self.y * v1.z - self.z * v1.y,
+            self.z * v1.x - self.x * v1.z,
+            self.x * v1.y - self.y * v1.x
+        )
 
     def __angle__(self, v: VectorCartesian3D) -> float:
         norm0, norm1 = self.norm, v.norm
         if norm0 * norm1 == 0:
             return 0.
-        angle = float(np.arccos(np.clip(np.dot(self, v) / norm0 / norm1, -1., 1.)))
+        angle = acos(clamp_value(dotproduct(self, v) / norm0 / norm1, -1., 1.))
         # Return with sign by clockwise direction
-        return - angle if np.cross(self, v)[-1] < 0 else angle  # type: ignore[index]
+        return - angle if self.cross(v)[-1] < 0 else angle
 
     def __orthogonal__(self, v: VectorCartesian3D) -> VectorCartesian3D:
-        return VectorCartesian3D(*map(float, np.cross(self, v)))
+        return self.cross(v)
 
     def to_2d(self) -> VectorCartesian2D:
         return VectorCartesian2D(self.x, self.y)
