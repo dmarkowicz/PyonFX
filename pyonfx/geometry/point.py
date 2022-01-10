@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from cmath import phase, polar, rect
 from math import atan2, cos, radians, sin, sqrt
-from typing import TypeVar, cast
+from typing import TypeVar
+from typing import cast as typing_cast
 
 import cv2  # type: ignore
 import numpy as np
@@ -66,16 +68,16 @@ class PointCartesian2D(Cartesian2D, Point):
         return PointCartesian3D(self.x, self.y, 0.)
 
     def to_polar(self) -> PointPolar:
-        return PointPolar(
-            sqrt(self.x ** 2 + self.y ** 2),
-            atan2(self.y, self.x)
-        )
+        return PointPolar(*polar(complex(*self)))
 
     def to_cylindrical(self) -> PointCylindrical:
         return self.to_polar().to_cylindrical()
 
     def to_spherical(self) -> PointSpherical:
         return self.to_polar().to_spherical()
+
+    def as_vector(self, *, cast: bool = False) -> VectorCartesian2D:
+        return typing_cast(VectorCartesian2D, self) if cast else VectorCartesian2D(*self)
 
 
 class PointCartesian3D(Cartesian3D, Point):
@@ -94,19 +96,14 @@ class PointCartesian3D(Cartesian3D, Point):
         return self.to_2d().to_polar()
 
     def to_cylindrical(self) -> PointCylindrical:
-        return PointCylindrical(
-            sqrt(self.x ** 2 + self.y ** 2),
-            atan2(self.y, self.x),
-            self.z
-        )
+        return PointCylindrical(*polar(complex(self.x, self.y)), z=self.z)
 
     def to_spherical(self) -> PointSpherical:
-        x2y2 = self.x ** 2 + self.y ** 2
-        return PointSpherical(
-            sqrt(x2y2 + self.z ** 2),
-            atan2(self.y, self.x),
-            atan2(x2y2, self.z)
-        )
+        r, theta = polar(complex(self.x ** 2 + self.y ** 2, self.z))
+        return PointSpherical(r, phase(complex(self.y, self.x)), theta)
+
+    def as_vector(self, *, cast: bool = False) -> VectorCartesian3D:
+        return typing_cast(VectorCartesian3D, self) if cast else VectorCartesian3D(*self)
 
     def project_2d(self) -> PointCartesian2D:
         """
@@ -123,7 +120,7 @@ class PointCartesian3D(Cartesian3D, Point):
             cameraMatrix=np.array([(-312, 0, 0), (0, -312, 0), (0, 0, 1)], np.float64),
             distCoeffs=np.zeros((4, 1), np.float64),
         )
-        img_pts = cast(NDArray[np.float32], img_pts)
+        img_pts = typing_cast(NDArray[np.float32], img_pts)
         return PointCartesian2D(*map(float, img_pts.flatten()))
 
 
@@ -137,10 +134,8 @@ class PointPolar(Polar, Point):
         )
 
     def to_2d(self) -> PointCartesian2D:
-        return PointCartesian2D(
-            self.r * cos(self.phi),
-            self.r * sin(self.phi)
-        )
+        co = rect(self.r, self.phi)
+        return PointCartesian2D(co.real, co.imag)
 
     def to_3d(self) -> PointCartesian3D:
         return self.to_2d().to_3d()
@@ -152,11 +147,7 @@ class PointPolar(Polar, Point):
         return PointCylindrical(self.r, self.phi, 0)
 
     def to_spherical(self) -> PointSpherical:
-        return PointSpherical(
-            self.r,
-            self.phi,
-            radians(90.)
-        )
+        return PointSpherical(self.r, self.phi, radians(90.))
 
 
 class PointCylindrical(Cylindrical, Point):
@@ -170,17 +161,12 @@ class PointCylindrical(Cylindrical, Point):
         )
 
     def to_2d(self) -> PointCartesian2D:
-        return PointCartesian2D(
-            self.r * cos(self.phi),
-            self.r * sin(self.phi)
-        )
+        co = rect(self.r, self.phi)
+        return PointCartesian2D(co.real, co.imag)
 
     def to_3d(self) -> PointCartesian3D:
-        return PointCartesian3D(
-            self.r * cos(self.phi),
-            self.r * sin(self.phi),
-            self.z
-        )
+        co = rect(self.r, self.phi)
+        return PointCartesian3D(co.real, co.imag, self.z)
 
     def to_polar(self) -> PointPolar:
         return PointPolar(self.r, self.phi)
@@ -189,11 +175,8 @@ class PointCylindrical(Cylindrical, Point):
         return self
 
     def to_spherical(self) -> PointSpherical:
-        return PointSpherical(
-            sqrt(self.r ** 2 + self.z ** 2),
-            self.phi,
-            atan2(self.r, self.z)
-        )
+        r, theta = polar(complex(self.r, self.z))
+        return PointSpherical(r, self.phi, theta)
 
 
 class PointSpherical(Spherical, Point):

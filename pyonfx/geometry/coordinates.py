@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
+from math import ceil, floor, trunc
 from typing import Any, Callable, NoReturn, Optional, Tuple, TypeVar
 
 import numpy as np
@@ -72,8 +73,8 @@ class Coordinates(NamedMutableSequence[float], ABC, ignore_slots=True):
             for ss, os in zip(self.__slots__, o.__slots__)
         )
 
-    def __setattr_with_func(self, func: Callable[[Coordinates], Any]) -> None:
-        for attr, value in zip(self.__slots__, func(self)):
+    def __setattr_iter(self, func: Callable[[float], int | float]) -> None:
+        for attr, value in zip(self.__slots__, (func(x) for x in self)):
             setattr(self, attr, value)
 
     def round(self, ndigits: int = 3) -> None:
@@ -82,13 +83,13 @@ class Coordinates(NamedMutableSequence[float], ABC, ignore_slots=True):
 
         :param ndigits:         Number of digits, defaults to None
         """
-        self.__setattr_with_func(lambda x: np.around(x, ndigits))
+        self.__setattr_iter(lambda x: round(x, ndigits))
 
     def trunc(self) -> None:
         """
         Truncates the Point to the nearest integer toward 0.
         """
-        self.__setattr_with_func(np.trunc)
+        self.__setattr_iter(trunc)
 
     def floor(self) -> None:
         """
@@ -96,13 +97,13 @@ class Coordinates(NamedMutableSequence[float], ABC, ignore_slots=True):
 
         :return:                New floored Point
         """
-        self.__setattr_with_func(np.floor)
+        self.__setattr_iter(floor)
 
     def ceil(self) -> None:
         """
         Return the ceiling of the Point as an integer.
         """
-        self.__setattr_with_func(np.ceil)
+        self.__setattr_iter(ceil)
 
     @abstractmethod
     def to_2d(self) -> Any:

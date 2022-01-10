@@ -26,21 +26,21 @@ def test_ellipse() -> None:
 
 
 def test_heart() -> None:
-    dest = Shape.from_ass_string('m 227.928 455.855 b 410.27 334.294 455.855 273.513 455.855 212.732 471.05 106.366 334.294 0 227.928 143.952 121.561 0 -15.195 106.366 0 212.732 0 273.513 45.586 334.294 227.928 455.855')
+    dest = Shape.from_ass_string('m 227.928 455.855 b 410.269 334.294 455.855 273.513 455.855 212.732 471.05 106.366 334.294 0 227.928 143.952 121.561 0 -15.195 106.366 0 212.732 0 273.513 45.586 334.294 227.928 455.855')
     original = Shape.heart(455.855, -8)
     original.round()
     check.equal(original, dest)
 
 
 def test_square() -> None:
-    dest = Shape.from_ass_string('m 41 -96 l 41 652.454 789.454 652.454 789.454 -96 41 -96')
+    dest = Shape.from_ass_string('m 41 -96 l 41 652.455 789.455 652.455 789.455 -96 41 -96')
     original = Shape.square(748.4545, (41, -96))
     original.round()
     check.equal(original, dest)
 
 
 def test_rectangle() -> None:
-    dest = Shape.from_ass_string('m 0 0 l 0 1239.122 748.455 1239.122 748.454 0 0 0')
+    dest = Shape.from_ass_string('m 0 0 l 0 1239.122 748.455 1239.122 748.455 0 0 0')
     original = Shape.rectangle(748.4545, 1239.122)
     original.round()
     check.equal(original, dest)

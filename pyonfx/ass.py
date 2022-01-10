@@ -470,7 +470,7 @@ class Ass:
                 )
 
             # Searching for other tags
-            while True:
+            while 1:
                 next_tag = tag_pattern.search(line.raw_text, tag.end())
                 chk = self._TextChunk(
                     line.raw_text[tag.start() + 1: tag.end() - 1].replace("}{", ""),
@@ -506,7 +506,7 @@ class Ass:
 
             posttags = tc.tags
             syls_in_text_chunk: List[Syllable] = []
-            while True:
+            while 1:
                 # Are there \k in posttags?
                 tags_syl = syl_tags_pattern.match(posttags)
 

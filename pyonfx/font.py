@@ -180,7 +180,7 @@ if sys.platform == "win32":
             m, l, b = DP.MOVE, DP.LINE, DP.BÉZIER
 
             points_types = iter(zip(points, type_points))
-            while True:
+            while 1:
                 try:
                     (x0, y0), ptype = next(points_types)
                 except StopIteration:

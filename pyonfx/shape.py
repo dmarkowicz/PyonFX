@@ -25,8 +25,9 @@ __all__ = [
 ]
 
 import re
+from copy import deepcopy
 from enum import Enum, auto
-from math import atan, ceil, cos, degrees, inf, radians, sqrt
+from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
 from typing import (
     Callable, Dict, Iterable, List, MutableSequence, NamedTuple, NoReturn, Optional, Sequence,
     SupportsIndex, Tuple, cast, overload
@@ -58,12 +59,13 @@ class Pixel(NamedTuple):
         :param round_digits:    Decimal digits rounding precision, defaults to 3
         :return:                Pixel in ASS format
         """
+        self.pos.round(round_digits)
         alpha = (
             f'\\alpha{self.opacity}' if self.opacity.data not in {'&HFF&', '&H00&'} else ''
         ) if self.opacity is not None else ''
         colour = f'\\c{self.colour}' if self.colour is not None else ''
         return (
-            f'{{\\p1\\pos({round(self.pos.x + shift_x, round_digits)},{round(self.pos.y + shift_y, round_digits)})'
+            f'{{\\p1\\pos({self.pos.x + shift_x},{self.pos.y + shift_y})'
             + alpha + colour + f'}}{Shape.square(1.5).to_str()}'
         )
 
@@ -179,16 +181,18 @@ class DrawingCommand(Sequence[Point]):
         """Coordinates of this DrawingCommand"""
         return PointsView(self._coordinates)
 
-    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point) -> None:
+    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point, unsafe: bool = False) -> None:
         """
         Make a DrawingCommand object
 
         :param prop:            Drawing property of this DrawingCommand
         :param coordinates:     Coordinates of this DrawingCommand
+        :param unsafe:          Deactivate integrity's checks
         """
         self._prop = prop
         self._coordinates = tuple(c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates)
-        self.check_integrity()
+        if not unsafe:
+            self.check_integrity()
         super().__init__()
 
     @overload
@@ -213,7 +217,7 @@ class DrawingCommand(Sequence[Point]):
         return o._prop == self._prop and o._coordinates == self._coordinates
 
     def __str__(self) -> str:
-        return self._prop.value + ' ' + ' '.join(
+        return f'{self._prop.value} ' + ' '.join(
             f'{p.x} {p.y}'
             for p in [
                 # Get the points and convert them to 2D
@@ -301,7 +305,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
         :param cmds:        DrawingCommand objects
         """
-        self._commands = list(cmds)
+        self._commands = list(cmds) if not isinstance(cmds, list) else cmds
         super().__init__()
 
     @overload
@@ -362,7 +366,7 @@ class Shape(MutableSequence[DrawingCommand]):
         return response
 
     def __add__(self, other: Iterable[DrawingCommand]) -> Shape:
-        new = Shape(self)
+        new = Shape(self._commands.copy())
         new.extend(other)
         return new
 
@@ -431,7 +435,7 @@ class Shape(MutableSequence[DrawingCommand]):
                                 It will define how each coordinate will be changed.
         """
         for i, cmd in enumerate(self):
-            self[i] = DrawingCommand(cmd.prop, *[func(p) for p in cmd.coordinates])
+            self._commands[i] = DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates])
 
     def move(self, _x: float = 0., _y: float = 0., /) -> None:
         """
@@ -1031,7 +1035,8 @@ class Shape(MutableSequence[DrawingCommand]):
                 cmds.append(
                     DC(
                         DP._prop_drawing_dict()[sdraw.pop(0)],
-                        (float(sdraw.pop(0)), float(sdraw.pop(0)))
+                        (float(sdraw.pop(0)), float(sdraw.pop(0))),
+                        unsafe=True
                     )
                 )
             elif sdraw[0].startswith('c') and lendraw == 1:
@@ -1041,7 +1046,8 @@ class Shape(MutableSequence[DrawingCommand]):
                 cmds.extend(
                     DC(
                         DP._prop_drawing_dict()[p],
-                        (float(x), float(y))
+                        (float(x), float(y)),
+                        unsafe=True
                     ) for x, y in sliced(sdraw, 2, strict=True)
                 )
             elif sdraw[0].startswith(('b', 's')) and lendraw >= 7:
@@ -1049,12 +1055,12 @@ class Shape(MutableSequence[DrawingCommand]):
                 if p == 'b' and (lendraw - 1) / 2 % 3 == 0.:
                     cmds.extend(
                         DC(
-                            DP.CUBIC_BÉZIER_CURVE, *coords
+                            DP.CUBIC_BÉZIER_CURVE, *coords, unsafe=True
                         ) for coords in chunk(chunk(map(float, sdraw), 2), 3)
                     )
                 elif p == 's':
                     coords = list(chunk(map(float, sdraw), 2))
-                    cmds.append(DC(DP.CUBIC_BSPLINE, *coords))
+                    cmds.append(DC(DP.CUBIC_BSPLINE, *coords, unsafe=True))
                 else:
                     raise ValueError(f'{cls.__name__}: "{p}" and "{sdraw}" not recognised!')
             else:
@@ -1078,7 +1084,7 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         ss = supersampling
         # Copy current shape object
-        wshape = Shape(self)
+        wshape = deepcopy(self)
         # Get shift
         shiftp, _ = wshape.bounding
         # Align shape to 7 - Positive coordinates
@@ -1104,7 +1110,7 @@ class Shape(MutableSequence[DrawingCommand]):
         # Extract coordinates
         xs, ys = unzip(c.to_2d() for cv in wshape.coordinates for c in cv)
         # Build rows and columns from coordinates
-        rows, columns = np.array(list(ys)), np.array(list(xs))  # type: ignore[var-annotated]
+        rows, columns = np.fromiter(ys, np.float32), np.fromiter(xs, np.float32)  # type: ignore[var-annotated]
         # Get polygons coordinates
         rr, cc = skimage_polygon(rows, columns, shape=(height, width))
         # Fill the image from the polygon coordinates
@@ -1200,7 +1206,7 @@ def _stroke_lines(shape: MutableSequence[DrawingCommand], width: float,
             PointCartesian2D(p.x + o_vec1.x,          p.y + o_vec1.y),  # noqa: E241
             strict=True
         )
-        if inter.y != inf:
+        if isfinite(inter.y):
             # -- Add gap point
             outline.append(
                 PointCartesian2D(p.x + (inter.x - p.x) * xscale, p.y + (inter.y - p.y) * yscale)
@@ -1241,7 +1247,7 @@ def _join_mode_miter(
         strict=False
     )
     # -- Vectors intersect
-    if inter.y != inf:
+    if isfinite(inter.y):
         is_vec = Geometry.vector(inter, p)
         is_vec_len = is_vec.norm
         if is_vec_len > miter_limit:

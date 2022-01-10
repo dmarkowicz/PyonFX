@@ -6,8 +6,6 @@ from itertools import chain
 from math import asin, ceil, comb, cos, degrees, dist, fsum, inf, radians, sin, sqrt
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, overload
 
-import numpy as np
-
 from ..misc import chunk, clamp_value, frange
 from .cartesian import Cartesian2D, Cartesian3D, CartesianAxis
 from .coordinates import Axis, Coordinates
@@ -411,19 +409,28 @@ class Geometry:
         :return:            Point of the intersection
         """
         v0, v1 = cls.vector(p0, p1), cls.vector(p2, p3)
+
         if v0.norm * v1.norm == 0:
             raise ValueError(f'{cls.__name__}: lines mustn\'t have zero length')
-        det = float(np.linalg.det(np.asarray((v0, v1))))
-        if det != 0:
-            pre, post = float(np.linalg.det(np.asarray((p0, p1)))), float(np.linalg.det(np.asarray((p2, p3))))
-            ix, iy = (pre * v1.x - v0.x * post) / det, (pre * v1.y - v0.y * post) / det
-            if strict:
-                s = (ix - p1.x) / v0.x if v0.x != 0 else (iy - p1.y) / v0.y
-                t = (ix - p3.x) / v1.x if v1.x != 0 else (iy - p3.y) / v1.y
-                if s < 0 or s > 1 or t < 0 or t > 1:
-                    return PointCartesian2D(inf, inf)
-        else:
+
+        det = Geometry.orthogonal(v0, v1)
+
+        if det == 0:
             return PointCartesian2D(inf, inf)
+
+        def det_f(p0: Cartesian2D, p1: Cartesian2D) -> float:
+            return p0.x * p1.y - p0.y * p1.x
+
+        pre = det_f(p0, p1)
+        post = det_f(p2, p3)
+        ix, iy = (pre * v1.x - v0.x * post) / det, (pre * v1.y - v0.y * post) / det
+
+        if strict:
+            s = (ix - p1.x) / v0.x if v0.x != 0 else (iy - p1.y) / v0.y
+            t = (ix - p3.x) / v1.x if v1.x != 0 else (iy - p3.y) / v1.y
+            if s < 0 or s > 1 or t < 0 or t > 1:
+                return PointCartesian2D(inf, inf)
+
         return PointCartesian2D(ix, iy)
 
     @staticmethod
