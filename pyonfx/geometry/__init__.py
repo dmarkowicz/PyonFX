@@ -506,9 +506,7 @@ class Geometry:
             # vecsp = [el for el in vecs if not (el[0] == 0 and el[1] == 0)]
 
             # Check flatness on vectors
-            vecsp.reverse()
-
-            for v0, v1 in reversed(list(zip(vecsp[1:], vecsp))):
+            for v0, v1 in zip(vecsp, vecsp[1:]):
                 if abs(cls.angle(V(*v0), V(*v1))) > tolerance:
                     return False
             return True
@@ -586,6 +584,7 @@ class Geometry:
         """
         v0 = cls.vector(p0, p1)
         v1 = cls.vector(p2, p1)
+        tension = clamp_value(tension, 0., 1.)
         if degrees(cls.angle(v0, v1)) < tolerance:
             b0 = cls.point_on_segment(p1, p0, clamp_value(deviation / v0.norm, 0., 1.))
             b3 = cls.point_on_segment(p1, p2, clamp_value(deviation / v1.norm, 0., 1.))

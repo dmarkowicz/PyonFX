@@ -122,21 +122,23 @@ class NamedMutableSequenceMeta(ABCMeta):
     def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
                 ignore_slots: bool = False, **kwargs: Any) -> NamedMutableSequenceMeta:
         # Let's use __slots__ only if the class is a concrete application
-        if not ignore_slots:
-            # dict.fromkeys works as an OrderedSet
-            abases = dict.fromkeys(b for base in bases for b in base.mro())
-            # Remove useless base classes
-            for clsb in NamedMutableSequence.mro():
-                del abases[clsb]
-            # Get annotations in reverse mro order for the variable names
-            types = reduce(
-                lambda x, y: {**x, **y},
-                (base.__annotations__ for base in reversed(abases)),
-                cast(Dict[str, Any], {})
-            )
-            types.update(namespace.get('__annotations__', {}))
-            # Finally add the variable names
-            namespace['__slots__'] = tuple(types.keys())
+        if ignore_slots:
+            return super().__new__(cls, name, bases, namespace, **kwargs)
+
+        # dict.fromkeys works as an OrderedSet
+        abases = dict.fromkeys(b for base in bases for b in base.__mro__)
+        # Remove useless base classes
+        for clsb in NamedMutableSequence.__mro__:
+            del abases[clsb]
+        # Get annotations in reverse mro order for the variable names
+        types = reduce(
+            lambda x, y: {**x, **y},
+            (base.__annotations__ for base in reversed(abases)),
+            cast(Dict[str, Any], {})
+        )
+        types.update(namespace.get('__annotations__', {}))
+        # Finally add the variable names
+        namespace['__slots__'] = tuple(types.keys())
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
 

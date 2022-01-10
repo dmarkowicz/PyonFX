@@ -43,12 +43,10 @@ class Cartesian2D(Coordinates, ABC, ignore_slots=True):
         :param zp:              Zero point where the rotation will be performed, defaults to (0, 0)
         """
         theta = radians(rot)
-        R = np.array([(cos(theta), -sin(theta)), (sin(theta), cos(theta))], np.float64)  # type: ignore[var-annotated]
-        O, P = np.atleast_2d(np.asarray(zp)), np.atleast_2d(self)  # type: ignore[var-annotated]
-        nvals = map(float, np.squeeze((R @ (P.T - O.T) + O.T).T))  # type: ignore[attr-defined]
-
-        for attr, value in zip(self.__slots__, nvals):
-            setattr(self, attr, value)
+        R = np.array([(cos(theta), -sin(theta)), (sin(theta), cos(theta))], np.float32)  # type: ignore[var-annotated]
+        O, P = np.atleast_2d(np.asanyarray(zp, np.float32)), np.atleast_2d(np.asanyarray(self, np.float32))  # type: ignore[var-annotated]
+        for attr, value in zip(self.__slots__, np.squeeze((R @ (P.T - O.T) + O.T).T)):
+            setattr(self, attr, float(value))
 
 
 class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
@@ -83,33 +81,32 @@ class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
             raise ValueError(f'{self.__class__.__name__}: Wrong axis number') from i_err
 
         R = rmat(radians(rot))
-        O = np.atleast_3d(np.asanyarray(zp))  # type: ignore[var-annotated]
-        P = np.atleast_3d(np.asanyarray(self))  # type: ignore[var-annotated]
-        nvals = np.squeeze((R @ (P.T - O.T) + O.T).T)
+        O = np.atleast_3d(np.asanyarray(zp, np.float32))  # type: ignore[var-annotated]
+        P = np.atleast_3d(np.asanyarray(self, np.float32))  # type: ignore[var-annotated]
 
-        for attr, value in zip(self.__slots__, nvals):
+        for attr, value in zip(self.__slots__, np.squeeze((R @ (P.T - O.T) + O.T).T)):
             setattr(self, attr, float(value))
 
 
-def _rot_mat_x(theta: float) -> NDArray[np.float64]:
+def _rot_mat_x(theta: float) -> NDArray[np.float32]:
     return np.array(
         [(1, 0, 0),
          (0, cos(theta), -sin(theta)),
-         (0, sin(theta), cos(theta))], np.float64
+         (0, sin(theta), cos(theta))], np.float32
     )
 
 
-def _rot_mat_y(theta: float) -> NDArray[np.float64]:
+def _rot_mat_y(theta: float) -> NDArray[np.float32]:
     return np.array(
         [(cos(theta), 0, sin(theta)),
          (0, 1, 0),
-         (-sin(theta), 0, cos(theta))], np.float64
+         (-sin(theta), 0, cos(theta))], np.float32
     )
 
 
-def _rot_mat_z(theta: float) -> NDArray[np.float64]:
+def _rot_mat_z(theta: float) -> NDArray[np.float32]:
     return np.array(
         [(cos(theta), -sin(theta), 0),
          (sin(theta), cos(theta), 0),
-         (0, 0, 1)], np.float64
+         (0, 0, 1)], np.float32
     )

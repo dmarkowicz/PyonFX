@@ -25,6 +25,7 @@ __all__ = [
 ]
 
 import re
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from enum import Enum, auto
 from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
@@ -40,7 +41,7 @@ from skimage.transform import rescale as skimage_rescale  # type: ignore
 
 from .colourspace import ASSColor, Opacity
 from .geometry import CartesianAxis, Geometry, Point, PointCartesian2D, PointsView, VectorCartesian2D, VectorCartesian3D
-from .misc import chunk, clamp_value, frange
+from .misc import chunk, frange
 from .types import Alignment, View
 
 
@@ -163,37 +164,14 @@ class PropsView(View[DrawingProp]):
     ...
 
 
-class DrawingCommand(Sequence[Point]):
-    """
-    A drawing command is a DrawingProp and a number of coordinates
-    """
+class _AbstractDrawingCommand(Sequence[Point], ABC):
     __slots__ = ('_prop', '_coordinates')
     _prop: DrawingProp
     _coordinates: Tuple[Point, ...]
 
-    @property
-    def prop(self) -> DrawingProp:
-        """The DrawingProp of this DrawingCommand"""
-        return self._prop
-
-    @property
-    def coordinates(self) -> PointsView:
-        """Coordinates of this DrawingCommand"""
-        return PointsView(self._coordinates)
-
-    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point, unsafe: bool = False) -> None:
-        """
-        Make a DrawingCommand object
-
-        :param prop:            Drawing property of this DrawingCommand
-        :param coordinates:     Coordinates of this DrawingCommand
-        :param unsafe:          Deactivate integrity's checks
-        """
-        self._prop = prop
-        self._coordinates = tuple(c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates)
-        if not unsafe:
-            self.check_integrity()
-        super().__init__()
+    @abstractmethod
+    def __init__(self) -> None:
+        ...
 
     @overload
     def __getitem__(self, index: int) -> Point:
@@ -221,35 +199,47 @@ class DrawingCommand(Sequence[Point]):
             f'{p.x} {p.y}'
             for p in [
                 # Get the points and convert them to 2D
-                po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d() for po in self
+                po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
+                for po in self
             ]
         )
 
-    def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
-        """
-        Return the current command in ASS format
-
-        :param round_digits:    Decimal digits rounding precision, defaults to 3
-        :param optimise:        Optimise the string by removing redundant drawing prop, defaults to True
-        :return:                Shape in ASS format
-        """
-        if optimise:
-            points: List[PointCartesian2D] = []
-            for po in self:
-                # Get the points and convert them to 2D
-                po = po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
-                po.round(round_digits)
-                # Optimise by removing ".0" if the float can be interpreted as an integer
-                if (intx := int(po.x)) == po.x:
-                    po.x = intx
-                if (inty := int(po.y)) == po.y:
-                    po.y = inty
-                points.append(po)
-            return self._prop.value + ' ' + ' '.join(f'{p.x} {p.y}' for p in points)
-        return str(self)
-
     def __repr__(self) -> str:
         return repr(str(self._prop) + ', ' + ', '.join(map(str, self)))
+
+    @abstractmethod
+    def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
+        ...
+
+
+class DrawingCommand(_AbstractDrawingCommand):
+    """
+    A drawing command is a DrawingProp and a number of coordinates
+    """
+
+    @property
+    def prop(self) -> DrawingProp:
+        """The DrawingProp of this DrawingCommand"""
+        return self._prop
+
+    @property
+    def coordinates(self) -> PointsView:
+        """Coordinates of this DrawingCommand"""
+        return PointsView(self._coordinates)
+
+    def __init__(self, prop: DrawingProp, *coordinates: Tuple[float, float] | Point, unsafe: bool = False) -> None:
+        """
+        Make a DrawingCommand object
+
+        :param prop:            Drawing property of this DrawingCommand
+        :param coordinates:     Coordinates of this DrawingCommand
+        :param unsafe:          Deactivate integrity's checks
+        """
+        self._prop = prop
+        self._coordinates = tuple(c if isinstance(c, Point) else PointCartesian2D(*c) for c in coordinates)
+        if not unsafe:
+            self.check_integrity()
+        super().__init__()
 
     def check_integrity(self) -> None:
         """Check if the current coordinates are valid"""
@@ -272,6 +262,30 @@ class DrawingCommand(Sequence[Point]):
                 + ''.join(map(str, self))
             )
 
+    def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
+        """
+        Return the current command in ASS format
+
+        :param round_digits:    Decimal digits rounding precision, defaults to 3
+        :param optimise:        Optimise the string by removing redundant drawing prop, defaults to True
+        :return:                Shape in ASS format
+        """
+        if not optimise:
+            return self.__str__()
+
+        points: List[PointCartesian2D] = []
+        for po in self:
+            # Get the points and convert them to 2D
+            po = po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
+            po.round(round_digits)
+            # Optimise by removing ".0" if the float can be interpreted as an integer
+            if (intx := int(po.x)) == po.x:
+                po.x = intx
+            if (inty := int(po.y)) == po.y:
+                po.y = inty
+            points.append(po)
+        return self._prop.value + ' ' + ' '.join(f'{p.x} {p.y}' for p in points)
+
     def round(self, ndigits: int = 3) -> None:
         """
         Round coordinates to a given precision in decimal digits.
@@ -282,31 +296,13 @@ class DrawingCommand(Sequence[Point]):
             p.round(ndigits)
 
 
-class Shape(MutableSequence[DrawingCommand]):
-    """
-    Class for creating, handling, making transformations from an ASS shape
-    """
+class _AbstractShape(MutableSequence[DrawingCommand], ABC):
     __slots__ = ('_commands', )
     _commands: List[DrawingCommand]
 
-    @property
-    def props(self) -> PropsView:
-        """The DrawingProp of this DrawingCommand"""
-        return PropsView([c.prop for c in self])
-
-    @property
-    def coordinates(self) -> List[PointsView]:
-        """Coordinates of this DrawingCommand"""
-        return [c.coordinates for c in self]
-
-    def __init__(self, cmds: Iterable[DrawingCommand]) -> None:
-        """
-        Initialise a Shape object with given DrawingCommand objects
-
-        :param cmds:        DrawingCommand objects
-        """
-        self._commands = list(cmds) if not isinstance(cmds, list) else cmds
-        super().__init__()
+    @abstractmethod
+    def __init__(self) -> None:
+        ...
 
     @overload
     def __getitem__(self, index: SupportsIndex) -> DrawingCommand:
@@ -319,7 +315,7 @@ class Shape(MutableSequence[DrawingCommand]):
     def __getitem__(self, index: SupportsIndex | slice) -> DrawingCommand | Shape:
         if isinstance(index, SupportsIndex):
             return self._commands[index]
-        return Shape(self._commands[index])
+        return Shape(self._commands[index], copy_cmds=False)
 
     @overload
     def __setitem__(self, index: SupportsIndex, value: DrawingCommand) -> None:
@@ -366,9 +362,9 @@ class Shape(MutableSequence[DrawingCommand]):
         return response
 
     def __add__(self, other: Iterable[DrawingCommand]) -> Shape:
-        new = Shape(self._commands.copy())
-        new.extend(other)
-        return new
+        self_cmds = self._commands.copy()
+        self_cmds.extend(other)
+        return Shape(self_cmds, copy_cmds=False)
 
     def __iadd__(self, x: Iterable[DrawingCommand]) -> Shape:
         return self.__add__(x)
@@ -379,14 +375,38 @@ class Shape(MutableSequence[DrawingCommand]):
     def __repr__(self) -> str:
         return repr(self._commands)
 
-    def replace(self, other: Iterable[DrawingCommand]) -> None:
-        """
-        Replace every DrawingCommand in the current Shape by other's DrawingCommand
+    @abstractmethod
+    def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
+        ...
 
-        :param other:           Iterable of DrawingCommands
+
+class Shape(_AbstractShape):
+    """
+    Class for creating, handling, making transformations from an ASS shape
+    """
+
+    @property
+    def props(self) -> PropsView:
+        """The DrawingProp of this DrawingCommand"""
+        return PropsView([c.prop for c in self])
+
+    @property
+    def coordinates(self) -> List[PointsView]:
+        """Coordinates of this DrawingCommand"""
+        return [c.coordinates for c in self]
+
+    def __init__(self, cmds: Iterable[DrawingCommand], *, copy_cmds: bool = True) -> None:
         """
-        self.clear()
-        self.extend(other)
+        Initialise a Shape object with given DrawingCommand objects
+
+        :param cmds:        DrawingCommand objects
+        :param copy_cmds:   If False and ``cmds`` is a list, don't make a copy of it
+        """
+        if not copy_cmds and isinstance(cmds, list):
+            self._commands = cmds
+        else:
+            self._commands = list(cmds)
+        super().__init__()
 
     def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
         """
@@ -398,22 +418,21 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         self.round(round_digits)
 
-        if optimise:
-            # Last prop used, drawing to be str'd
-            p, draw = DrawingProp.CLOSE_BSPLINE, ''
+        if not optimise:
+            return self.__str__()
 
-            # Iterating over all the commands
-            for cmd in self:
-                cmdstr = cmd.to_str(round_digits)
-                if cmd.prop != p:
-                    draw += cmdstr + ' '
-                elif cmd.prop == p and cmd.prop in {DrawingProp.LINE, DrawingProp.CUBIC_BÉZIER_CURVE}:
-                    draw += cmdstr[2:] + ' '
-                else:
-                    raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd.prop}" not recognised!')
-                p = cmd.prop
-        else:
-            draw = str(self)
+        # Last prop used, drawing to be str'd
+        p, draw = DrawingProp.CLOSE_BSPLINE, ''
+        # Iterating over all the commands
+        for cmd in self:
+            cmdstr = cmd.to_str(round_digits)
+            if cmd._prop != p:
+                draw += cmdstr + ' '
+            elif cmd._prop == p and cmd._prop in {DrawingProp.LINE, DrawingProp.CUBIC_BÉZIER_CURVE}:
+                draw += cmdstr[2:] + ' '
+            else:
+                raise NotImplementedError(f'{self.__class__.__name__}: prop "{cmd._prop}" not recognised!')
+            p = cmd._prop
         return draw
 
     def round(self, ndigits: int = 3, /) -> None:
@@ -434,8 +453,10 @@ class Shape(MutableSequence[DrawingCommand]):
         :param func:            A function with two parameters representing the x and y coordinates of each point.
                                 It will define how each coordinate will be changed.
         """
-        for i, cmd in enumerate(self):
-            self._commands[i] = DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates])
+        self._commands = [
+            DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates], unsafe=True)
+            for cmd in self
+        ]
 
     def move(self, _x: float = 0., _y: float = 0., /) -> None:
         """
@@ -484,9 +505,8 @@ class Shape(MutableSequence[DrawingCommand]):
         :return:                A tuple of coordinates of the bounding box
         """
         all_x, all_y = [
-            set(c) for c in unzip([c.to_2d() for dc in self for c in dc])
+            tuple(c) for c in unzip(c.to_2d() for dc in self for c in dc)
         ]
-
         return PointCartesian2D(min(all_x), min(all_y)), PointCartesian2D(max(all_x), max(all_y))
 
     def align(self, an: Alignment = 7) -> None:
@@ -534,25 +554,24 @@ class Shape(MutableSequence[DrawingCommand]):
         :param fax:             X-axis factor, defaults to 0.
         :param fay:             Y-axis factor, defaults to 0.
         """
-        self.map(lambda p: PointCartesian2D(*map(float, np.array([(1, fax), (fay, 1)]) @ p.to_2d())))
+        self.map(lambda p: PointCartesian2D(*tuple(np.array([(1, fax), (fay, 1)]) @ p.to_2d())))
 
     def close(self) -> None:
         """
         Close current shape if last point is not the same as the first one
         """
-        if self.coordinates[0] != self.coordinates[-1]:
-            self.append(DrawingCommand(DrawingProp.LINE, next(reversed(self.coordinates[0]))))
+        if (first := self._commands[0]._coordinates[0]) != self._commands[-1]._coordinates[-1]:
+            self.append(DrawingCommand(DrawingProp.LINE, first, unsafe=True))
 
     def unclose(self) -> None:
         """
         Unclose current shape if last point(s) are the same as the first one
         """
-        first = self._commands[0][0]
+        first = self._commands[0]._coordinates[0]
         for cmd in reversed(self):
-            if cmd.prop == DrawingProp.LINE and list(cmd.coordinates)[-1] == first:
-                del self[-1]
-            else:
+            if not (cmd._prop == DrawingProp.LINE and cmd._coordinates[-1] == first):
                 break
+            del self[-1]
 
     def split_shape(self) -> List[Shape]:
         """
@@ -561,7 +580,7 @@ class Shape(MutableSequence[DrawingCommand]):
 
         :return:                List of Shape objects
         """
-        m_indx = [i for i, cmd in enumerate(self) if cmd.prop in {DrawingProp.MOVE, DrawingProp.MOVE_NC}]
+        m_indx = [i for i, cmd in enumerate(self) if cmd._prop in {DrawingProp.MOVE, DrawingProp.MOVE_NC}]
         return [self[i:j] for i, j in zip_offset(m_indx, m_indx, offsets=(0, 1), longest=True)]
 
     @classmethod
@@ -572,8 +591,7 @@ class Shape(MutableSequence[DrawingCommand]):
         :param shapes:          List of Shape objects
         :return:                A new merged Shape
         """
-        start = shapes.pop(0)
-        return sum(shapes, start=start)
+        return sum(shapes, start=shapes.pop(0))
 
     def flatten(self, tolerance: float = 1.) -> None:
         """
@@ -585,29 +603,31 @@ class Shape(MutableSequence[DrawingCommand]):
         # Aliases
         DP = DrawingProp
 
-        m, n, l, p = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.EX_BSPLINE
-        b, s, c = DP.BÉZIER, DP.CUBIC_BSPLINE, DP.CLOSE_BSPLINE
+        m, n, l = DP.MOVE, DP.MOVE_NC, DP.LINE
+        b = DP.BÉZIER
         ncmds: List[DrawingCommand] = []
 
         # Work with the commands reversed
         self.reverse()
 
-        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True, fillvalue=DrawingCommand(m, (0, 0))):
-            if cmd0.prop in {m, n, l}:
+        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True, fillvalue=DrawingCommand(m, (0, 0), unsafe=True)):
+            if cmd0._prop in {m, n, l}:
                 ncmds.append(cmd0)
-            elif cmd0.prop in {p, s, c}:
-                raise NotImplementedError(
-                    f'{self.__class__.__name__}: EXTEND_BSPLINE, CUBIC_BSPLINE and CLOSE_BSPLINE'
-                    + ' drawing properties are not supported!'
-                )
-            elif cmd0.prop == b:
+            elif cmd0._prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = [DrawingCommand(l, co) for co in Geometry.curve4_to_lines((cmd1[-1], *cmd0), tolerance)]  # type: ignore
-                ncmds.extend(reversed(flatten_cmds))
+                flatten_cmds = [
+                    DrawingCommand(l, co, unsafe=True)
+                    for co in Geometry.curve4_to_lines(
+                        (cmd1[-1].to_2d(), *(c.to_2d() for c in cmd0)), tolerance  # type: ignore[arg-type]
+                    )
+                ]
+                flatten_cmds.reverse()
+                ncmds.extend(flatten_cmds)
             else:
-                raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
+                raise NotImplementedError(f'{self.__class__.__name__}: drawing property not supported!')
 
-        self.replace(reversed(ncmds))
+        ncmds.reverse()
+        self._commands = ncmds
 
     def split_lines(self, max_length: float = 16., tolerance: float = 1.) -> None:
         """
@@ -630,19 +650,21 @@ class Shape(MutableSequence[DrawingCommand]):
 
         for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True):
             assert cmd0
-            if cmd0.prop in {m, n}:
+            if cmd0._prop in {m, n}:
                 ncmds.append(cmd0)
-            elif cmd0.prop == l:
+            elif cmd0._prop == l:
                 # Get the new points
                 assert cmd1
                 splitted_cmds = [
                     DrawingCommand(l, c) for c in Geometry.split_line(cmd1[-1].to_2d(), cmd0[0].to_2d(), max_length)
                 ]
-                ncmds.extend(reversed(splitted_cmds))
+                splitted_cmds.reverse()
+                ncmds.extend(splitted_cmds)
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
 
-        self.replace(reversed(ncmds))
+        ncmds.reverse()
+        self._commands = ncmds
 
     def round_vertices(self, deviation: float = 15, tolerance: float = 157.5, tension: float = 0.5) -> None:
         """
@@ -663,7 +685,6 @@ class Shape(MutableSequence[DrawingCommand]):
         for shape in shapes:
             shape.unclose()
             ncmds: List[DrawingCommand] = []
-            ncmds.clear()
 
             pres = list(shape)
             pres.insert(0, pres.pop(-1))
@@ -674,15 +695,15 @@ class Shape(MutableSequence[DrawingCommand]):
                 if curr.prop in {m, n, l}:
                     curve = Geometry.round_vertex(
                         pre[-1].to_2d(), curr[0].to_2d(), post[0].to_2d(),
-                        deviation, tolerance, clamp_value(tension, 0., 1.)
+                        deviation, tolerance, tension
                     )
                     ncmds.append(DrawingCommand(curr.prop, curve.pop(0)))
                     if curve:
                         ncmds.append(DrawingCommand(b, *curve))
                 else:
                     ncmds.append(curr)
-            shape.replace(ncmds)
-        self.replace(flatten(shapes))
+            shape._commands = ncmds
+        self._commands = list(flatten(shapes))
 
     @classmethod
     def ring(cls, out_rad: float, in_rad: float, c_xy: Tuple[float, float] = (0., 0.), /) -> Shape:
@@ -698,8 +719,9 @@ class Shape(MutableSequence[DrawingCommand]):
         """
         if out_rad <= in_rad:
             raise ValueError(f'{cls.__name__}: inner radius must be less than outer radius')
-
-        return cls.disk(out_rad, c_xy, True) + cls.disk(in_rad, c_xy, False)
+        disk = cls.disk(out_rad, c_xy, True)
+        disk.extend(cls.disk(in_rad, c_xy, False))
+        return disk
 
     @classmethod
     def disk(cls, radius: float, c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True) -> Shape:
@@ -731,13 +753,13 @@ class Shape(MutableSequence[DrawingCommand]):
         coordinates = Geometry.make_ellipse(w, h, c_xy, clockwise)
 
         cmds = [
-            DP(m, coordinates[0]),  # Start from bottom center
-            DP(b, *coordinates[1]),
-            DP(b, *coordinates[2]),
-            DP(b, *coordinates[3]),
-            DP(b, *coordinates[4]),
+            DP(m, coordinates[0], unsafe=True),  # Start from bottom center
+            DP(b, *coordinates[1], unsafe=True),
+            DP(b, *coordinates[2], unsafe=True),
+            DP(b, *coordinates[3], unsafe=True),
+            DP(b, *coordinates[4], unsafe=True),
         ]
-        return cls(cmds)
+        return cls(cmds, copy_cmds=False)
 
     @classmethod
     def heart(cls, size: float = 30., voffset: float = 0., /) -> Shape:
@@ -753,13 +775,13 @@ class Shape(MutableSequence[DrawingCommand]):
         m, b = DrawingProp.MOVE, DrawingProp.BÉZIER
 
         cmds = [
-            DC(m, (15 * mult, 30 * mult)),
-            DC(b, (27 * mult, 22 * mult), (30 * mult, 18 * mult), (30 * mult, 14 * mult)),
-            DC(b, (31 * mult, 7 * mult), (22 * mult, 0), (15 * mult, 10 * mult + voffset)),
-            DC(b, (8 * mult, 0), (-1 * mult, 7 * mult), (0, 14 * mult)),
-            DC(b, (0, 18 * mult), (3 * mult, 22 * mult), (15 * mult, 30 * mult))
+            DC(m, (15 * mult, 30 * mult), unsafe=True),
+            DC(b, (27 * mult, 22 * mult), (30 * mult, 18 * mult), (30 * mult, 14 * mult), unsafe=True),
+            DC(b, (31 * mult, 7 * mult), (22 * mult, 0), (15 * mult, 10 * mult + voffset), unsafe=True),
+            DC(b, (8 * mult, 0), (-1 * mult, 7 * mult), (0, 14 * mult), unsafe=True),
+            DC(b, (0, 18 * mult), (3 * mult, 22 * mult), (15 * mult, 30 * mult), unsafe=True)
         ]
-        return cls(cmds)
+        return cls(cmds, copy_cmds=False)
 
     @classmethod
     def square(cls, length: float, c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True) -> Shape:
@@ -817,13 +839,13 @@ class Shape(MutableSequence[DrawingCommand]):
         coordinates = Geometry.make_parallelogram(w, h, angle, c_xy, clockwise)
 
         cmds = [
-            DC(m, coordinates[0]),
-            DC(l, coordinates[1]),
-            DC(l, coordinates[2]),
-            DC(l, coordinates[3]),
-            DC(l, coordinates[4])
+            DC(m, coordinates[0], unsafe=True),
+            DC(l, coordinates[1], unsafe=True),
+            DC(l, coordinates[2], unsafe=True),
+            DC(l, coordinates[3], unsafe=True),
+            DC(l, coordinates[4], unsafe=True)
         ]
-        return cls(cmds)
+        return cls(cmds, copy_cmds=False)
 
     @classmethod
     def equilateral_tr(cls, height: float, c_xy: Tuple[float, float] = (0., 0.), /,
@@ -910,13 +932,13 @@ class Shape(MutableSequence[DrawingCommand]):
         coordinates = Geometry.make_triangle(side, angle, c_xy, clockwise)
 
         cmds = [
-            DC(m, coordinates[0]),
-            DC(l, coordinates[1]),
-            DC(l, coordinates[2]),
-            DC(l, coordinates[3]),
+            DC(m, coordinates[0], unsafe=True),
+            DC(l, coordinates[1], unsafe=True),
+            DC(l, coordinates[2], unsafe=True),
+            DC(l, coordinates[3], unsafe=True),
         ]
 
-        triangle = cls(cmds)
+        triangle = cls(cmds, copy_cmds=False)
 
         if orthocentred:
             pb0, pb1 = triangle.bounding
@@ -997,17 +1019,17 @@ class Shape(MutableSequence[DrawingCommand]):
             inner_p = Geometry.rotate(PointCartesian2D(0, -inner_size), ((i - 0.5) / edges) * 360, None, (0., 0.))
             outer_p = Geometry.rotate(PointCartesian2D(0, -outer_size), (i / edges) * 360, None, (0., 0.))
             if prop == l:
-                cmds += [DC(prop, inner_p), DC(prop, outer_p)]
+                cmds.extend((DC(prop, inner_p, unsafe=True), DC(prop, outer_p, unsafe=True)))
             elif prop == b:
-                cmds += [DC(prop, inner_p, inner_p, outer_p)]
+                cmds.append(DC(prop, inner_p, inner_p, outer_p, unsafe=True))
             elif prop == s:
-                coordinates += [inner_p, inner_p, outer_p]
+                coordinates.extend((inner_p, inner_p, outer_p))
                 if i == edges:
-                    cmds += [DC(s, *coordinates[:-1])] + [DC(DrawingProp.CLOSE_BSPLINE)]
+                    cmds.extend((DC(s, *coordinates[:-1], unsafe=True), DC(DrawingProp.CLOSE_BSPLINE, unsafe=True)))
             else:
                 raise NotImplementedError(f'{cls.__name__}: prop "{prop}" not supported!')
 
-        shape = cls(cmds)
+        shape = cls(cmds, copy_cmds=False)
         if c_xy != (0., 0.):
             shape.move(*c_xy)
 
@@ -1040,7 +1062,7 @@ class Shape(MutableSequence[DrawingCommand]):
                     )
                 )
             elif sdraw[0].startswith('c') and lendraw == 1:
-                cmds.append(DC(DP.CLOSE_BSPLINE))
+                cmds.append(DC(DP.CLOSE_BSPLINE, unsafe=True))
             elif sdraw[0].startswith(('l', 'p')) and lendraw >= 3:
                 p = sdraw.pop(0)
                 cmds.extend(
@@ -1065,7 +1087,7 @@ class Shape(MutableSequence[DrawingCommand]):
                     raise ValueError(f'{cls.__name__}: "{p}" and "{sdraw}" not recognised!')
             else:
                 raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
-        return cls(cmds)
+        return cls(cmds, copy_cmds=False)
 
     def to_pixels(self, supersampling: int = 4, anti_aliasing: bool = True) -> List[Pixel]:
         """
@@ -1142,7 +1164,7 @@ class Shape(MutableSequence[DrawingCommand]):
             raise ValueError(f'{self.__class__.__name__}: Shape must have at least 2 commands')
 
         # -- Line width values
-        if bord_y and bord_xy != bord_y:
+        if bord_y:
             width = max(bord_xy, bord_y)
             xscale, yscale = bord_xy / width, bord_y / width
         else:
@@ -1164,17 +1186,18 @@ class Shape(MutableSequence[DrawingCommand]):
 
         for shape in shapes:
             # Outer
-            rcmds = [shape[0]] + list(reversed(shape[1:]))
+            rcmds = [shape._commands[0]]
+            rcmds.extend(reversed(shape._commands[1:]))
             outline = _stroke_lines(rcmds, width, xscale, yscale, mode, miter_limit, max_circumference)
-            stroke_cmds.append(DC(m, outline.pop(0)))
-            stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
+            stroke_cmds.append(DC(m, outline.pop(0), unsafe=True))
+            stroke_cmds.extend(DC(l, coordinate, unsafe=True) for coordinate in outline)
 
             # Inner
             outline = _stroke_lines(shape, width, xscale, yscale, mode, miter_limit, max_circumference)
-            stroke_cmds.append(DC(m, outline.pop(0)))
-            stroke_cmds.extend(DC(l, coordinate) for coordinate in outline)
+            stroke_cmds.append(DC(m, outline.pop(0), unsafe=True))
+            stroke_cmds.extend(DC(l, coordinate, unsafe=True) for coordinate in outline)
 
-        self.replace(stroke_cmds)
+        self._commands = stroke_cmds
 
 
 def _stroke_lines(shape: MutableSequence[DrawingCommand], width: float,
@@ -1189,7 +1212,7 @@ def _stroke_lines(shape: MutableSequence[DrawingCommand], width: float,
 
     for point, pre_point, post_point in zip(shape, pre_points, post_points):
         # -- Calculate orthogonal vectors to both neighbour points
-        p, pre_p, post_p = point[0].to_2d(), pre_point[0].to_2d(), post_point[0].to_2d()
+        p, pre_p, post_p = point._coordinates[0].to_2d(), pre_point._coordinates[0].to_2d(), post_point._coordinates[0].to_2d()
         vec0, vec1 = Geometry.vector(p, pre_p), Geometry.vector(p, post_p)
 
         o_vec0 = Geometry.orthogonal(vec0.to_3d(), VectorCartesian3D(0., 0., 1.)).to_2d()

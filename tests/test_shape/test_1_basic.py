@@ -25,18 +25,6 @@ def test_init() -> None:
     check.equal(original, dest)
 
 
-def test_replace() -> None:
-    original = Shape.from_ass_string("m 0 0 l 20 0 20 10 0 10")
-    dest = Shape.from_ass_string("m 1282.67 741.33 l 1442.67 1450.67 3090.67 1386.67 3000 589.33")
-    original.replace([
-        DC(DP.MOVE, (1282.67, 741.33)),
-        DC(DP.LINE, (1442.67, 1450.67)),
-        DC(DP.LINE, (3090.67, 1386.67)),
-        DC(DP.LINE, (3000, 589.33)),
-    ])
-    check.equal(original, dest)
-
-
 def test_round0() -> None:
     original = Shape.from_ass_string("m 0.5 0.4 l 20.5 0.6 20.7 10.1 0.6 10.4")
     dest = Shape.from_ass_string("m 0 0 l 20 1 21 10 1 10")

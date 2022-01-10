@@ -46,7 +46,7 @@ def chunk(iterable: Iterable[T_co], size: int = 2) -> Iterator[Tuple[T_co, ...]]
     return iter(lambda: tuple(islice(niter, size)), ())
 
 
-def frange(start: float, end: float, step: float) -> Iterator[float]:
+def frange(start: float, stop: float, step: float) -> Iterator[float]:
     """
     Floating version of range() built-in
 
@@ -55,4 +55,7 @@ def frange(start: float, end: float, step: float) -> Iterator[float]:
     :param step:            Increment value
     :return:                A iterator of float values
     """
-    return iter(map(lambda x: float(round(x, 15)), np.linspace(start, end, round((end-start)/step), endpoint=False)))
+    # from more_itertools import numeric_range
+    # return iter(numeric_range(start, stop, step))
+    return iter(map(lambda x: float(x), np.linspace(start, stop, round((stop-start)/step),
+                                                    endpoint=False, dtype=np.float64)))
