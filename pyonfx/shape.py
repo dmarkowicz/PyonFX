@@ -26,6 +26,7 @@ __all__ = [
 import re
 # import sys
 from abc import ABC, abstractmethod
+from collections import deque
 from copy import deepcopy
 from enum import Enum, auto
 from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
@@ -1202,8 +1203,9 @@ class Shape(_AbstractShape):
         for shape in shapes:
             shape.unclose()
             # Outer
-            rcmds = [shape._commands[0]]
-            rcmds.extend(reversed(shape._commands[1:]))
+            rcmds = deque(shape._commands)
+            rcmds.rotate(-1)
+            rcmds.reverse()
             outline = _stroke_lines(rcmds, width, xscale, yscale, mode, miter_limit, max_circumference)
             stroke_cmds.append(DC(m, outline.pop(0), unsafe=True))
             stroke_cmds.extend(DC(l, coordinate, unsafe=True) for coordinate in outline)
