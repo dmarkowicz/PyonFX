@@ -23,8 +23,8 @@ __all__ = [
     'DrawingCommand',
     'OutlineMode'
 ]
-
 import re
+# import sys
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from enum import Enum, auto
@@ -154,9 +154,8 @@ class DrawingProp(Enum):
     Closes the b-spline.
     """
 
-    @classmethod
-    def _prop_drawing_dict(cls) -> Dict[str, DrawingProp]:
-        return cast(Dict[str, DrawingProp], cls._value2member_map_)
+
+_dp_value2member_map: Dict[str, DrawingProp] = DrawingProp._value2member_map_  # type: ignore
 
 
 class PropsView(View[DrawingProp]):
@@ -1036,7 +1035,7 @@ class Shape(_AbstractShape):
         return shape
 
     @classmethod
-    def from_ass_string(cls, drawing_cmds: str) -> Shape:
+    def from_ass_string(cls, drawing_cmds: str, unsafe: bool = False) -> Shape:
         """
         Make a Shape object from a drawing command string in ASS format
 
@@ -1050,44 +1049,66 @@ class Shape(_AbstractShape):
         cmds: List[DrawingCommand] = []
         draws = cast(List[str], re.findall(r'[mnlpbsc][^mnlpbsc]+', drawing_cmds))
 
+        # if sys.version_info <= (3, 10):
+        #     ...
         for draw in draws:
             sdraw = draw.split()
             lendraw = len(sdraw)
             if sdraw[0].startswith(('m', 'n')) and lendraw == 3:
                 cmds.append(
                     DC(
-                        DP._prop_drawing_dict()[sdraw.pop(0)],
+                        _dp_value2member_map[sdraw.pop(0)],
                         (float(sdraw.pop(0)), float(sdraw.pop(0))),
-                        unsafe=True
+                        unsafe=unsafe
                     )
                 )
-            elif sdraw[0].startswith('c') and lendraw == 1:
-                cmds.append(DC(DP.CLOSE_BSPLINE, unsafe=True))
             elif sdraw[0].startswith(('l', 'p')) and lendraw >= 3:
                 p = sdraw.pop(0)
                 cmds.extend(
                     DC(
-                        DP._prop_drawing_dict()[p],
+                        _dp_value2member_map[p],
                         (float(x), float(y)),
-                        unsafe=True
-                    ) for x, y in sliced(sdraw, 2, strict=True)
+                        unsafe=unsafe
+                    ) for x, y in sliced(sdraw, 2, strict=not unsafe)
                 )
-            elif sdraw[0].startswith(('b', 's')) and lendraw >= 7:
-                p = sdraw.pop(0)
-                if p == 'b' and (lendraw - 1) / 2 % 3 == 0.:
-                    cmds.extend(
-                        DC(
-                            DP.CUBIC_BÉZIER_CURVE, *coords, unsafe=True
-                        ) for coords in chunk(chunk(map(float, sdraw), 2), 3)
-                    )
-                elif p == 's':
-                    coords = list(chunk(map(float, sdraw), 2))
-                    cmds.append(DC(DP.CUBIC_BSPLINE, *coords, unsafe=True))
-                else:
-                    raise ValueError(f'{cls.__name__}: "{p}" and "{sdraw}" not recognised!')
+            elif sdraw[0].startswith('b') and (lendraw - 1) / 2 % 3 == 0.:
+                sdraw.remove('b')
+                cmds.extend(
+                    DC(
+                        DP.CUBIC_BÉZIER_CURVE, *coords, unsafe=unsafe
+                    ) for coords in chunk(chunk(map(float, sdraw), 2), 3)
+                )
+            elif sdraw[0].startswith('s') and (lendraw - 1) % 2 == 0.0:
+                sdraw.remove('s')
+                coords = list(chunk(map(float, sdraw), 2))
+                cmds.append(DC(DP.CUBIC_BSPLINE, *coords, unsafe=unsafe))
+            elif sdraw[0].startswith('c') and lendraw == 1:
+                cmds.append(DC(DP.CLOSE_BSPLINE, unsafe=unsafe))
             else:
                 raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
         return cls(cmds, copy_cmds=False)
+        # else:
+        #     for draw in draws:
+        #         match draw.split():  # type: ignore[syntax]
+        #             case [('m' | 'n') as prop, p0, p1]:
+        #                 cmds.append(DC(_dp_value2member_map[prop], (float(p0), float(p1))))
+        #             case [('l' | 'p') as prop, *coords] if len(coords) >= 2:
+        #                 cmds.extend(
+        #                     DC(_dp_value2member_map[prop], (float(x), float(y)), unsafe=unsafe)
+        #                     for x, y in sliced(coords, 2, strict=not unsafe)
+        #                 )
+        #             case ['b', *coords] if len(coords) / 2 % 3 == 0:
+        #                 cmds.extend(
+        #                     DC(DP.CUBIC_BÉZIER_CURVE, *coords_f, unsafe=unsafe)
+        #                     for coords_f in chunk(chunk(map(float, coords), 2), 3)
+        #                 )
+        #             case ['s', *coords] if len(coords) % 2 == 0:
+        #                 cmds.append(DC(DP.CUBIC_BSPLINE, *tuple(chunk(map(float, coords), 2)), unsafe=unsafe))
+        #             case ['c']:
+        #                 cmds.append(DC(DP.CLOSE_BSPLINE, unsafe=unsafe))
+        #             case _:
+        #                 raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
+        #     return cls(cmds, copy_cmds=False)
 
     def to_pixels(self, supersampling: int = 4, anti_aliasing: bool = True) -> List[Pixel]:
         """
@@ -1173,18 +1194,13 @@ class Shape(_AbstractShape):
         self.flatten()
         shapes = self.split_shape()
 
-        def _unclose_shape(sh: Shape) -> Shape:
-            sh.unclose()
-            return sh
-
-        shapes = [_unclose_shape(s) for s in shapes]
-
         # -- Create stroke shape out of figures
         DC, DP = DrawingCommand, DrawingProp
         m, l = DP.MOVE, DP.LINE
         stroke_cmds: List[DrawingCommand] = []
 
         for shape in shapes:
+            shape.unclose()
             # Outer
             rcmds = [shape._commands[0]]
             rcmds.extend(reversed(shape._commands[1:]))
