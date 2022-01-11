@@ -330,10 +330,6 @@ class _AbstractShape(MutableSequence[DrawingCommand], ABC):
             self._commands[index] = value
         elif isinstance(index, slice) and not isinstance(value, DrawingCommand):
             self._commands[index] = value
-        elif isinstance(index, SupportsIndex) and isinstance(value, DrawingCommand):
-            raise TypeError(f'{self.__class__.__name__}: can only assign a value!')
-        elif isinstance(index, slice) and not isinstance(value, DrawingCommand):
-            raise TypeError(f'{self.__class__.__name__}: can only assign an iterable!')
         else:
             raise NotImplementedError(f'{self.__class__.__name__}: not supported')
 
@@ -568,20 +564,20 @@ class Shape(_AbstractShape):
         Unclose current shape if last point(s) are the same as the first one
         """
         first = self._commands[0]._coordinates[0]
-        for cmd in reversed(self):
+        for cmd in reversed(self._commands):
             if not (cmd._prop == DrawingProp.LINE and cmd._coordinates[-1] == first):
                 break
             del self[-1]
 
-    def split_shape(self) -> List[Shape]:
+    def split_shape(self) -> Iterable[Shape]:
         """
-        Split current shape into a list of Shape bounded
+        Split current shape into a iterable of Shape bounded
         by each DrawingProp.MOVE in the current shape object
 
         :return:                List of Shape objects
         """
-        m_indx = [i for i, cmd in enumerate(self) if cmd._prop in {DrawingProp.MOVE, DrawingProp.MOVE_NC}]
-        return [self[i:j] for i, j in zip_offset(m_indx, m_indx, offsets=(0, 1), longest=True)]
+        m_indx = [i for i, cmd in enumerate(self._commands) if cmd._prop in {DrawingProp.MOVE, DrawingProp.MOVE_NC}]
+        return (self[i:j] for i, j in zip_offset(m_indx, m_indx, offsets=(0, 1), longest=True))
 
     @classmethod
     def merge_shapes(cls, shapes: List[Shape]) -> Shape:
@@ -591,7 +587,7 @@ class Shape(_AbstractShape):
         :param shapes:          List of Shape objects
         :return:                A new merged Shape
         """
-        return sum(shapes, start=shapes.pop(0))
+        return cls(flatten((shape._commands for shape in shapes)), copy_cmds=False)
 
     def flatten(self, tolerance: float = 1.) -> None:
         """
@@ -680,7 +676,7 @@ class Shape(_AbstractShape):
         DP = DrawingProp
         m, n, l, b = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.BÉZIER
 
-        shapes = self.split_shape()
+        shapes = list(self.split_shape())
 
         for shape in shapes:
             shape.unclose()
@@ -1182,7 +1178,7 @@ class Shape(_AbstractShape):
         :param bord_y:              Y-axis outline border, defaults to None
         :param mode:                Stroking mode, can be 'miter', 'bevel' ou 'round', defaults to "round"
         """
-        if len(self) < 2:
+        if len(self._commands) < 2:
             raise ValueError(f'{self.__class__.__name__}: Shape must have at least 2 commands')
 
         # -- Line width values
@@ -1193,14 +1189,13 @@ class Shape(_AbstractShape):
             width, xscale, yscale = bord_xy, 1, 1
 
         self.flatten()
-        shapes = self.split_shape()
 
         # -- Create stroke shape out of figures
         DC, DP = DrawingCommand, DrawingProp
         m, l = DP.MOVE, DP.LINE
         stroke_cmds: List[DrawingCommand] = []
 
-        for shape in shapes:
+        for shape in self.split_shape():
             shape.unclose()
             # Outer
             rcmds = deque(shape._commands)
@@ -1211,7 +1206,7 @@ class Shape(_AbstractShape):
             stroke_cmds.extend(DC(l, coordinate, unsafe=True) for coordinate in outline)
 
             # Inner
-            outline = _stroke_lines(shape, width, xscale, yscale, mode, miter_limit, max_circumference)
+            outline = _stroke_lines(shape._commands, width, xscale, yscale, mode, miter_limit, max_circumference)
             stroke_cmds.append(DC(m, outline.pop(0), unsafe=True))
             stroke_cmds.extend(DC(l, coordinate, unsafe=True) for coordinate in outline)
 

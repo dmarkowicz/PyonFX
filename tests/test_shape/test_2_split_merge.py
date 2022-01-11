@@ -18,14 +18,14 @@ def test_split_shape1() -> None:
     ]
     for dest in dests:
         dest.round()
-    shapes = original.split_shape()
+    shapes = list(original.split_shape())
     check.equal(shapes, dests)
 
 
 def test_split_shape2() -> None:
     original = Shape.from_ass_string('m 930 676 l 1078 824 1228 782 1078 612 788 668 632 860')
     dest = Shape.from_ass_string('m 930 676 l 1078 824 1228 782 1078 612 788 668 632 860')
-    shape_s = original.split_shape()
+    shape_s = list(original.split_shape())
     check.equal(len(shape_s), 1)
     check.equal(shape_s.pop(0), dest)
 

@@ -7,6 +7,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from ..types import NamedMutableSequence
 from .coordinates import Axis, Coordinates
 
 
@@ -33,7 +34,8 @@ class Cartesian2D(Coordinates, ABC, ignore_slots=True):
         :param _x:              Abscissa
         :param _y:              Ordinate
         """
-        super().__init__(x, y)
+        # Faster access than using super()
+        NamedMutableSequence.__init__(self, x=x, y=y)
 
     def __rotate__(self, rot: float, axis: CartesianAxis = CartesianAxis.Z, zp: Tuple[float, ...] = (0., 0.)) -> None:
         """
@@ -63,8 +65,8 @@ class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
         :param _y:              Ordinate
         :param _z:              Applicate
         """
-        super().__init__(x, y)
-        self.z = z
+        # Faster access than using super()
+        NamedMutableSequence.__init__(self, x=x, y=y, z=z)
 
     def __rotate__(self, rot: float, axis: CartesianAxis = CartesianAxis.Z, zp: Tuple[float, ...] = (0., 0., 0.)) -> None:
         """

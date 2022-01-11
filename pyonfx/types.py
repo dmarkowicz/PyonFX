@@ -120,10 +120,10 @@ class NamedMutableSequenceMeta(ABCMeta):
     __slots__: Tuple[str, ...] = ()
 
     def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
-                ignore_slots: bool = False, **kwargs: Any) -> NamedMutableSequenceMeta:
+                ignore_slots: bool = False) -> NamedMutableSequenceMeta:
         # Let's use __slots__ only if the class is a concrete application
         if ignore_slots:
-            return super().__new__(cls, name, bases, namespace, **kwargs)
+            return super().__new__(cls, name, bases, namespace)
 
         # dict.fromkeys works as an OrderedSet
         abases = dict.fromkeys(b for base in bases for b in base.__mro__)
@@ -139,17 +139,17 @@ class NamedMutableSequenceMeta(ABCMeta):
         types.update(namespace.get('__annotations__', {}))
         # Finally add the variable names
         namespace['__slots__'] = tuple(types.keys())
-        return super().__new__(cls, name, bases, namespace, **kwargs)
+        return super().__new__(cls, name, bases, namespace)
 
 
 class NamedMutableSequence(Sequence[T_co], ABC, ignore_slots=True, metaclass=NamedMutableSequenceMeta):
     __slots__: Tuple[str, ...] = ()
-    __annotations__ = {}  # type: ignore[var-annotated]
+    __annotations__: Dict[str, Any] = {}
+    __annotations__.clear()
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        for k in self.__slots__:
-            self.__setattr__(k, kwargs.get(k))
-
+    def __init__(self, *args: T_co, **kwargs: T_co) -> None:
+        for k, v in kwargs.items():
+            self.__setattr__(k, v)
         if args:
             for k, v in zip(self.__slots__, args):
                 self.__setattr__(k, v)
