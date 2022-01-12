@@ -31,8 +31,8 @@ from copy import deepcopy
 from enum import Enum, auto
 from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
 from typing import (
-    Callable, Dict, Iterable, List, MutableSequence, NamedTuple, NoReturn, Optional, Sequence,
-    SupportsIndex, Tuple, cast, overload
+    Callable, Dict, Iterable, List, MutableSequence, NamedTuple, Optional, Sequence, SupportsIndex,
+    Tuple, cast, overload
 )
 
 import numpy as np
@@ -178,13 +178,11 @@ class _AbstractDrawingCommand(Sequence[Point], ABC):
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> NoReturn:
+    def __getitem__(self, index: slice) -> Sequence[Point]:
         ...
 
-    def __getitem__(self, index: int | slice) -> Point | NoReturn:
-        if isinstance(index, SupportsIndex):
-            return self._coordinates[index]
-        raise NotImplementedError(f'{self.__class__.__name__}: slice is not supported!')
+    def __getitem__(self, index: int | slice) -> Point | Sequence[Point]:
+        return self._coordinates[index]
 
     def __len__(self) -> int:
         return len(self._coordinates)
@@ -197,11 +195,11 @@ class _AbstractDrawingCommand(Sequence[Point], ABC):
     def __str__(self) -> str:
         return f'{self._prop.value} ' + ' '.join(
             f'{p.x} {p.y}'
-            for p in [
+            for p in (
                 # Get the points and convert them to 2D
                 po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
                 for po in self
-            ]
+            )
         )
 
     def __repr__(self) -> str:
@@ -384,12 +382,12 @@ class Shape(_AbstractShape):
     @property
     def props(self) -> PropsView:
         """The DrawingProp of this DrawingCommand"""
-        return PropsView([c.prop for c in self])
+        return PropsView(tuple(c.prop for c in self))
 
     @property
-    def coordinates(self) -> List[PointsView]:
+    def coordinates(self) -> Iterable[PointsView]:
         """Coordinates of this DrawingCommand"""
-        return [c.coordinates for c in self]
+        return iter(c.coordinates for c in self)
 
     def __init__(self, cmds: Iterable[DrawingCommand], *, copy_cmds: bool = True) -> None:
         """
@@ -440,7 +438,7 @@ class Shape(_AbstractShape):
         for cmd in self:
             cmd.round(ndigits)
 
-    def map(self, func: Callable[[Point], Point | Tuple[float, float]], /) -> None:
+    def map(self, func: Callable[[Point], Point | Tuple[float, float]], /, *, unsafe: bool = False) -> None:
         """
         Sends every point of a shape through given transformation function to change them.
 
@@ -448,9 +446,10 @@ class Shape(_AbstractShape):
 
         :param func:            A function with two parameters representing the x and y coordinates of each point.
                                 It will define how each coordinate will be changed.
+        :param func:            Deactivate integrity's checks
         """
         self._commands = [
-            DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates], unsafe=True)
+            DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates], unsafe=unsafe)
             for cmd in self
         ]
 
@@ -466,7 +465,7 @@ class Shape(_AbstractShape):
             p.x += _x
             p.y += _y
             return p
-        self.map(_func)
+        self.map(_func, unsafe=True)
 
     def scale(self, _x: float = 1., _y: float = 1., /) -> None:
         """
@@ -480,7 +479,7 @@ class Shape(_AbstractShape):
             p.x *= _x
             p.y *= _y
             return p
-        self.map(_func)
+        self.map(_func, unsafe=True)
 
     @property
     def bounding(self) -> Tuple[PointCartesian2D, PointCartesian2D]:
@@ -540,7 +539,7 @@ class Shape(_AbstractShape):
         :param axis:            Axis where the rotation will be performed
         :param zero_pad:        Point where the rotations will be performed, defaults to None
         """
-        self.map(lambda p: Geometry.rotate(p.to_3d(), rot, axis, zero_pad).project_2d())
+        self.map(lambda p: Geometry.rotate(p.to_3d(), rot, axis, zero_pad).project_2d(), unsafe=True)
 
     def shear(self, fax: float = 0., fay: float = 0., /) -> None:
         """
@@ -550,14 +549,14 @@ class Shape(_AbstractShape):
         :param fax:             X-axis factor, defaults to 0.
         :param fay:             Y-axis factor, defaults to 0.
         """
-        self.map(lambda p: PointCartesian2D(*tuple(np.array([(1, fax), (fay, 1)]) @ p.to_2d())))
+        self.map(lambda p: PointCartesian2D(*tuple(np.array([(1, fax), (fay, 1)]) @ p.to_2d())), unsafe=True)
 
     def close(self) -> None:
         """
         Close current shape if last point is not the same as the first one
         """
         if (first := self._commands[0]._coordinates[0]) != self._commands[-1]._coordinates[-1]:
-            self.append(DrawingCommand(DrawingProp.LINE, first, unsafe=True))
+            self._commands.append(DrawingCommand(DrawingProp.LINE, first, unsafe=True))
 
     def unclose(self) -> None:
         """
@@ -716,7 +715,7 @@ class Shape(_AbstractShape):
         if out_rad <= in_rad:
             raise ValueError(f'{cls.__name__}: inner radius must be less than outer radius')
         disk = cls.disk(out_rad, c_xy, True)
-        disk.extend(cls.disk(in_rad, c_xy, False))
+        disk.extend(cls.disk(in_rad, c_xy, False)._commands)
         return disk
 
     @classmethod
@@ -1135,12 +1134,9 @@ class Shape(_AbstractShape):
         # Flatten the shape to avoid working with bézier curves
         wshape.flatten()
 
-        def _close_shape(shape: Shape) -> Shape:
-            shape.close()
-            return shape
-
-        # Close each shape and merge again them
-        wshape = self.merge_shapes([_close_shape(wsh) for wsh in wshape.split_shape()])
+        # Close each shape
+        for wsh in wshape.split_shape():
+            wsh.close()
 
         # Build an image
         _, pb1 = wshape.bounding
@@ -1148,7 +1144,7 @@ class Shape(_AbstractShape):
         image = np.zeros((height, width), np.uint8)  # type: ignore[var-annotated]
 
         # Extract coordinates
-        xs, ys = unzip(c.to_2d() for cv in wshape.coordinates for c in cv)
+        xs, ys = unzip(c.to_2d() for cv in wshape._commands for c in cv)
         # Build rows and columns from coordinates
         rows, columns = np.fromiter(ys, np.float32), np.fromiter(xs, np.float32)  # type: ignore[var-annotated]
         # Get polygons coordinates
