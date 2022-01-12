@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, ABCMeta, abstractmethod
-from functools import reduce, wraps
+from functools import wraps
 from os import PathLike
 from typing import (
-    Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Reversible, Sequence, Tuple,
-    TypeVar, Union, cast, get_args, get_origin, overload
+    Any, Callable, ChainMap, Collection, Dict, Generic, Iterable, Iterator, Reversible, Sequence,
+    Tuple, TypeVar, Union, cast, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray
@@ -128,14 +128,12 @@ class NamedMutableSequenceMeta(ABCMeta):
         # dict.fromkeys works as an OrderedSet
         abases = dict.fromkeys(b for base in bases for b in base.__mro__)
         # Remove useless base classes
+        # We could only yeet object but Python 3.8 doesn't have annotated abc in typing
         for clsb in NamedMutableSequence.__mro__:
             del abases[clsb]
         # Get annotations in reverse mro order for the variable names
-        types = reduce(
-            lambda x, y: {**x, **y},
-            (base.__annotations__ for base in reversed(abases)),
-            cast(Dict[str, Any], {})
-        )
+        # We don't need to reverse abases because of the behaviour of ChainMap
+        types = ChainMap(*(base.__annotations__ for base in abases))
         types.update(namespace.get('__annotations__', {}))
         # Finally add the variable names
         namespace['__slots__'] = tuple(types.keys())
