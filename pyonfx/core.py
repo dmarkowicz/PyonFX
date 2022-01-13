@@ -32,71 +32,61 @@ from .font import Font
 from .shape import Pixel, Shape
 from .types import Alignment
 
-AssTextT = TypeVar('AssTextT', bound='AssText')
+_AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
 
-class PList(MutableSequence[AssTextT]):
+class PList(MutableSequence[_AssTextT]):
     """PyonFX mutable sequence."""
 
-    _list: List[AssTextT]
+    __list: List[_AssTextT]
 
-    def __init__(self, iterable: Iterable[AssTextT] | None = None) -> None:
+    def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
         """
         If no argument is given, the constructor creates a new empty list.
 
         :param iterable:            Iterable object, defaults to None
         """
-        self._list = list(iterable) if iterable else []
+        self.__list = list(__iterable) if __iterable else []
         super().__init__()
 
     @overload
-    def __getitem__(self, index: SupportsIndex) -> AssTextT:
+    def __getitem__(self, index: SupportsIndex) -> _AssTextT:
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> PList[AssTextT]:
+    def __getitem__(self, index: slice) -> PList[_AssTextT]:
         ...
 
-    def __getitem__(self, index: SupportsIndex | slice) -> AssTextT | PList[AssTextT]:
+    def __getitem__(self, index: SupportsIndex | slice) -> _AssTextT | PList[_AssTextT]:
         if isinstance(index, SupportsIndex):
-            return self._list[index]
-        else:
-            return PList(self._list[index])
+            return self.__list[index]
+        return PList(self.__list[index])
 
     @overload
-    def __setitem__(self, index: SupportsIndex, value: AssTextT) -> None:
+    def __setitem__(self, index: SupportsIndex, value: _AssTextT) -> None:
         ...
 
     @overload
-    def __setitem__(self, index: slice, value: Iterable[AssTextT]) -> None:
+    def __setitem__(self, index: slice, value: Iterable[_AssTextT]) -> None:
         ...
 
-    def __setitem__(self, index: SupportsIndex | slice, value: AssTextT | Iterable[AssTextT]) -> None:
-        if isinstance(index, SupportsIndex) and not isinstance(value, Iterable):
-            self._list[index] = value
-        elif isinstance(index, slice) and isinstance(value, Iterable):
-            self._list[index] = value
-        elif isinstance(index, SupportsIndex) and isinstance(value, Iterable):
-            raise TypeError('can only assign a value')
-        elif isinstance(index, slice) and not isinstance(value, Iterable):
-            raise TypeError('can only assign an iterable')
-        else:
-            raise NotImplementedError
+    def __setitem__(self, index: SupportsIndex | slice, value: _AssTextT | Iterable[_AssTextT]) -> None:
+        self.__list.__setitem__(index, value)  # type: ignore
 
     def __delitem__(self, index: SupportsIndex | slice) -> None:
-        del self._list[index]
+        del self.__list[index]
 
     def __len__(self) -> int:
-        return len(self._list)
+        return len(self.__list)
 
-    def insert(self, index: int, value: AssTextT) -> None:
+    def insert(self, index: int, value: _AssTextT) -> None:
         """
         Insert an AssText value before index
 
         :param index:               Index number
         :param value:               AssText object
         """
-        self._list.insert(index, value)
+        self.__list.insert(index, value)
 
     @overload
     def strip_empty(self, return_new: Literal[False] = False) -> None:
@@ -108,7 +98,7 @@ class PList(MutableSequence[AssTextT]):
         ...
 
     @overload
-    def strip_empty(self, return_new: Literal[True]) -> PList[AssTextT]:
+    def strip_empty(self, return_new: Literal[True]) -> PList[_AssTextT]:
         """
         Removes objects with empty text or a duration of 0
 
@@ -116,9 +106,9 @@ class PList(MutableSequence[AssTextT]):
         """
         ...
 
-    def strip_empty(self, return_new: bool = False) -> None | PList[AssTextT]:
+    def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
 
-        def _strip_check(a: AssTextT) -> bool:
+        def _strip_check(a: _AssTextT) -> bool:
             return a.text.strip() != '' and a.duration > 0
 
         if not return_new:
@@ -126,8 +116,7 @@ class PList(MutableSequence[AssTextT]):
                 if not _strip_check(a):
                     self.remove(a)
             return None
-        else:
-            return PList(a for a in self if _strip_check(a))
+        return PList(a for a in self if _strip_check(a))
 
 
 class DataCore(ABC):
