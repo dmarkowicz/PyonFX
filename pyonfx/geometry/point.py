@@ -21,7 +21,7 @@ from .vector import Vector, VectorCartesian2D, VectorCartesian3D, VectorCylindri
 PointT = TypeVar('PointT', bound='Point')
 
 
-class Point(Coordinates, ABC, ignore_slots=True):
+class Point(Coordinates, ABC, empty_slots=True):
     """Abstract Point interface with abstract __vector__ method"""
 
     @abstractmethod

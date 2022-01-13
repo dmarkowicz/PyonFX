@@ -18,7 +18,7 @@ class CartesianAxis(Axis):
     Z = 2
 
 
-class Cartesian2D(Coordinates, ABC, ignore_slots=True):
+class Cartesian2D(Coordinates, ABC, empty_slots=True):
     """Cartesian coordinate system in two dimensions"""
 
     x: float
@@ -51,7 +51,7 @@ class Cartesian2D(Coordinates, ABC, ignore_slots=True):
             setattr(self, attr, float(value))
 
 
-class Cartesian3D(Cartesian2D, ABC, ignore_slots=True):
+class Cartesian3D(Cartesian2D, ABC, empty_slots=True):
     """Cartesian coordinate system in three dimensions"""
 
     z: float

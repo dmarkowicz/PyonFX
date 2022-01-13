@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, ABCMeta, abstractmethod
-from functools import wraps
+from functools import reduce, wraps
 from os import PathLike
 from typing import (
-    Any, Callable, ChainMap, Collection, Dict, Generic, Iterable, Iterator, Reversible, Sequence,
+    Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, Reversible, Sequence,
     Tuple, TypeVar, Union, cast, get_args, get_origin, overload
 )
 
@@ -116,35 +116,55 @@ class View(Reversible[T], Collection[T]):
     __repr__ = __str__
 
 
-class NamedMutableSequenceMeta(ABCMeta):
+class AutoSlotsMeta(ABCMeta):
     __slots__: Tuple[str, ...] = ()
 
-    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
-                ignore_slots: bool = False) -> NamedMutableSequenceMeta:
-        # Let's use __slots__ only if the class is a concrete application
-        if ignore_slots:
+    @classmethod
+    def __prepare__(cls, __name: str, __bases: tuple[type, ...], **kwargs: Any) -> Mapping[str, object]:
+        prepared: Dict[str, Any] = {}
+        if kwargs.get('empty_slots', False):
+            prepared['__slots__'] = ()
+            return prepared
+        # dict.fromkeys works as an OrderedSet
+        abases = dict.fromkeys(b for base in __bases for b in base.__mro__)
+        # Get annotations in reverse mro order for the variable names
+        types = reduce(
+            lambda x, y: {**x, **y},
+            (base.__annotations__ for base in reversed(abases) if hasattr(base, '__annotations__')),
+            cast(Dict[str, Any], {})
+        )
+        prepared['__slots__'] = tuple(types.keys())
+        return prepared
+
+    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any], empty_slots: bool = False) -> AutoSlotsMeta:
+        if empty_slots:
             return super().__new__(cls, name, bases, namespace)
 
-        # dict.fromkeys works as an OrderedSet
-        abases = dict.fromkeys(b for base in bases for b in base.__mro__)
-        # Remove useless base classes
-        # We could only yeet object but Python 3.8 doesn't have annotated abc in typing
-        for clsb in NamedMutableSequence.__mro__:
-            del abases[clsb]
-        # Get annotations in reverse mro order for the variable names
-        # We don't need to reverse abases because of the behaviour of ChainMap
-        types = ChainMap(*(base.__annotations__ for base in abases))
-        types.update(namespace.get('__annotations__', {}))
-        # Finally add the variable names
-        namespace['__slots__'] = tuple(types.keys())
-        return super().__new__(cls, name, bases, namespace)
+        # Add the variable names from the current class
+        # And remove the __slots__ from namespace['__slots__']
+        _annotations = namespace.get('__annotations__', {})
+        namespace['__slots__'] = (
+            *tuple(x for x in namespace['__slots__'] if x != '__slots__'),
+            *tuple(_annotations.keys())
+        )
+        # Get class variables and remove them from the namespace
+        clsvars = {
+            n: namespace.pop(n) for n in namespace.copy()
+            if n in _annotations
+        }
+
+        obj = super().__new__(cls, name, bases, namespace)
+        # Add the class variable
+        for n, val in clsvars.items():
+            setattr(obj, n, val)
+        return obj
 
 
-class NamedMutableSequence(Sequence[T_co], ABC, ignore_slots=True, metaclass=NamedMutableSequenceMeta):
-    __slots__: Tuple[str, ...] = ()
-    __annotations__: Dict[str, Any] = {}
-    __annotations__.clear()
+class AutoSlots(ABC, empty_slots=True, metaclass=AutoSlotsMeta):
+    __slots__: Tuple[str, ...]
 
+
+class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_slots=True):
     def __init__(self, *args: T_co, **kwargs: T_co) -> None:
         for k, v in kwargs.items():
             self.__setattr__(k, v)
