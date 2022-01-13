@@ -362,7 +362,7 @@ class RGBAlpha(BaseRGB[Nb], ABC):
             if len(_x) > 3:
                 self.a = _x[-1]
             else:
-                self.a = self.peaks[1]  # type: ignore # pylance's complaining
+                self.a = self.peaks[1]
         else:
             super().__init__(_x)
 
