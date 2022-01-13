@@ -27,7 +27,9 @@ import time
 import warnings
 from fractions import Fraction
 from pathlib import Path
-from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union, cast
+
+from more_itertools import zip_offset
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
@@ -35,35 +37,40 @@ from .core import Char, Line, Meta, PList, Style, Syllable, Word
 from .font import Font
 from .types import AnyPath
 
+if TYPE_CHECKING:
+    from .font._abstract import _Metrics, _TextExtents
+else:
+    _Metrics, _TextExtents = Any, Any
+
+
+class _TextChunk(NamedTuple):
+    tags: str
+    text: str
+    word_i: Optional[int] = None
+
 
 class Ass:
     """Initialisation class containing all the information about an ASS file"""
-    path_input: Path
-    path_output: Path
     fps: Fraction
-    vertical_kanji: bool
 
     meta: Meta
     styles: List[Style]
     lines: List[Line]
 
+    _path_input: Path
+    _path_output: Optional[Path]
     _output: List[str]
     _output_lines: List[str]
     _output_extradata: List[str]
 
     _ptime: float
 
-    class _TextChunk(NamedTuple):
-        tags: str
-        text: str
-        word_i: Optional[int] = None
-
     def __init__(self, path_input: AnyPath, path_output: Optional[AnyPath] = None, /,
                  fps: Fraction | float = Fraction(24000, 1001),
                  comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
         """
-        :param path_input:          Input file path
-        :param path_output:         Output file path, defaults to None
+        :param _path_input:          Input file path
+        :param _path_output:         Output file path, defaults to None
         :param fps:                 Framerate Per Second of the ASS file, defaults to Fraction(24000, 1001)
         :param comment_original:    Keep original lines at the beginning of the output ass and comment them, defaults to True
         :param extended:            Calculate more informations from lines, defaults to True
@@ -76,11 +83,9 @@ class Ass:
 
         # Resolve paths, make absolute the paths
 
-        self.path_input = Path(path_input).resolve()
-        if path_output:
-            self.path_output = Path(path_output).resolve()
+        self._path_input = Path(path_input).resolve()
+        self._path_output = Path(path_output).resolve() if path_output else None
         self.fps = fps if isinstance(fps, Fraction) else Fraction(fps)
-        self.vertical_kanji = vertical_kanji
         self._output = []
         self._output_lines = []
         self._output_extradata = []
@@ -90,10 +95,10 @@ class Ass:
         self.lines = []
 
         # Checking sub file validity (does it exists?)
-        if not self.path_input.exists():
+        if not self._path_input.exists():
             raise FileNotFoundError(f"{path_input} is not a valid path!")
 
-        with open(self.path_input, "r", encoding="utf-8-sig") as file:
+        with open(self._path_input, "r", encoding="utf-8-sig") as file:
             lines_file = file.readlines()
 
         section = ""
@@ -122,65 +127,62 @@ class Ass:
                 raise ValueError(f"Unexpected section in the input file: [{section}]")
 
         # Adding informations to lines and meta?
-        if extended:
-            lines_by_styles: Dict[Style, List[Line]] = {}
-            for line in self.lines:
-                # Add dialog text sizes and positions (if possible)
-                try:
-                    line_style = line.style
-                except AttributeError:
-                    warnings.warn(f'Line {line.i} is using an undefined style, skipping...', Warning)
-                else:
-                    # Append dialog to styles (for leadin and leadout later)
-                    lines_by_styles.setdefault(line_style, [])
-                    lines_by_styles[line_style].append(line)
+        if not extended:
+            return None
 
-                    line.duration = line.end_time - line.start_time
-                    line.text = re.sub(r"\{.*?\}", "", line.raw_text)
+        lines_by_styles: Dict[str, List[Line]] = {style.name: [] for style in self.styles}
+        for line in self.lines:
+            # Add dialog text sizes and positions (if possible)
+            try:
+                line_style = line.style
+            except AttributeError:
+                warnings.warn(f'Line {line.i} is using an undefined style, skipping...', Warning)
+                continue
 
-                    font = Font(line_style)
-                    font_metrics = font.metrics
+            # Append dialog to styles (for leadin and leadout later)
+            lines_by_styles[line_style.name].append(line)
 
-                    # Add line data
-                    line = self._add_data_line(line, font, font_metrics)
+            line.duration = line.end_time - line.start_time
+            line.text = re.sub(r"\{.*?\}", "", line.raw_text)
 
-                    # Calculating space width and saving spacing
-                    space_width = font.get_text_extents(" ")[0]
-                    style_spacing = line_style.spacing
+            font = Font(line_style)
+            font_metrics = font.metrics
 
-                    # Add words data
-                    line = self._add_data_words(line, font, font_metrics, space_width, style_spacing)
+            # Add line data
+            self._add_data_line(line, font, font_metrics)
 
-                    # Search for dialog's text chunks, to later create syllables
-                    # A text chunk is a text with one or more {tags} preceding it
-                    # Tags can be some text or empty string
-                    text_chunks = self._search_text_chunks(line)
+            # Calculating space width and saving spacing
+            space_width = font.text_extents(" ")[0]
+            style_spacing = line_style.spacing
 
-                    # Adding syls
-                    line = self._add_data_syls(line, font, font_metrics, text_chunks, space_width, style_spacing)
+            # Add words data
+            self._add_data_words(line, font, font_metrics, space_width, style_spacing)
 
-                    # Getting chars
-                    line = self._add_data_chars(line, font, font_metrics, style_spacing)
+            # Search for dialog's text chunks, to later create syllables
+            # A text chunk is a text with one or more {tags} preceding it
+            # Tags can be some text or empty string
+            text_chunks = self._search_text_chunks(line)
 
-            # Add durations between dialogs
-            fps = float(self.fps)
-            default_lead = 1 / fps * round(fps)
-            for _, liness in lines_by_styles.items():
-                liness.sort(key=lambda x: x.start_time)
-                for li, line in enumerate(liness):
-                    line.leadin = (
-                        default_lead
-                        if li == 0
-                        else line.start_time - liness[li - 1].end_time
-                    )
-                    line.leadout = (
-                        default_lead
-                        if li == len(liness) - 1
-                        else liness[li + 1].start_time - line.end_time
-                    )
+            # Adding syls
+            self._add_data_syls(
+                line, font, font_metrics, text_chunks,
+                space_width, style_spacing, vertical_kanji
+            )
+
+            # Getting chars
+            self._add_data_chars(line, font, font_metrics, style_spacing, vertical_kanji)
+
+        # Add durations between dialogs
+        fps = float(self.fps)
+        default_lead = 1 / fps * round(fps)
+        for liness in lines_by_styles.values():
+            for preline, curline, postline in zip_offset(liness, liness, liness, offsets=(-1, 0, 1), longest=True):
+                if not curline:
+                    continue
+                curline.leadin = default_lead if not preline else curline.start_time - preline.end_time
+                curline.leadout = default_lead if not postline else postline.start_time - curline.end_time
 
     def _parse_meta_data(self, line: str) -> None:
-        # Switch
         self.meta.fps = self.fps
         if valm := re.match(r"WrapStyle: *?(\d+)$", line):
             self.meta.wrap_style = int(valm[1].strip())
@@ -205,51 +207,52 @@ class Ass:
         self._output.append(line)
         style_match = re.match(r"Style: (.+?)$", line)
 
-        if style_match:
-            # Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,
-            # Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle,
-            # BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-            style = style_match[1].split(",")
-            nstyle = Style()
+        if not style_match:
+            return None
+        # Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,
+        # Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle,
+        # BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        style = style_match[1].split(",")
+        nstyle = Style()
 
-            nstyle.name = str(style[0])
+        nstyle.name = str(style[0])
 
-            nstyle.fontname = str(style[1])
-            nstyle.fontsize = float(style[2])
+        nstyle.fontname = str(style[1])
+        nstyle.fontsize = float(style[2])
 
-            nstyle.color1 = ASSColor(f"&H{style[3][4:]}&")
-            nstyle.color2 = ASSColor(f"&H{style[4][4:]}&")
-            nstyle.color3 = ASSColor(f"&H{style[5][4:]}&")
-            nstyle.color4 = ASSColor(f"&H{style[6][4:]}&")
+        nstyle.color1 = ASSColor(f"&H{style[3][4:]}&")
+        nstyle.color2 = ASSColor(f"&H{style[4][4:]}&")
+        nstyle.color3 = ASSColor(f"&H{style[5][4:]}&")
+        nstyle.color4 = ASSColor(f"&H{style[6][4:]}&")
 
-            nstyle.alpha1 = Opacity.from_ass_val(f"{style[3][:4]}&")
-            nstyle.alpha2 = Opacity.from_ass_val(f"{style[4][:4]}&")
-            nstyle.alpha3 = Opacity.from_ass_val(f"{style[5][:4]}&")
-            nstyle.alpha4 = Opacity.from_ass_val(f"{style[6][:4]}&")
+        nstyle.alpha1 = Opacity.from_ass_val(f"{style[3][:4]}&")
+        nstyle.alpha2 = Opacity.from_ass_val(f"{style[4][:4]}&")
+        nstyle.alpha3 = Opacity.from_ass_val(f"{style[5][:4]}&")
+        nstyle.alpha4 = Opacity.from_ass_val(f"{style[6][:4]}&")
 
-            nstyle.bold = style[7] == "-1"
-            nstyle.italic = style[8] == "-1"
-            nstyle.underline = style[9] == "-1"
-            nstyle.strikeout = style[10] == "-1"
+        nstyle.bold = style[7] == "-1"
+        nstyle.italic = style[8] == "-1"
+        nstyle.underline = style[9] == "-1"
+        nstyle.strikeout = style[10] == "-1"
 
-            nstyle.scale_x = float(style[11])
-            nstyle.scale_y = float(style[12])
+        nstyle.scale_x = float(style[11])
+        nstyle.scale_y = float(style[12])
 
-            nstyle.spacing = float(style[13])
-            nstyle.angle = float(style[14])
+        nstyle.spacing = float(style[13])
+        nstyle.angle = float(style[14])
 
-            nstyle.border_style = style[15] == "3"
-            nstyle.outline = float(style[16])
-            nstyle.shadow = float(style[17])
+        nstyle.border_style = style[15] == "3"
+        nstyle.outline = float(style[16])
+        nstyle.shadow = float(style[17])
 
-            nstyle.alignment = int(style[18])
-            nstyle.margin_l = int(style[19])
-            nstyle.margin_r = int(style[20])
-            nstyle.margin_v = int(style[21])
+        nstyle.alignment = int(style[18])
+        nstyle.margin_l = int(style[19])
+        nstyle.margin_r = int(style[20])
+        nstyle.margin_v = int(style[21])
 
-            nstyle.encoding = int(style[22])
+        nstyle.encoding = int(style[22])
 
-            self.styles.append(nstyle)
+        self.styles.append(nstyle)
 
     def _parse_dialogue(self, line: str, nb: int, comment_original: bool) -> None:
         # Appending line to output (commented) if comment_original is True
@@ -261,38 +264,40 @@ class Ass:
             self._output.append(line.strip())
 
         # Analysing line
-        if anal_line := re.match(r"(Dialogue|Comment): (.+?)$", line):
-            # Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-            nline = Line()
+        if not (anal_line := re.match(r"(Dialogue|Comment): (.+?)$", line)):
+            return None
 
-            nline.i = nb
+        # Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        nline = Line()
 
-            nline.comment = anal_line[1] == "Comment"
-            linesplit = anal_line[2].split(",")
+        nline.i = nb
 
-            nline.layer = int(linesplit[0])
+        nline.comment = anal_line[1] == "Comment"
+        linesplit = anal_line[2].split(",")
 
-            nline.start_time = ConvertTime.assts2seconds(linesplit[1], self.fps)
-            nline.start_time = ConvertTime.bound_to_frame(nline.start_time, self.fps)
-            nline.end_time = ConvertTime.assts2seconds(linesplit[2], self.fps)
-            nline.end_time = ConvertTime.bound_to_frame(nline.end_time, self.fps)
+        nline.layer = int(linesplit[0])
 
-            for style in self.styles:
-                if style.name == linesplit[3]:
-                    nline.style = style
-                    break
-            nline.meta = self.meta
-            nline.actor = linesplit[4]
+        nline.start_time = ConvertTime.assts2seconds(linesplit[1], self.fps)
+        nline.start_time = ConvertTime.bound_to_frame(nline.start_time, self.fps)
+        nline.end_time = ConvertTime.assts2seconds(linesplit[2], self.fps)
+        nline.end_time = ConvertTime.bound_to_frame(nline.end_time, self.fps)
 
-            nline.margin_l = int(linesplit[5])
-            nline.margin_r = int(linesplit[6])
-            nline.margin_v = int(linesplit[7])
+        for style in self.styles:
+            if style.name == linesplit[3]:
+                nline.style = style
+                break
+        nline.meta = self.meta
+        nline.actor = linesplit[4]
 
-            nline.effect = linesplit[8]
+        nline.margin_l = int(linesplit[5])
+        nline.margin_r = int(linesplit[6])
+        nline.margin_v = int(linesplit[7])
 
-            nline.raw_text = ",".join(linesplit[9:])
+        nline.effect = linesplit[8]
 
-            self.lines.append(nline)
+        nline.raw_text = ",".join(linesplit[9:])
+
+        self.lines.append(nline)
 
     def _get_media_abs_path(self, mediafile: str) -> str:
         """
@@ -301,60 +306,53 @@ class Ass:
         """
         return str(Path(mediafile).resolve()) if not mediafile.startswith("?dummy") else mediafile
 
-    def _add_data_line(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float]) -> Line:
-        line.width, line.height = font.get_text_extents(line.text)
+    def _add_data_line(self, line: Line, font: Font, font_metrics: _Metrics) -> None:
+        line.width, line.height = font.text_extents(line.text)
         line.ascent, line.descent, line.internal_leading, line.external_leading = font_metrics
 
         try:
             play_res_x = self.meta.play_res_x
             play_res_y = self.meta.play_res_y
         except AttributeError:
-            pass
+            return None
+        # Horizontal position
+        margin_l = line.margin_l if line.margin_l != 0 else line.style.margin_l
+        margin_r = line.margin_r if line.margin_r != 0 else line.style.margin_r
+        if line.style.an_is_left():
+            line.left = margin_l
+            line.center = line.left + line.width / 2
+            line.right = line.left + line.width
+            line.x = line.left
+        elif line.style.an_is_center():
+            line.left = play_res_x / 2 - line.width / 2 + margin_l / 2 - margin_r / 2
+            line.center = line.left + line.width / 2
+            line.right = line.left + line.width
+            line.x = line.center
         else:
-            # Horizontal position
-            margin_l = (
-                line.margin_l if line.margin_l != 0 else line.style.margin_l
-            )
-            margin_r = (
-                line.margin_r if line.margin_r != 0 else line.style.margin_r
-            )
-            if line.style.an_is_left():
-                line.left = margin_l
-                line.center = line.left + line.width / 2
-                line.right = line.left + line.width
-                line.x = line.left
-            elif line.style.an_is_center():
-                line.left = play_res_x / 2 - line.width / 2 + margin_l / 2 - margin_r / 2
-                line.center = line.left + line.width / 2
-                line.right = line.left + line.width
-                line.x = line.center
-            else:
-                line.left = play_res_x - margin_r - line.width
-                line.center = line.left + line.width / 2
-                line.right = line.left + line.width
-                line.x = line.right
+            line.left = play_res_x - margin_r - line.width
+            line.center = line.left + line.width / 2
+            line.right = line.left + line.width
+            line.x = line.right
 
-            # Vertical position
-            if line.style.an_is_top():
-                line.top = line.margin_v if line.margin_v != 0 else line.style.margin_v
-                line.middle = line.top + line.height / 2
-                line.bottom = line.top + line.height
-                line.y = line.top
-            elif line.style.an_is_middle():
-                line.top = play_res_y / 2 - line.height / 2
-                line.middle = line.top + line.height / 2
-                line.bottom = line.top + line.height
-                line.y = line.middle
-            else:
-                line.top = play_res_y - (line.margin_v if line.margin_v != 0 else line.style.margin_v) - line.height
-                line.middle = line.top + line.height / 2
-                line.bottom = line.top + line.height
-                line.y = line.bottom
+        # Vertical position
+        if line.style.an_is_top():
+            line.top = line.margin_v if line.margin_v != 0 else line.style.margin_v
+            line.middle = line.top + line.height / 2
+            line.bottom = line.top + line.height
+            line.y = line.top
+        elif line.style.an_is_middle():
+            line.top = play_res_y / 2 - line.height / 2
+            line.middle = line.top + line.height / 2
+            line.bottom = line.top + line.height
+            line.y = line.middle
+        else:
+            line.top = play_res_y - (line.margin_v if line.margin_v != 0 else line.style.margin_v) - line.height
+            line.middle = line.top + line.height / 2
+            line.bottom = line.top + line.height
+            line.y = line.bottom
 
-        return line
-
-    def _add_data_words(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float],
-                        space_width: float, style_spacing: float) -> Line:
+    def _add_data_words(self, line: Line, font: Font, font_metrics: _Metrics,
+                        space_width: float, style_spacing: float) -> None:
         # Adding words
         line.words = PList()
 
@@ -376,8 +374,10 @@ class Ass:
             word.prespace = len(prespace)
             word.postspace = len(postspace)
 
-            word.width, word.height = font.get_text_extents(word.text)
+            word.width, word.height = font.text_extents(word.text)
             word.ascent, word.descent, word.internal_leading, word.external_leading = font_metrics
+
+            word.meta = self.meta
 
             line.words.append(word)
 
@@ -386,70 +386,68 @@ class Ass:
             play_res_x = self.meta.play_res_x
             play_res_y = self.meta.play_res_y
         except AttributeError:
-            pass
+            return None
+
+        if line.style.an_is_top() or line.style.an_is_bottom():
+            cur_x = line.left
+            for word in line.words:
+                # Horizontal position
+                cur_x += word.prespace * space_width + style_spacing
+                word.left = cur_x
+                word.center = word.left + word.width / 2
+                word.right = word.left + word.width
+
+                if line.style.an_is_left():
+                    word.x = word.left
+                elif line.style.an_is_center():
+                    word.x = word.center
+                else:
+                    word.x = word.right
+
+                # Vertical position
+                word.top = line.top
+                word.middle = line.middle
+                word.bottom = line.bottom
+                word.y = line.y
+
+                # Updating cur_x
+                cur_x += word.width + word.postspace * (space_width + style_spacing) + style_spacing
         else:
-            if line.style.an_is_top() or line.style.an_is_bottom():
-                cur_x = line.left
-                for word in line.words:
-                    # Horizontal position
-                    cur_x += word.prespace * space_width + style_spacing
-                    word.left = cur_x
+            max_width, sum_height = 0.0, 0.0
+            for word in line.words:
+                max_width = max(max_width, word.width)
+                sum_height = sum_height + word.height
+
+            cur_y = x_fix = play_res_y / 2 - sum_height / 2
+            for word in line.words:
+                # Horizontal position
+                x_fix = (max_width - word.width) / 2
+
+                if line.style.alignment == 4:
+                    word.left = line.left + x_fix
                     word.center = word.left + word.width / 2
                     word.right = word.left + word.width
+                    word.x = word.left
+                elif line.style.alignment == 5:
+                    word.left = play_res_x / 2 - word.width / 2
+                    word.center = word.left + word.width / 2
+                    word.right = word.left + word.width
+                    word.x = word.center
+                else:
+                    word.left = line.right - word.width - x_fix
+                    word.center = word.left + word.width / 2
+                    word.right = word.left + word.width
+                    word.x = word.right
 
-                    if line.style.an_is_left():
-                        word.x = word.left
-                    elif line.style.an_is_center():
-                        word.x = word.center
-                    else:
-                        word.x = word.right
+                # Vertical position
+                word.top = cur_y
+                word.middle = word.top + word.height / 2
+                word.bottom = word.top + word.height
+                word.y = word.middle
+                # Updating cur_y
+                cur_y += word.height
 
-                    # Vertical position
-                    word.top = line.top
-                    word.middle = line.middle
-                    word.bottom = line.bottom
-                    word.y = line.y
-
-                    # Updating cur_x
-                    cur_x += word.width + word.postspace * (space_width + style_spacing) + style_spacing
-            else:
-                max_width, sum_height = 0.0, 0.0
-                for word in line.words:
-                    max_width = max(max_width, word.width)
-                    sum_height = sum_height + word.height
-
-                cur_y = x_fix = play_res_y / 2 - sum_height / 2
-                for word in line.words:
-                    # Horizontal position
-                    x_fix = (max_width - word.width) / 2
-
-                    if line.style.alignment == 4:
-                        word.left = line.left + x_fix
-                        word.center = word.left + word.width / 2
-                        word.right = word.left + word.width
-                        word.x = word.left
-                    elif line.style.alignment == 5:
-                        word.left = play_res_x / 2 - word.width / 2
-                        word.center = word.left + word.width / 2
-                        word.right = word.left + word.width
-                        word.x = word.center
-                    else:
-                        word.left = line.right - word.width - x_fix
-                        word.center = word.left + word.width / 2
-                        word.right = word.left + word.width
-                        word.x = word.right
-
-                    # Vertical position
-                    word.top = cur_y
-                    word.middle = word.top + word.height / 2
-                    word.bottom = word.top + word.height
-                    word.y = word.middle
-                    # Updating cur_y
-                    cur_y += word.height
-
-        return line
-
-    def _search_text_chunks(self, line: Line) -> List['_TextChunk']:
+    def _search_text_chunks(self, line: Line) -> List[_TextChunk]:
         # Search for dialog's text chunks, to later create syllables
         # A text chunk is a text with one or more {tags} preceding it
         # Tags can be some text or empty string
@@ -461,18 +459,18 @@ class Ass:
 
         if not tag:
             # No tags found
-            text_chunks.append(self._TextChunk('', line.raw_text))
+            text_chunks.append(_TextChunk('', line.raw_text))
         else:
             # First chunk without tags?
             if tag.start() != 0:
                 text_chunks.append(
-                    self._TextChunk('', line.raw_text[0:tag.start()])
+                    _TextChunk('', line.raw_text[0:tag.start()])
                 )
 
             # Searching for other tags
             while 1:
                 next_tag = tag_pattern.search(line.raw_text, tag.end())
-                chk = self._TextChunk(
+                chk = _TextChunk(
                     line.raw_text[tag.start() + 1: tag.end() - 1].replace("}{", ""),
                     line.raw_text[tag.end(): (next_tag.start() if next_tag else None)],
                     word_i
@@ -489,8 +487,9 @@ class Ass:
 
         return text_chunks
 
-    def _add_data_syls(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float],
-                       text_chunks: List['_TextChunk'], space_width: float, style_spacing: float) -> Line:
+    def _add_data_syls(self, line: Line, font: Font, font_metrics: _Metrics,
+                       text_chunks: List[_TextChunk], space_width: float, style_spacing: float,
+                       vertical_kanji: bool) -> None:
         # Adding syls
         si = 0
         last_time = 0.0
@@ -521,7 +520,7 @@ class Ass:
                         # Hidden syls are treated like empty syls
                         syl.prespace, syl.text, syl.postspace = 0, "", 0
 
-                        syl.width, syl.height = font.get_text_extents("")
+                        syl.width, syl.height = font.text_extents("")
                         syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font_metrics
 
                         line.syls.append(syl)
@@ -542,7 +541,7 @@ class Ass:
                             prespace, syl.text, postspace = pstxtps.groups()
                             syl.prespace, syl.postspace = len(prespace), len(postspace)
 
-                    syl.width, syl.height = font.get_text_extents(syl.text)
+                    syl.width, syl.height = font.text_extents(syl.text)
                     syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font_metrics
 
                     line.syls.append(syl)
@@ -560,6 +559,7 @@ class Ass:
                 syl.duration = int(kdur) / 100
 
                 syl.style = line.style
+                syl.meta = line.meta
                 syl.tags = pretags
 
                 syl.i = si
@@ -573,69 +573,70 @@ class Ass:
                 last_time = syl.end_time
 
         # Calculate syllables positions with all syllables data already available
-        if line.syls and hasattr(self.meta, 'play_res_x'):
-            if line.style.an_is_top() or line.style.an_is_bottom() or not self.vertical_kanji:
-                cur_x = line.left
-                for syl in line.syls:
-                    cur_x += syl.prespace * (space_width + style_spacing)
+        if not (line.syls and hasattr(self.meta, 'play_res_x')):
+            return None
 
-                    # Horizontal position
-                    syl.left = cur_x
+        if line.style.an_is_top() or line.style.an_is_bottom() or not vertical_kanji:
+            cur_x = line.left
+            for syl in line.syls:
+                cur_x += syl.prespace * (space_width + style_spacing)
+
+                # Horizontal position
+                syl.left = cur_x
+                syl.center = syl.left + syl.width / 2
+                syl.right = syl.left + syl.width
+
+                if line.style.an_is_left():
+                    syl.x = syl.left
+                elif line.style.an_is_center():
+                    syl.x = syl.center
+                else:
+                    syl.x = syl.right
+
+                cur_x += syl.width + syl.postspace * (space_width + style_spacing) + style_spacing
+
+                # Vertical position
+                syl.top = line.top
+                syl.middle = line.middle
+                syl.bottom = line.bottom
+                syl.y = line.y
+
+        else:  # Kanji vertical position
+            max_width, sum_height = 0.0, 0.0
+            for syl in line.syls:
+                max_width = max(max_width, syl.width)
+                sum_height += syl.height
+
+            cur_y = self.meta.play_res_y / 2 - sum_height / 2
+
+            for syl in line.syls:
+                # Horizontal position
+                x_fix = (max_width - syl.width) / 2
+                if line.style.alignment == 4:
+                    syl.left = line.left + x_fix
                     syl.center = syl.left + syl.width / 2
                     syl.right = syl.left + syl.width
+                    syl.x = syl.left
+                elif line.style.alignment == 5:
+                    syl.left = line.center - syl.width / 2
+                    syl.center = syl.left + syl.width / 2
+                    syl.right = syl.left + syl.width
+                    syl.x = syl.center
+                else:
+                    syl.left = line.right - syl.width - x_fix
+                    syl.center = syl.left + syl.width / 2
+                    syl.right = syl.left + syl.width
+                    syl.x = syl.right
 
-                    if line.style.an_is_left():
-                        syl.x = syl.left
-                    elif line.style.an_is_center():
-                        syl.x = syl.center
-                    else:
-                        syl.x = syl.right
+                # Vertical position
+                syl.top = cur_y
+                syl.middle = syl.top + syl.height / 2
+                syl.bottom = syl.top + syl.height
+                syl.y = syl.middle
+                cur_y += syl.height
 
-                    cur_x += syl.width + syl.postspace * (space_width + style_spacing) + style_spacing
-
-                    # Vertical position
-                    syl.top = line.top
-                    syl.middle = line.middle
-                    syl.bottom = line.bottom
-                    syl.y = line.y
-
-            else:  # Kanji vertical position
-                max_width, sum_height = 0.0, 0.0
-                for syl in line.syls:
-                    max_width = max(max_width, syl.width)
-                    sum_height += syl.height
-
-                cur_y = self.meta.play_res_y / 2 - sum_height / 2
-
-                for syl in line.syls:
-                    # Horizontal position
-                    x_fix = (max_width - syl.width) / 2
-                    if line.style.alignment == 4:
-                        syl.left = line.left + x_fix
-                        syl.center = syl.left + syl.width / 2
-                        syl.right = syl.left + syl.width
-                        syl.x = syl.left
-                    elif line.style.alignment == 5:
-                        syl.left = line.center - syl.width / 2
-                        syl.center = syl.left + syl.width / 2
-                        syl.right = syl.left + syl.width
-                        syl.x = syl.center
-                    else:
-                        syl.left = line.right - syl.width - x_fix
-                        syl.center = syl.left + syl.width / 2
-                        syl.right = syl.left + syl.width
-                        syl.x = syl.right
-
-                    # Vertical position
-                    syl.top = cur_y
-                    syl.middle = syl.top + syl.height / 2
-                    syl.bottom = syl.top + syl.height
-                    syl.y = syl.middle
-                    cur_y += syl.height
-
-        return line
-
-    def _add_data_chars(self, line: Line, font: Font, font_metrics: Tuple[float, float, float, float], style_spacing: float) -> Line:
+    def _add_data_chars(self, line: Line, font: Font, font_metrics: _Metrics,
+                        style_spacing: float, vertical_kanji: bool) -> None:
         # Adding chars
         line.chars = PList()
 
@@ -646,19 +647,21 @@ class Ass:
         char_index = 0
         for el in words_or_syls:
             el_text = "{}{}{}".format(" " * el.prespace, el.text, " " * el.postspace)
-            for ci, char_text in enumerate(el_text):
+            for ci, (prespace, char_text, postspace) in enumerate(
+                zip_offset(el_text, el_text, el_text, offsets=(-1, 0, 1), longest=True, fillvalue='')
+            ):
+                if not char_text:
+                    continue
                 char = Char()
                 char.i = char_index
                 char_index += 1
 
                 # If we're working with syls, we can add some indexes
-                if line.syls:
-                    # el = cast(Syllable, el)
-                    char.word_i = el.word_i  # type: ignore
+                if isinstance(el, Syllable):
+                    char.word_i = el.word_i
                     char.syl_i = el.i
                     char.syl_char_i = ci
                 else:
-                    # el = cast(Word, el)
                     char.word_i = el.i
 
                 # Adding last fields based on the existance of syls or not
@@ -669,8 +672,13 @@ class Ass:
                 char.style = line.style
                 char.text = char_text
 
-                char.width, char.height = font.get_text_extents(char.text)
+                char.prespace = int(prespace.isspace())
+                char.postspace = int(postspace.isspace())
+
+                char.width, char.height = font.text_extents(char.text)
                 char.ascent, char.descent, char.internal_leading, char.external_leading = font_metrics
+
+                char.meta = line.meta
 
                 line.chars.append(char)
 
@@ -679,81 +687,79 @@ class Ass:
             play_res_x = self.meta.play_res_x
             play_res_y = self.meta.play_res_y
         except AttributeError:
-            pass
+            return None
+
+        if line.style.an_is_top() or line.style.an_is_bottom() or not vertical_kanji:
+            cur_x = line.left
+            for char in line.chars:
+                # Horizontal position
+                char.left = cur_x
+                char.center = char.left + char.width / 2
+                char.right = char.left + char.width
+
+                if line.style.an_is_left():
+                    char.x = char.left
+                if line.style.an_is_center():
+                    char.x = char.center
+                else:
+                    char.x = char.right
+
+                cur_x += char.width + style_spacing
+
+                # Vertical position
+                char.top = line.top
+                char.middle = line.middle
+                char.bottom = line.bottom
+                char.y = line.y
         else:
-            if line.style.an_is_top() or line.style.an_is_bottom() or not self.vertical_kanji:
-                cur_x = line.left
-                for char in line.chars:
-                    # Horizontal position
-                    char.left = cur_x
+            max_width, sum_height = 0.0, 0.0
+            for char in line.chars:
+                max_width = max(max_width, char.width)
+                sum_height += char.height
+
+            cur_y = x_fix = play_res_y / 2 - sum_height / 2
+
+            # Fixing line positions
+            line.top = cur_y
+            line.middle = play_res_y / 2
+            line.bottom = line.top + sum_height
+            line.width = max_width
+            line.height = sum_height
+            if line.style.alignment == 4:
+                line.center = line.left + max_width / 2
+                line.right = line.left + max_width
+            elif line.style.alignment == 5:
+                line.left = line.center - max_width / 2
+                line.right = line.left + max_width
+            else:
+                line.left = line.right - max_width
+                line.center = line.left + max_width / 2
+
+            for char in line.chars:
+                # Horizontal position
+                x_fix = (max_width - char.width) / 2
+                if line.style.alignment == 4:
+                    char.left = line.left + x_fix
                     char.center = char.left + char.width / 2
                     char.right = char.left + char.width
-
-                    if line.style.an_is_left():
-                        char.x = char.left
-                    if line.style.an_is_center():
-                        char.x = char.center
-                    else:
-                        char.x = char.right
-
-                    cur_x += char.width + style_spacing
-
-                    # Vertical position
-                    char.top = line.top
-                    char.middle = line.middle
-                    char.bottom = line.bottom
-                    char.y = line.y
-            else:
-                max_width, sum_height = 0.0, 0.0
-                for char in line.chars:
-                    max_width = max(max_width, char.width)
-                    sum_height = sum_height + char.height
-
-                cur_y = x_fix = play_res_y / 2 - sum_height / 2
-
-                # Fixing line positions
-                line.top = cur_y
-                line.middle = play_res_y / 2
-                line.bottom = line.top + sum_height
-                line.width = max_width
-                line.height = sum_height
-                if line.style.alignment == 4:
-                    line.center = line.left + max_width / 2
-                    line.right = line.left + max_width
+                    char.x = char.left
                 elif line.style.alignment == 5:
-                    line.left = line.center - max_width / 2
-                    line.right = line.left + max_width
+                    char.left = play_res_x / 2 - char.width / 2
+                    char.center = char.left + char.width / 2
+                    char.right = char.left + char.width
+                    char.x = char.center
                 else:
-                    line.left = line.right - max_width
-                    line.center = line.left + max_width / 2
+                    char.left = line.right - char.width - x_fix
+                    char.center = char.left + char.width / 2
+                    char.right = char.left + char.width
+                    char.x = char.right
 
-                for char in line.chars:
-                    # Horizontal position
-                    x_fix = (max_width - char.width) / 2
-                    if line.style.alignment == 4:
-                        char.left = line.left + x_fix
-                        char.center = char.left + char.width / 2
-                        char.right = char.left + char.width
-                        char.x = char.left
-                    elif line.style.alignment == 5:
-                        char.left = play_res_x / 2 - char.width / 2
-                        char.center = char.left + char.width / 2
-                        char.right = char.left + char.width
-                        char.x = char.center
-                    else:
-                        char.left = line.right - char.width - x_fix
-                        char.center = char.left + char.width / 2
-                        char.right = char.left + char.width
-                        char.x = char.right
-
-                    # Vertical position
-                    char.top = cur_y
-                    char.middle = char.top + char.height / 2
-                    char.bottom = char.top + char.height
-                    char.y = char.middle
-                    cur_y += char.height
-
-        return line
+                # Vertical position
+                char.top = cur_y
+                char.middle = char.top + char.height / 2
+                char.bottom = char.top + char.height
+                char.y = char.middle
+                cur_y += char.height
 
     def get_data(self) -> Tuple[Meta, List[Style], List[Line]]:
         """
@@ -772,7 +778,7 @@ class Ass:
 
         :param line:        Line object
         """
-        self._output_lines += [line.compose_ass_line()]
+        self._output_lines.append(line.compose_ass_line())
 
     def save(self, lines: Optional[Iterable[Line]] = None, quiet: bool = False) -> None:
         """
@@ -781,7 +787,10 @@ class Ass:
         :param lines:       Additional Line objects to be written
         :param quiet:       Don't show message, defaults to False
         """
-        with self.path_output.open("w", encoding="utf-8-sig") as file:
+        if not self._path_output:
+            raise ValueError('path_output hasn\'t been specified in the constructor')
+
+        with self._path_output.open("w", encoding="utf-8-sig") as file:
             file.writelines(
                 self._output
                 + self._output_lines
@@ -800,26 +809,28 @@ class Ass:
 
     def open_aegisub(self) -> None:
         """
-        Open the output (specified in path_output during the initialisation class) with Aegisub.
+        Open the output (specified in _path_output during the initialisation class) with Aegisub.
         """
+        if not self._path_output:
+            raise ValueError('path_output hasn\'t been specified in the constructor')
         # Check if it was saved
-        if not self.path_output.exists():
+        if not self._path_output.exists():
             warnings.warn(
-                f'{self.__class__.__name__}: "path_output" not found!', Warning
+                f'{self.__class__.__name__}: "_path_output" not found!', Warning
             )
         else:
             if sys.platform == "win32":
-                os.startfile(self.path_output)
+                os.startfile(self._path_output)
             else:
                 try:
-                    subprocess.call(["aegisub", self.path_output])
+                    subprocess.call(["aegisub", self._path_output])
                 except FileNotFoundError:
                     warnings.warn("Aegisub not found!", Warning)
 
-    def open_mpv(self, video_path: os.PathLike[str] | str | None = None,
+    def open_mpv(self, video_path: AnyPath | None = None,
                  video_start: Optional[str] = None, full_screen: bool = False) -> None:
         """
-        Open the output (specified in path_output during the initialisation class)
+        Open the output (specified in _path_output during the initialisation class)
         in softsub with MPV player.
         You should add MPV in your PATH (check https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step).
 
@@ -828,39 +839,42 @@ class Ass:
                                     If not specified, 0 is automatically taken, defaults to None
         :param full_screen:         Launch MPV in full screen, defaults to False
         """
+        if not self._path_output:
+            raise ValueError('path_output hasn\'t been specified in the constructor')
         # Check if it was saved
-        if not self.path_output.exists():
+        if not self._path_output.exists():
             warnings.warn(
-                f'{self.__class__.__name__}: "path_output" not found!', Warning
+                f'{self.__class__.__name__}: "_path_output" not found!', Warning
+            )
+            return None
+
+        # Check if mpv is usable
+        if self.meta.video.startswith("?dummy") and not video_path:
+            warnings.warn(
+                'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
+                'You can specify a new video source using video_path parameter, check the documentation of the function.',
+                Warning
             )
         else:
-            # Check if mpv is usable
-            if self.meta.video.startswith("?dummy") and not video_path:
+            # Setting up the command to execute
+            cmd = ["mpv"]
+
+            if video_path:
+                cmd.append(str(video_path))
+            else:
+                cmd.append(self.meta.video)
+            if video_start:
+                cmd.append("--start=" + video_start)
+            if full_screen:
+                cmd.append("--fs")
+
+            cmd.append("--sub-file=" + str(self._path_output))
+
+            try:
+                subprocess.call(cmd)
+            except FileNotFoundError:
                 warnings.warn(
-                    'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
-                    'You can specify a new video source using video_path parameter, check the documentation of the function.',
+                    "MPV not found in your environment variables.\n"
+                    "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
                     Warning
                 )
-            else:
-                # Setting up the command to execute
-                cmd = ["mpv"]
-
-                if video_path:
-                    cmd.append(str(video_path))
-                else:
-                    cmd.append(self.meta.video)
-                if video_start:
-                    cmd.append("--start=" + video_start)
-                if full_screen:
-                    cmd.append("--fs")
-
-                cmd.append("--sub-file=" + str(self.path_output))
-
-                try:
-                    subprocess.call(cmd)
-                except FileNotFoundError:
-                    warnings.warn(
-                        "MPV not found in your environment variables.\n"
-                        "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
-                        Warning
-                    )
