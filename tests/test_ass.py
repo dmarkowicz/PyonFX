@@ -4,7 +4,6 @@ from fractions import Fraction
 
 import pytest_check as check
 from pyonfx import Ass, ConvertTime
-from pyonfx.core import PositionedText
 
 # Get ass path used for tests
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -19,11 +18,11 @@ max_deviation = 0.75
 fps = Fraction(23.976)
 
 
-def time_convert(ts: str, text: PositionedText) -> float:
+def time_convert(ts: str) -> float:
     s = ConvertTime.assts2seconds(ts, fps)
-    s = round(s, text._rounding)
+    s = round(s, 3)
     s = ConvertTime.bound_to_frame(s, fps)
-    return round(s, text._rounding)
+    return round(s, 3)
 
 
 def test_meta_values():
@@ -63,9 +62,9 @@ def test_line_values():
     check.equal(lines[0].margin_v, 3)
     check.equal(lines[1].margin_v, 50)
 
-    check.equal(lines[1].start_time, time_convert("0:00:00.00", lines[1]))
-    check.equal(lines[1].end_time, time_convert("0:00:09.99", lines[1]))
-    check.equal(lines[1].duration, time_convert("0:00:09.99", lines[1]) - time_convert("0:00:00.00", lines[1]))
+    check.equal(lines[1].start_time, time_convert("0:00:00.00"))
+    check.equal(lines[1].end_time, time_convert("0:00:09.99"))
+    check.equal(lines[1].duration, time_convert("0:00:09.99") - time_convert("0:00:00.00"))
 
     check.equal(
         lines[11].raw_text,

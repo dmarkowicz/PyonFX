@@ -24,13 +24,18 @@ __all__ = [
 import copy
 from abc import ABC
 from fractions import Fraction
-from typing import Any, Dict, Iterable, List, Literal, MutableSequence, Optional, SupportsIndex, TypeVar, cast, overload
+from functools import lru_cache
+from pprint import pformat
+from typing import (
+    Any, Dict, Iterable, Iterator, List, Literal, MutableSequence, Optional, SupportsIndex, Tuple,
+    TypeVar, overload
+)
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
 from .font import Font
 from .shape import Pixel, Shape
-from .types import Alignment
+from .types import Alignment, AutoSlots
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
@@ -119,40 +124,42 @@ class PList(MutableSequence[_AssTextT]):
         return PList(a for a in self if _strip_check(a))
 
 
-class DataCore(ABC):
+class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
     """Abstract DataCore object"""
+
+    def __iter__(self) -> Iterator[Tuple[str, Any]]:
+        for k in self.__slots__:
+            yield k, (self.__getattribute__(k) if hasattr(self, k) else None)
 
     def __str__(self) -> str:
         return self._pretty_print(self)
 
     def __repr__(self) -> str:
-        return repr(self.__dict__)
+        return pformat(dict(self))
 
-    def as_dict(self) -> Dict[str, Any]:
-        return self.__dict__
+    def _asdict(self) -> Dict[str, Any]:
+        return {k: (dict(v) if isinstance(v, DataCore) else v) for k, v in self}
 
-    @classmethod
-    def _pretty_print(cls, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
+    @lru_cache(maxsize=None)
+    def _pretty_print(self, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
         if not name:
             out = " " * indent + f'{obj.__class__.__name__}:\n'
         else:
             out = " " * indent + f'{name}: ({obj.__class__.__name__}):\n'
 
-        # Let's print all this object fields
         indent += 4
-        for k, v in obj.__dict__.items():
+        for k, v in obj:
             if isinstance(v, DataCore):
                 # Work recursively to print another object
-                out += cls._pretty_print(v, indent, k)
-            elif isinstance(v, list):
-                v = cast(List[DataCore], v)
+                out += self._pretty_print(v, indent, k)
+            elif isinstance(v, PList):
+                # v = cast(List[_AssTextT], v)
                 for el in v:
                     # Work recursively to print other objects inside a list
-                    out += cls._pretty_print(el, indent, k)
+                    out += self._pretty_print(el, indent, k)
             else:
                 # Just print a field of this object
                 out += " " * indent + f"{k}: {str(v)}\n"
-
         return out
 
 
@@ -228,7 +235,8 @@ class Style(DataCore):
     """Border thickness value"""
     shadow: float
     """How far downwards and to the right a shadow is drawn"""
-    _alignment: int
+    alignment: int
+    """Alignment of the text. Must be in the range 1 <= an <= 9"""
     margin_l: int
     """Distance from the left of the video frame"""
     margin_r: int
@@ -237,19 +245,6 @@ class Style(DataCore):
     """Distance from the bottom (or top if alignment >= 7) of the video frame"""
     encoding: int
     """Codepage used to map codepoints to glyphs"""
-
-    @property
-    def alignment(self) -> int:
-        """
-        Alignment of the text
-
-        setter: Set the alignment. Must be in the range 1 <= an <= 9
-        """
-        return self._alignment
-
-    @alignment.setter
-    def alignment(self, an: Alignment) -> None:
-        self._alignment = an
 
     def an_is_left(self) -> bool:
         return self.alignment in {1, 4, 7}
@@ -270,9 +265,7 @@ class Style(DataCore):
         return self.alignment in {1, 2, 3}
 
 
-class PositionedText(DataCore, ABC):
-    _rounding: int
-
+class _PositionedText(DataCore, ABC, empty_slots=True):
     x: float
     """Text position horizontal (depends on alignment)"""
     y: float
@@ -290,17 +283,13 @@ class PositionedText(DataCore, ABC):
     bottom: float
     """Text position bottom"""
 
-    def __init__(self) -> None:
-        self._rounding = 3
-        super().__init__()
-
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in {'x', 'y', 'left', 'center', 'right', 'top', 'middle', 'bottom'}:
-            value = round(value, self._rounding)
+        if name in _PositionedText.__annotations__:
+            value = round(value, 3)
         return super().__setattr__(name, value)
 
 
-class AssText(PositionedText, ABC):
+class _AssText(_PositionedText, ABC, empty_slots=True):
     """Abstract AssText object"""
     i: int
     """Index number"""
@@ -329,19 +318,19 @@ class AssText(PositionedText, ABC):
     external_leading: float
     """External leading"""
 
-    def __copy__(self: AssTextT) -> AssTextT:
+    def __copy__(self: _AssTextT) -> _AssTextT:
         return self
 
-    def __deepcopy__(self: AssTextT, *args: Any) -> AssTextT:
+    def __deepcopy__(self: _AssTextT, *args: Any) -> _AssTextT:
         return self
 
-    def deep_copy(self: AssTextT) -> AssTextT:
+    def deep_copy(self: _AssTextT) -> _AssTextT:
         """
         :return:            A deep copy of this object
         """
         return copy.deepcopy(self)
 
-    def shallow_copy(self: AssTextT) -> AssTextT:
+    def shallow_copy(self: _AssTextT) -> _AssTextT:
         """
         :return:            A shallow copy of this object
         """
@@ -452,7 +441,7 @@ class AssText(PositionedText, ABC):
         return self.to_shape().to_pixels(supersampling, anti_aliasing)
 
 
-class Line(AssText):
+class Line(_AssText):
     """
     Line object contains informations about a single line in the Ass.
 
@@ -500,7 +489,7 @@ class Line(AssText):
         return ass_line + ','.join(map(str, elements)) + '\n'
 
 
-class Word(AssText):
+class Word(_AssText):
     """
     Word object contains informations about a single word of a line in the Ass.
 
@@ -513,7 +502,7 @@ class Word(AssText):
     """Word free space after text"""
 
 
-class WordElement(Word, ABC):
+class _WordElement(Word, ABC, empty_slots=True):
     """Abstract WordElement class"""
     word_i: int
     """Word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2)"""
@@ -521,7 +510,7 @@ class WordElement(Word, ABC):
     """Inline effect (marked as \\-EFFECT in karaoke-time)"""
 
 
-class Syllable(WordElement):
+class Syllable(_WordElement):
     """
     Syllable object contains informations about a single syl of a line in the Ass.
 
@@ -532,7 +521,7 @@ class Syllable(WordElement):
     """All the remaining tags before syl text apart \\k ones"""
 
 
-class Char(WordElement):
+class Char(_WordElement):
     """
     Char object contains informations about a single char of a line in the Ass.
 
