@@ -1,5 +1,5 @@
 
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import win32con
 import win32gui
@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 else:
     Style = Any
 
-from ._abstract import _Font
+from ._abstract import _AbstractFont, _Metrics, _TextExtents
 
 
-class Font(_Font):
+class Font(_AbstractFont):
     _metrics: Dict[str, float]
 
     pycfont: PyCFont
@@ -56,9 +56,9 @@ class Font(_Font):
         win32gui.DeleteDC(self.dc)
 
     @property
-    def metrics(self) -> Tuple[float, float, float, float]:
+    def metrics(self) -> _Metrics:
         const = self.downscale * self.yscale
-        return (
+        return _Metrics(
             # 'height': self.metrics['Height'] * const,
             self._metrics["Ascent"] * const,
             self._metrics["Descent"] * const,
@@ -66,10 +66,10 @@ class Font(_Font):
             self._metrics["ExternalLeading"] * const,
         )
 
-    def get_text_extents(self, text: str) -> Tuple[float, float]:
+    def text_extents(self, text: str) -> _TextExtents:
         cx, cy = win32gui.GetTextExtentPoint32(self.dc, text)
 
-        return (
+        return _TextExtents(
             (cx * self.downscale + self.hspace * (len(text) - 1)) * self.xscale,
             cy * self.downscale * self.yscale,
         )

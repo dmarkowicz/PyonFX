@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
     from ..core import Style
@@ -14,7 +14,20 @@ FONT_PRECISION = 64
 """Font scale for better precision output from native font system"""
 
 
-class _Font(ABC):
+
+class _Metrics(NamedTuple):
+    ascent: float
+    descent: float
+    internal_leading: float
+    external_leading: float
+
+
+class _TextExtents(NamedTuple):
+    width: float
+    height: float
+
+
+class _AbstractFont(ABC):
     """Class for getting data from fonts"""
     style: Style
     xscale: float
@@ -40,7 +53,7 @@ class _Font(ABC):
 
     @property
     @abstractmethod
-    def metrics(self) -> Tuple[float, float, float, float]:
+    def metrics(self) -> _Metrics:
         """
         Get metrics of the current font
 
@@ -50,7 +63,7 @@ class _Font(ABC):
         ...
 
     @abstractmethod
-    def get_text_extents(self, text: str) -> Tuple[float, float]:
+    def text_extents(self, text: str) -> _TextExtents:
         """
         Get text extents of the specified text
 

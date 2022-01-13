@@ -1,11 +1,13 @@
 
 import html
-from typing import TYPE_CHECKING, Any, List, Tuple
+from typing import TYPE_CHECKING, Any, List
 
 import cairo  # type: ignore
 import gi  # type: ignore
+
 gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
+
 from gi.repository import Pango, PangoCairo  # type: ignore # noqa E402
 
 from ..shape import DrawingCommand, DrawingProp, Shape  # noqa E402
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
 else:
     Style = Any
 
-from ._abstract import _Font  # noqa E402
+from ._abstract import _AbstractFont, _Metrics, _TextExtents  # noqa E402
 
 LIBASS_FONTHACK = True
 """Scale font data to fontsize?"""
@@ -23,7 +25,7 @@ PANGO_SCALE = 1024
 """The PANGO_SCALE macro represents the scale between dimensions used for Pango distances and device units."""
 
 
-class Font(_Font):
+class Font(_AbstractFont):
     _metrics: Any
 
     def __init__(self, style: Style) -> None:
@@ -61,9 +63,9 @@ class Font(_Font):
         pass
 
     @property
-    def metrics(self) -> Tuple[float, float, float, float]:
+    def metrics(self) -> _Metrics:
         const = self.downscale * self.yscale * self.fonthack_scale / PANGO_SCALE
-        return (
+        return _Metrics(
             # 'height': (self.metrics.get_ascent() + self.metrics.get_descent()) * const,
             self._metrics.get_ascent() * const,
             self._metrics.get_descent() * const,
@@ -71,9 +73,9 @@ class Font(_Font):
             self.layout.get_spacing() * const,
         )
 
-    def get_text_extents(self, text: str) -> Tuple[float, float]:
+    def text_extents(self, text: str) -> _TextExtents:
         if not text:
-            return 0.0, 0.0
+            return _TextExtents(0.0, 0.0)
 
         def get_rect(new_text: str) -> Any:
             self.layout.set_markup(
@@ -91,7 +93,7 @@ class Font(_Font):
         for char in text:
             width += get_rect(char).width
 
-        return (
+        return _TextExtents(
             (
                 width * self.downscale * self.fonthack_scale
                 + self.hspace * (len(text) - 1)
@@ -150,6 +152,6 @@ class Font(_Font):
                     )
 
             self.context.new_path()
-            curr_width += self.get_text_extents(char)[0]
+            curr_width += self.text_extents(char)[0]
 
         return Shape(cmds)
