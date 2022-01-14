@@ -63,7 +63,7 @@ class Pixel(NamedTuple):
         """
         self.pos.round(round_digits)
         alpha = (
-            f'\\alpha{self.opacity}' if self.opacity.data not in {'&HFF&', '&H00&'} else ''
+            f'\\alpha{self.opacity}' if self.opacity._data not in {'&HFF&', '&H00&'} else ''
         ) if self.opacity is not None else ''
         colour = f'\\c{self.colour}' if self.colour is not None else ''
         return (
