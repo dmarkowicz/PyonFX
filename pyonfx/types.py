@@ -5,6 +5,7 @@ import sys
 from abc import ABC, ABCMeta, abstractmethod
 from functools import reduce, wraps
 from os import PathLike
+from types import FunctionType, MemberDescriptorType, MethodType
 from typing import (
     Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, Reversible, Sequence,
     Tuple, TypeVar, Union, cast, get_args, get_origin, overload
@@ -117,51 +118,53 @@ class View(Reversible[T], Collection[T]):
 
 
 class AutoSlotsMeta(ABCMeta):
-    __slots__: Tuple[str, ...] = ()
-
     @classmethod
     def __prepare__(cls, __name: str, __bases: tuple[type, ...], **kwargs: Any) -> Mapping[str, object]:
-        prepared: Dict[str, Any] = {}
-        if kwargs.get('empty_slots', False):
-            prepared['__slots__'] = ()
-            return prepared
-        # dict.fromkeys works as an OrderedSet
-        abases = dict.fromkeys(b for base in __bases for b in base.__mro__)
-        # Get annotations in reverse mro order for the variable names
-        types = reduce(
+        return {'__slots__': (), '__slots_ex__': ()}
+
+    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
+                empty_slots: bool = False, slots_ex: bool = False, **kwargs: Any) -> AutoSlotsMeta:
+        if empty_slots:
+            return super().__new__(cls, name, bases, namespace, **kwargs)
+
+        # Get all base types in reverse mro
+        abases = tuple(reversed(dict.fromkeys(b for base in bases for b in base.__mro__)))
+
+        # Get all possible values to put in __slots__
+        _slots_inherited = reduce(
             lambda x, y: {**x, **y},
-            (base.__annotations__ for base in reversed(abases) if hasattr(base, '__annotations__')),
+            (base.__annotations__ for base in abases if hasattr(base, '__annotations__')),
             cast(Dict[str, Any], {})
         )
-        prepared['__slots__'] = tuple(types.keys())
-        return prepared
 
-    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any], empty_slots: bool = False) -> AutoSlotsMeta:
-        if empty_slots:
-            return super().__new__(cls, name, bases, namespace)
+        # __annotations__ and __slots__ from the current class
+        _slots = dict.fromkeys(namespace['__slots__'])
+        _slots.update(namespace.get('__annotations__', {}))
+        _all_slots = {**_slots_inherited, **_slots}
 
-        # Add the variable names from the current class
-        # And remove the __slots__ from namespace['__slots__']
-        _annotations = namespace.get('__annotations__', {})
-        namespace['__slots__'] = (
-            *tuple(x for x in namespace['__slots__'] if x != '__slots__'),
-            *tuple(_annotations.keys())
-        )
-        # Get class variables and remove them from the namespace
-        clsvars = {
-            n: namespace.pop(n) for n in namespace.copy()
-            if n in _annotations
+        # Get possible class variables
+        attrs = {
+            attr: val for abase in abases for attr in dir(abase)
+            if not attr.startswith('__') and not attr.endswith('__')
+            and not isinstance(
+                val := getattr(abase, attr),
+                (FunctionType, classmethod, staticmethod, property, MethodType, MemberDescriptorType)
+            )
+            and attr not in {'_abc_impl', '_is_protocol'}
         }
 
-        obj = super().__new__(cls, name, bases, namespace)
-        # Add the class variable
-        for n, val in clsvars.items():
-            setattr(obj, n, val)
-        return obj
+        namespace = {**attrs, **namespace}
+        namespace['__slots__'] = tuple(k for k in _all_slots if k not in namespace)
+
+        if slots_ex:
+            namespace['__slots_ex__'] = namespace['__slots__'] + tuple(attrs)
+
+        return super().__new__(cls, name, bases, namespace, **kwargs)
 
 
 class AutoSlots(ABC, empty_slots=True, metaclass=AutoSlotsMeta):
     __slots__: Tuple[str, ...]
+    __slots_ex__: Tuple[str, ...]
 
 
 class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_slots=True):
