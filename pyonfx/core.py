@@ -24,11 +24,10 @@ __all__ = [
 import copy
 from abc import ABC
 from fractions import Fraction
-from functools import lru_cache
 from pprint import pformat
 from typing import (
-    Any, Dict, Iterable, Iterator, List, Literal, MutableSequence, Optional, SupportsIndex, Tuple,
-    TypeVar, overload
+    Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, MutableSequence, Optional,
+    SupportsIndex, TypeVar, overload
 )
 
 from .colourspace import ASSColor, Opacity
@@ -124,12 +123,24 @@ class PList(MutableSequence[_AssTextT]):
         return PList(a for a in self if _strip_check(a))
 
 
-class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
+class DataCore(AutoSlots, Hashable, Mapping[str, Any], ABC, empty_slots=True):
     """Abstract DataCore object"""
 
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
+    def __hash__(self) -> int:
+        return hash(tuple(self))
+
+    def __getitem__(self, __k: str) -> Any:
+        try:
+            return self.__getattribute__(__k)
+        except AttributeError:
+            return None
+
+    def __iter__(self) -> Iterator[str]:
         for k in self.__slots__:
-            yield k, (self.__getattribute__(k) if hasattr(self, k) else None)
+            yield k
+
+    def __len__(self) -> int:
+        return self.__slots__.__len__()
 
     def __str__(self) -> str:
         return self._pretty_print(self)
@@ -138,9 +149,8 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
         return pformat(dict(self))
 
     def _asdict(self) -> Dict[str, Any]:
-        return {k: (dict(v) if isinstance(v, DataCore) else v) for k, v in self}
+        return {k: (dict(v) if isinstance(v, DataCore) else v) for k, v in self.items()}
 
-    @lru_cache(maxsize=None)
     def _pretty_print(self, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
         if not name:
             out = " " * indent + f'{obj.__class__.__name__}:\n'
@@ -148,12 +158,11 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
             out = " " * indent + f'{name}: ({obj.__class__.__name__}):\n'
 
         indent += 4
-        for k, v in obj:
+        for k, v in obj.items():
             if isinstance(v, DataCore):
                 # Work recursively to print another object
                 out += self._pretty_print(v, indent, k)
             elif isinstance(v, PList):
-                # v = cast(List[_AssTextT], v)
                 for el in v:
                     # Work recursively to print other objects inside a list
                     out += self._pretty_print(el, indent, k)
