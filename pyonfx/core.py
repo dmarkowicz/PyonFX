@@ -319,10 +319,16 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
     """External leading"""
 
     def __copy__(self: _AssTextT) -> _AssTextT:
-        return self
+        obj = self.__class__()
+        for k, v in self.items():
+            setattr(obj, k, v)
+        return obj
 
     def __deepcopy__(self: _AssTextT, *args: Any) -> _AssTextT:
-        return self
+        obj = self.__class__()
+        for k, v in self.items():
+            setattr(obj, k, copy.deepcopy(v))
+        return obj
 
     def deep_copy(self: _AssTextT) -> _AssTextT:
         """
