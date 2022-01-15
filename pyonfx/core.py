@@ -416,38 +416,50 @@ class Meta(DataCore):
 
     More info about each of them can be found on http://docs.aegisub.org/manual/Styles
     """
-    wrap_style: int
-    """Determines how line breaking is applied to the subtitle line"""
-    scaled_border_and_shadow: bool
-    """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
     play_res_x: int
     """Video width"""
     play_res_y: int
     """Video height"""
-    audio: str
+
+    title: str
+    original_script: str
+    original_translation: str
+    original_editing: str
+    original_timing: str
+    synch_point: str
+    script_updated_by: str
+    update_details: str
+
+    wrap_style: int
+    """Determines how line breaking is applied to the subtitle line"""
+    scaled_border_and_shadow: AssBool
+    """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
+
+    y_cb_cr_matrix: str
+
+    audio_file: str
     """Loaded audio path (absolute)"""
-    video: str
+    video_file: str
     """Loaded video path (absolute)"""
+
     fps: Fraction
     """FrameRate per Second"""
 
     @classmethod
-    def from_text(cls, text: str | List[str], fps: Fraction) -> Meta:
+    def from_text(cls, text: str, fps: Fraction) -> Meta:
         self = cls()
+        meta_map = {
+            m.groupdict()['name']: m.groupdict()['value']
+            for m in re.finditer(r'^(?P<name>.*): (?P<value>.*)$', text, re.MULTILINE)
+        }
+        # CamelCase to snake_case
+        pattern = re.compile(r'(?<!^)(?=[A-Z])')
+
+        for k, v in meta_map.items():
+            k = pattern.sub('_', k.replace(' ', '')).lower()
+            if k in self.__slots__:
+                setattr(self, k, eval(cls.__annotations__[k])(v))
         self.fps = fps
-        for line in (text.splitlines(False) if isinstance(text, str) else text):
-            if valm := re.match(r"WrapStyle: *?(\d+)$", line):
-                self.wrap_style = int(valm[1].strip())
-            elif valm := re.match(r"ScaledBorderAndShadow: *?(.+)$", line):
-                self.scaled_border_and_shadow = valm[1].strip() == "yes"
-            elif valm := re.match(r"PlayResX: *?(\d+)$", line):
-                self.play_res_x = int(valm[1].strip())
-            elif valm := re.match(r"PlayResY: *?(\d+)$", line):
-                self.play_res_y = int(valm[1].strip())
-            elif valm := re.match(r"Audio File: *?(.*)$", line):
-                self.audio = str(valm)
-            elif valm := re.match(r"Video File: *?(.*)$", line):
-                self.video = str(valm)
         return self
 
 
