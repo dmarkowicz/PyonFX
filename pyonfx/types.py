@@ -8,7 +8,7 @@ from os import PathLike
 from types import FunctionType, MemberDescriptorType, MethodType
 from typing import (
     Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, Reversible, Sequence,
-    Tuple, TypeVar, Union, cast, get_args, get_origin, overload
+    Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray

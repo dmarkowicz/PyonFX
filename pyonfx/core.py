@@ -35,18 +35,19 @@ from fractions import Fraction
 from pathlib import Path
 from pprint import pformat
 from typing import (
-    Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, NamedTuple, Optional, TextIO,
-    Tuple, TypeVar, cast, overload
+    Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, NamedTuple, Optional, Tuple,
+    TypeVar, Union, cast, overload
 )
 
 from more_itertools import zip_offset
 
+from ._metadata import __version__
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
-from .exception import MatchNotFoundError
-from .font import Font
+from .exception import LineNotFoundWarning, MatchNotFoundError
+from .font import Font, get_font
 from .shape import Pixel, Shape
-from .types import Alignment, AnyPath, AutoSlots, NamedMutableSequence
+from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
@@ -59,16 +60,13 @@ class Ass:
     styles: List[Style]
     lines: List[Line]
 
-    _path_output: Optional[Path]
-    _output: List[str]
+    _output: Optional[AnyPath]
     _output_lines: List[str]
-    _output_extradata: List[str]
-
+    _sections: Dict[str, _Section]
     _ptime: float
 
-    def __init__(self, path_input: AnyPath | TextIO, path_output: Optional[AnyPath] = None, /,
-                 fps: Fraction | float = Fraction(24000, 1001),
-                 comment_original: bool = True, extended: bool = True, vertical_kanji: bool = False) -> None:
+    def __init__(self, input_: AnyPath, output: AnyPath | None = None, /,
+                 fps: Fraction | float = Fraction(24000, 1001), extended: bool = True, vertical_kanji: bool = False) -> None:
         """
         :param _path_input:          Input file path
         :param _path_output:         Output file path, defaults to None
@@ -81,40 +79,37 @@ class Ass:
         """
         self._ptime = time.time()
 
-        self._path_output = Path(path_output).resolve() if path_output else None
-        self.fps = fps if isinstance(fps, Fraction) else Fraction(fps)
-        self._output = []
-        self._output_lines = []
-        self._output_extradata = []
+        with open(input_, 'r', encoding='utf-8-sig') as file:
+            lines_file = file.read()
 
-        if isinstance(path_input, TextIO):
-            lines_file = path_input.read()
-        else:
-            with open(path_input, "r", encoding="utf-8-sig") as file:
-                lines_file = file.read()
+        self._output = output
+        self.fps = fps if isinstance(fps, Fraction) else Fraction(fps)
+        self._output_lines = []
 
         # Find section pattern
         matches = re.finditer(r'(^\[[^\]]*])', lines_file, re.MULTILINE)
-        sections = [_Section(m.group(0), *m.span(0)) for m in matches]
+        self._sections = {m.group(0): _Section(m.group(0), *m.span(0)) for m in matches}
 
-        for sec1, sec2 in zip_offset(sections, sections, offsets=(0, 1), longest=True, fillvalue=_Section('', start=None)):
+        # Slice text
+        for sec1, sec2 in zip_offset(self._sections.values(), self._sections.values(), offsets=(0, 1),
+                                     longest=True, fillvalue=_Section(start=None)):
             sec1.text = lines_file[sec1.end:sec2.start]
 
         self.meta = Meta.from_text(
             ''.join(
-                s.text for s in sections
+                s.text for s in self._sections.values()
                 if s.name in {'[Script Info]', '[Aegisub Project Garbage]'}),
             self.fps
         )
         self.styles = [
             Style.from_text(stext)
-            for s in sections
+            for s in self._sections.values()
             if s.name == '[V4+ Styles]'
             for stext in s.text.strip().splitlines()[1:]
         ]
         self.lines = [
             Line.from_text(ltext, i, self.fps, self.meta, self.styles)
-            for s in sections
+            for s in self._sections.values()
             if s.name == '[Events]'
             for i, ltext in enumerate(s.text.strip().splitlines()[1:])
         ]
@@ -124,23 +119,22 @@ class Ass:
 
         lines_by_styles: Dict[str, List[Line]] = {style.name: [] for style in self.styles}
         for line in self.lines:
-            # Add dialog text sizes and positions (if possible)
             try:
                 line_style = line.style
             except AttributeError:
-                warnings.warn(f'Line {line.i} is using an undefined style, skipping...', Warning)
+                warnings.warn(f'Line {line.i} is using an undefined style, skipping...', LineNotFoundWarning)
                 continue
             lines_by_styles[line_style.name].append(line)
 
-            font = Font(line_style)
+            font = get_font(line_style)
+
             line.add_data(font)
             line.add_words(font)
             line.add_syls(font, vertical_kanji)
             line.add_chars(font, vertical_kanji)
 
         # Add durations between dialogs
-        fps = float(self.fps)
-        default_lead = 1 / fps * round(fps)
+        default_lead = 1 / float(self.fps) * round(fps)
         for liness in lines_by_styles.values():
             for preline, curline, postline in zip_offset(liness, liness, liness, offsets=(-1, 0, 1), longest=True):
                 if not curline:
@@ -167,26 +161,59 @@ class Ass:
         """
         self._output_lines.append(line.compose_ass_line())
 
-    def save(self, lines: Optional[Iterable[Line]] = None, quiet: bool = False) -> None:
+    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, quiet: bool = False) -> None:
         """
         Write everything inside the output list to a file.
 
         :param lines:       Additional Line objects to be written
         :param quiet:       Don't show message, defaults to False
         """
-        if not self._path_output:
+        if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
 
-        with self._path_output.open("w", encoding="utf-8-sig") as file:
-            file.writelines(
-                self._output
-                + self._output_lines
-                + ([line.compose_ass_line() for line in lines] if lines else [])
-                + ["\n"]
-            )
-            if self._output_extradata:
-                file.write("\n[Aegisub Extradata]\n")
-                file.writelines(self._output_extradata)
+        with open(self._output, 'w', encoding='utf-8-sig') as f:
+            # Write header
+            try:
+                txt = re.sub(r'^; .*\r?\n', '', self._sections['[Script Info]'].text, 0, re.MULTILINE)
+            except KeyError:
+                txt = ''
+
+            header_pyon = f'; Script generated by Pyonfx {__version__}\n; https://github.com/Ichunjo/PyonFX\n'
+            f.write('[Script Info]\n' + header_pyon + txt.strip() + '\n\n')
+
+            # Write garbage and styles
+            for name in ('[Aegisub Project Garbage]', '[V4+ Styles]'):
+                try:
+                    section = self._sections[name]
+                except KeyError:
+                    pass
+                else:
+                    f.write(name + '\n' + section.text.strip() + '\n\n')
+
+            # Write lines
+            try:
+                events_txt = self._sections['[Events]'].text.strip()
+                f.write(
+                    '[Events]\n'
+                    + re.sub(r'^Dialogue:|Comment:', 'Comment:', events_txt, 0, re.MULTILINE)
+                    if comment_original else events_txt
+                    + '\n\n'
+                )
+            except KeyError:
+                pass
+
+            f.writelines(self._output_lines)
+            if lines:
+                f.writelines(line.compose_ass_line() for line in lines)
+            f.write('\n\n')
+
+            # Extra data
+            if '[Aegisub Extradata]' in self._sections:
+                f.write(
+                    '[Aegisub Extradata]\n'
+                    + self._sections['[Aegisub Extradata]'].text.strip()
+                    + '\n'
+                )
 
         if not quiet:
             print(
@@ -196,21 +223,21 @@ class Ass:
 
     def open_aegisub(self) -> None:
         """
-        Open the output (specified in _path_output during the initialisation class) with Aegisub.
+        Open the output (specified in output during the initialisation class) with Aegisub.
         """
-        if not self._path_output:
+        if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
         # Check if it was saved
-        if not self._path_output.exists():
+        if not Path(self._output).exists():
             warnings.warn(
-                f'{self.__class__.__name__}: "_path_output" not found!', Warning
+                f'{self.__class__.__name__}: "_output" not found!', Warning
             )
         else:
             if sys.platform == "win32":
-                os.startfile(self._path_output)
+                os.startfile(self._output)
             else:
                 try:
-                    subprocess.call(["aegisub", self._path_output])
+                    subprocess.call(["aegisub", self._output])
                 except FileNotFoundError:
                     warnings.warn("Aegisub not found!", Warning)
 
@@ -226,45 +253,41 @@ class Ass:
                                     If not specified, 0 is automatically taken, defaults to None
         :param full_screen:         Launch MPV in full screen, defaults to False
         """
-        if not self._path_output:
+        if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
         # Check if it was saved
-        if not self._path_output.exists():
-            warnings.warn(
-                f'{self.__class__.__name__}: "_path_output" not found!', Warning
+        if not Path(self._output).exists():
+            raise FileNotFoundError(
+                f'{self.__class__.__name__}: path output not found'
             )
-            return None
 
         # Check if mpv is usable
-        if self.meta.video.startswith("?dummy") and not video_path:
-            warnings.warn(
-                'Cannot use MPV (if you have it in your PATH) for file preview, since your .ass contains a dummy video.\n'
-                'You can specify a new video source using video_path parameter, check the documentation of the function.',
-                Warning
+        if self.meta.video_file.startswith('?dummy') and not video_path:
+            raise FileNotFoundError(
+                f'{self.__class__.__name__}: Cannot use MPV; dummy video detected'
             )
+
+        # Setting up the command to execute
+        cmd = ['mpv']
+
+        if video_path:
+            cmd.append(str(video_path))
         else:
-            # Setting up the command to execute
-            cmd = ["mpv"]
+            cmd.append(self.meta.video_file)
+        if video_start:
+            cmd.append('--start=' + video_start)
+        if full_screen:
+            cmd.append('--fs')
 
-            if video_path:
-                cmd.append(str(video_path))
-            else:
-                cmd.append(self.meta.video)
-            if video_start:
-                cmd.append("--start=" + video_start)
-            if full_screen:
-                cmd.append("--fs")
+        cmd.append('--sub-file=' + str(self._output))
 
-            cmd.append("--sub-file=" + str(self._path_output))
+        try:
+            subprocess.call(cmd)
+        except FileNotFoundError as file_err:
+            raise FileNotFoundError(
+                f'{self.__class__.__name__}: MPV was not found in PATH'
+            ) from file_err
 
-            try:
-                subprocess.call(cmd)
-            except FileNotFoundError:
-                warnings.warn(
-                    "MPV not found in your environment variables.\n"
-                    "Please refer to the documentation's \"Quick Start\" section if you don't know how to solve it.",
-                    Warning
-                )
 
 
 class PList(UserList[_AssTextT]):
