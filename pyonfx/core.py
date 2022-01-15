@@ -18,31 +18,41 @@ from __future__ import annotations
 
 __all__ = [
     'Meta', 'Style',
-    'Line', 'Word', 'Syllable', 'Char'
+    'Line', 'Word', 'Syllable', 'Char',
+    'Ass'
 ]
 
 import copy
+import os
+import re
+import subprocess
+import sys
+import time
+import warnings
 from abc import ABC
+from collections import UserList
 from fractions import Fraction
+from pathlib import Path
 from pprint import pformat
 from typing import (
-    Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, MutableSequence, Optional,
-    SupportsIndex, TypeVar, overload
+    Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, NamedTuple, Optional, TextIO,
+    Tuple, TypeVar, cast, overload
 )
+
+from more_itertools import zip_offset
 
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
+from .exception import MatchNotFoundError
 from .font import Font
 from .shape import Pixel, Shape
-from .types import Alignment, AutoSlots
+from .types import Alignment, AnyPath, AutoSlots, NamedMutableSequence
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
 
-class PList(MutableSequence[_AssTextT]):
-    """PyonFX mutable sequence."""
-
-    __list: List[_AssTextT]
+class PList(UserList[_AssTextT]):
+    """PyonFX list"""
 
     def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
         """
@@ -50,47 +60,7 @@ class PList(MutableSequence[_AssTextT]):
 
         :param iterable:            Iterable object, defaults to None
         """
-        self.__list = list(__iterable) if __iterable else []
-        super().__init__()
-
-    @overload
-    def __getitem__(self, index: SupportsIndex) -> _AssTextT:
-        ...
-
-    @overload
-    def __getitem__(self, index: slice) -> PList[_AssTextT]:
-        ...
-
-    def __getitem__(self, index: SupportsIndex | slice) -> _AssTextT | PList[_AssTextT]:
-        if isinstance(index, SupportsIndex):
-            return self.__list[index]
-        return PList(self.__list[index])
-
-    @overload
-    def __setitem__(self, index: SupportsIndex, value: _AssTextT) -> None:
-        ...
-
-    @overload
-    def __setitem__(self, index: slice, value: Iterable[_AssTextT]) -> None:
-        ...
-
-    def __setitem__(self, index: SupportsIndex | slice, value: _AssTextT | Iterable[_AssTextT]) -> None:
-        self.__list.__setitem__(index, value)  # type: ignore
-
-    def __delitem__(self, index: SupportsIndex | slice) -> None:
-        del self.__list[index]
-
-    def __len__(self) -> int:
-        return len(self.__list)
-
-    def insert(self, index: int, value: _AssTextT) -> None:
-        """
-        Insert an AssText value before index
-
-        :param index:               Index number
-        :param value:               AssText object
-        """
-        self.__list.insert(index, value)
+        super().__init__(__iterable)
 
     @overload
     def strip_empty(self, return_new: Literal[False] = False) -> None:
@@ -111,16 +81,10 @@ class PList(MutableSequence[_AssTextT]):
         ...
 
     def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
-
-        def _strip_check(a: _AssTextT) -> bool:
-            return a.text.strip() != '' and a.duration > 0
-
-        if not return_new:
-            for a in self:
-                if not _strip_check(a):
-                    self.remove(a)
-            return None
-        return PList(a for a in self if _strip_check(a))
+        for x in (data := self.copy() if return_new else self.data):
+            if not (x.text.strip() != '' and x.duration > 0):
+                data.remove(x)
+        return self.__class__(data) if return_new else None
 
 
 class DataCore(AutoSlots, Hashable, Mapping[str, Any], ABC, empty_slots=True):
