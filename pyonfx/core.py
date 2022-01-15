@@ -315,6 +315,12 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
         """
         return copy.copy(self)
 
+    def copy(self: _AssTextT) -> _AssTextT:
+        """
+        :return:            A shallow copy of this object
+        """
+        return self.shallow_copy()
+
     def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """
         Converts text with given style information to an ASS shape.
