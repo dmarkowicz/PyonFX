@@ -1,4 +1,5 @@
 
+from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, Any, Dict, List
 
 import win32con
@@ -55,7 +56,7 @@ class Font(_AbstractFont):
         win32gui.DeleteObject(self.pycfont.GetSafeHandle())
         win32gui.DeleteDC(self.dc)
 
-    @property
+    @cached_property
     def metrics(self) -> _Metrics:
         const = self.downscale * self.yscale
         return _Metrics(
@@ -66,6 +67,7 @@ class Font(_AbstractFont):
             self._metrics["ExternalLeading"] * const,
         )
 
+    @lru_cache(maxsize=None)
     def text_extents(self, text: str) -> _TextExtents:
         cx, cy = win32gui.GetTextExtentPoint32(self.dc, text)
 
@@ -74,6 +76,7 @@ class Font(_AbstractFont):
             cy * self.downscale * self.yscale,
         )
 
+    @lru_cache(maxsize=256)
     def text_to_shape(self, text: str) -> Shape:
         if not text:
             raise ValueError(f'{self.__class__.__name__}: Text is empty!')
