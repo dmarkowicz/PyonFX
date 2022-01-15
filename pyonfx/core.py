@@ -698,14 +698,14 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
             obj.style.scale_y = fscy
 
         # Obtaining font information from style and obtaining shape
-        font = Font(obj.style)
+        font = get_font(obj.style)
         shape = font.text_to_shape(obj.text)
         # Clearing resources to not let overflow errors take over
         del font, obj
 
         return shape
 
-    def to_clip(self, an: Alignment, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
+    def to_clip(self, an: int, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """
         Converts text with given style information to an ASS shape, applying some translation/scaling to it
         since it is not possible to position a shape with \\pos() once it is in a clip.
@@ -938,7 +938,7 @@ class Line(_AssText):
             return None
 
         # Calculating space width and saving spacing
-        space_width = font.text_extents(" ")[0]
+        space_width = font.text_extents(' ').width
 
         if style.an_is_top() or style.an_is_bottom():
             cur_x = self.left
@@ -1163,12 +1163,9 @@ class Line(_AssText):
         self.chars = PList()
 
         # If we have syls in line, we prefert to work with them to provide more informations
-        if not self.syls:
-            if not self.words:
-                return None
-            words_or_syls = self.syls
-        else:
-            words_or_syls = self.words
+        if not self.syls and not self.words:
+            return None
+        words_or_syls: Union[PList[Syllable], PList[Word]] = self.syls if self.syls else self.words
 
         # Getting chars
         for char_index, el in enumerate(words_or_syls):
