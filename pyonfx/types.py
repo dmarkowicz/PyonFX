@@ -119,7 +119,7 @@ class View(Reversible[T], Collection[T]):
 
 class AutoSlotsMeta(ABCMeta):
     @classmethod
-    def __prepare__(cls, __name: str, __bases: tuple[type, ...], **kwargs: Any) -> Mapping[str, object]:
+    def __prepare__(cls, __name: str, __bases: Tuple[type, ...], **kwargs: Any) -> Mapping[str, object]:
         return {'__slots__': (), '__slots_ex__': ()}
 
     def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
@@ -182,6 +182,11 @@ class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_
 
     __repr__ = __str__
 
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, self.__class__):
+            return NotImplemented
+        return type(self) == type(__o) and tuple(self) == tuple(__o)
+
     @overload
     def __getitem__(self, index: int) -> T_co:
         ...
@@ -203,3 +208,6 @@ class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_
 
     def __len__(self) -> int:
         return self.__slots__.__len__()
+
+    def _asdict(self) -> Dict[str, T_co]:
+        return {k: v for k, v in zip(self.__slots__, self)}
