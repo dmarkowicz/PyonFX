@@ -211,3 +211,9 @@ class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_
 
     def _asdict(self) -> Dict[str, T_co]:
         return {k: v for k, v in zip(self.__slots__, self)}
+
+
+@final
+class AssBool(int):
+    def __new__(cls, __o: str = 'no') -> bool:  # type: ignore[misc]
+        return bool(__o == 'yes')
