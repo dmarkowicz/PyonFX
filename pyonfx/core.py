@@ -611,11 +611,6 @@ class _PositionedText(DataCore, ABC, empty_slots=True):
     bottom: float
     """Text position bottom"""
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in _PositionedText.__annotations__:
-            value = round(value, 3)
-        return super().__setattr__(name, value)
-
 
 class _AssText(_PositionedText, ABC, empty_slots=True):
     """Abstract AssText object"""
