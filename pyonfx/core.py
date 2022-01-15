@@ -289,41 +289,76 @@ class Ass:
             ) from file_err
 
 
+if sys.version_info < (3, 9):
+    class PList(UserList):
+        """PyonFX list"""
 
-class PList(UserList[_AssTextT]):
-    """PyonFX list"""
+        def __init__(self, __iterable: Iterable | None = None, /) -> None:
+            """
+            If no argument is given, the constructor creates a new empty list.
 
-    def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
-        """
-        If no argument is given, the constructor creates a new empty list.
+            :param iterable:            Iterable object, defaults to None
+            """
+            super().__init__(__iterable)
 
-        :param iterable:            Iterable object, defaults to None
-        """
-        super().__init__(__iterable)
+        @overload
+        def strip_empty(self, return_new: Literal[False] = False) -> None:
+            """
+            Removes objects with empty text or a duration of 0
 
-    @overload
-    def strip_empty(self, return_new: Literal[False] = False) -> None:
-        """
-        Removes objects with empty text or a duration of 0
+            :param return_new:          If False, works on the current object, defaults to False
+            """
+            ...
 
-        :param return_new:          If False, works on the current object, defaults to False
-        """
-        ...
+        @overload
+        def strip_empty(self, return_new: Literal[True]) -> PList:
+            """
+            Removes objects with empty text or a duration of 0
 
-    @overload
-    def strip_empty(self, return_new: Literal[True]) -> PList[_AssTextT]:
-        """
-        Removes objects with empty text or a duration of 0
+            :param return_new:          If True, returns a new PList
+            """
+            ...
 
-        :param return_new:          If True, returns a new PList
-        """
-        ...
+        def strip_empty(self, return_new: bool = False) -> None | PList:
+            for x in (data := self.copy() if return_new else self.data):
+                if not (x.text.strip() != '' and x.duration > 0):
+                    data.remove(x)
+            return self.__class__(data) if return_new else None
+else:
+    class PList(UserList[_AssTextT]):
+        """PyonFX list"""
 
-    def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
-        for x in (data := self.copy() if return_new else self.data):
-            if not (x.text.strip() != '' and x.duration > 0):
-                data.remove(x)
-        return self.__class__(data) if return_new else None
+        def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
+            """
+            If no argument is given, the constructor creates a new empty list.
+
+            :param iterable:            Iterable object, defaults to None
+            """
+            super().__init__(__iterable)
+
+        @overload
+        def strip_empty(self, return_new: Literal[False] = False) -> None:
+            """
+            Removes objects with empty text or a duration of 0
+
+            :param return_new:          If False, works on the current object, defaults to False
+            """
+            ...
+
+        @overload
+        def strip_empty(self, return_new: Literal[True]) -> PList[_AssTextT]:
+            """
+            Removes objects with empty text or a duration of 0
+
+            :param return_new:          If True, returns a new PList
+            """
+            ...
+
+        def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
+            for x in (data := self.copy() if return_new else self.data):
+                if not (x.text.strip() != '' and x.duration > 0):
+                    data.remove(x)
+            return self.__class__(data) if return_new else None
 
 
 class DataCore(AutoSlots, Hashable, Mapping[str, Any], ABC, empty_slots=True):
