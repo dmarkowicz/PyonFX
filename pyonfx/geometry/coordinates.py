@@ -53,7 +53,7 @@ class Coordinates(NamedMutableSequence[float], ABC, empty_slots=True):
     def __rmatmul__(self: _CT, _mat: SomeArrayLike) -> _CT:
         return self.__class__(*_get_matmul_func(_mat, self.__self_proxy[:len(_mat)]))
 
-    def __array__(self, dtype: Optional[DTypeLike] = None) -> NDArray[np.float64]:
+    def __array__(self, dtype: Optional[DTypeLike] = None) -> NDArray[Any]:
         return np.array(tuple(self), dtype)
 
     def __neg__(self: _CT) -> _CT:
@@ -64,14 +64,6 @@ class Coordinates(NamedMutableSequence[float], ABC, empty_slots=True):
 
     def __abs__(self: _CT) -> _CT:
         return self.__class__(*[abs(a) for a in self])
-
-    def __eq__(self, o: object) -> bool:
-        if not isinstance(o, Coordinates):
-            return NotImplemented
-        return type(self) == type(o) and all(
-            getattr(self, ss) == getattr(o, os)
-            for ss, os in zip(self.__slots__, o.__slots__)
-        )
 
     def __setattr_iter(self, func: Callable[[float], int | float]) -> None:
         for attr, value in zip(self.__slots__, (func(x) for x in self)):

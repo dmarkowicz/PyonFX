@@ -45,13 +45,6 @@ class ColourSpace(NamedMutableSequence[TCV_co], ABC, empty_slots=True):
     def __deepcopy__(self: _ColourSpaceT, *args: Any) -> _ColourSpaceT:
         return self.__copy__()
 
-    def __eq__(self, __o: object) -> bool:
-        if not isinstance(__o, self.__class__):
-            return NotImplemented
-        return [
-            getattr(self, x) for x in self.__slots__] \
-            == [getattr(self, x) for x in __o.__slots__]
-
     @abstractmethod
     def interpolate(self: _ColourSpaceT, nobj: _ColourSpaceT, pct: Pct, /) -> _ColourSpaceT:
         """
