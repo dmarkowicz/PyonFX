@@ -313,7 +313,7 @@ class _RGBAlpha(_BaseRGB[Nb], ABC, empty_slots=True):
     a: Nb
     """Alpha value"""
 
-    def __new__(cls, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb] | Tup4[Nb]) -> _RGBAlpha[Nb]:
+    def __new__(cls, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb] | Tuple[Nb, Nb, Nb, Nb]) -> _RGBAlpha[Nb]:
         """
         Make a new RGB colourspace object
 
@@ -323,7 +323,7 @@ class _RGBAlpha(_BaseRGB[Nb], ABC, empty_slots=True):
         """
         return super().__new__(cls, _x)
 
-    def __init__(self, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb] | Tup4[Nb]) -> None:
+    def __init__(self, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb] | Tuple[Nb, Nb, Nb, Nb]) -> None:
         """
         Make a new RGB colourspace object
 
