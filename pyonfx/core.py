@@ -36,7 +36,7 @@ from pathlib import Path
 from pprint import pformat
 from typing import (
     TYPE_CHECKING, Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, NamedTuple,
-    Optional, Tuple, TypeVar, Union, cast, overload
+    Optional, Tuple, TypeVar, Union, overload
 )
 
 from more_itertools import zip_offset
@@ -984,106 +984,67 @@ class Line(_AssText):
         return None
 
     def add_syls(self, font: Font, vertical_kanji: bool = False) -> None:
-        # Adding syls
-        si = 0
-        last_time = 0.0
-        inline_fx = ""
-        syl_tags_pattern = re.compile(r"(.*?)\\[kK][of]?(\d+)(.*)")
-
         self.syls = PList()
-        for tc in self._text_chunks:
-            # If we don't have at least one \k tag, everything is invalid
-            if not syl_tags_pattern.match(tc.tags):
-                self.syls.clear()
-                break
 
-            posttags = tc.tags
-            syls_in_text_chunk: List[Syllable] = []
-            while 1:
-                # Are there \k in posttags?
-                tags_syl = syl_tags_pattern.match(posttags)
+        syldata = re.compile(r'{(?P<pretags>.*?)\\[kK][of]?(?P<kdur>\d+)(?P<posttags>[^}]*)}(?P<syltext>[^{]*)')
+        slash = re.compile(r'\\\\')
+        ppsyl = re.compile(r'(\s*).*?(\s*)$')
 
-                if not tags_syl:
-                    # Append all the temporary syls, except last one
-                    for syl in syls_in_text_chunk[:-1]:
-                        curr_inline_fx = re.search(r"\\\-([^\\]+)", syl.tags)
-                        if curr_inline_fx:
-                            inline_fx = curr_inline_fx[1]
-                        syl.inline_fx = inline_fx
+        ks = list(syldata.finditer(self.raw_text.replace('}{', '').replace('\\k', '}{\\k').replace('{}', '')))
 
-                        # Hidden syls are treated like empty syls
-                        syl.prespace, syl.text, syl.postspace = 0, "", 0
+        last_time = 0.0
+        word_i = 0
+        for si, (k0, k1) in enumerate(zip_offset(ks, ks, offsets=(0, 1), longest=True)):
+            assert k0
+            syl = Syllable()
+            # Indices
+            syl.i = si
+            syl.word_i = word_i
 
-                        syl.width, syl.height = font.text_extents("")
-                        syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font.metrics
+            syl.text = k0.groupdict()['syltext']
+            if not syl.text or syl.text.isspace():
+                syl.prespace, syl.postspace = 0, 0
+            elif ppsp := ppsyl.match(syl.text):
+                syl.prespace, syl.postspace = (len(x) for x in ppsp.groups())
+            syl.width, syl.height = font.text_extents(syl.text)
+            syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font.metrics
 
-                        self.syls.append(syl)
+            if syl.text.endswith(' '):
+                word_i += 1
+            elif k1 and k1.groupdict()['syltext'].startswith(' '):
+                word_i += 1
 
-                    # Append last syl
-                    syl = syls_in_text_chunk[-1]
-                    syl.tags += posttags
+            syl.start_time = last_time
+            # kdur is in centiseconds
+            # Converting in seconds...
+            kdur = k0.groupdict()['kdur']
+            syl.end_time = last_time + int(kdur) / 100
+            syl.duration = int(kdur) / 100
 
-                    curr_inline_fx = re.search(r"\\\-([^\\]+)", syl.tags)
-                    if curr_inline_fx:
-                        inline_fx = curr_inline_fx[1]
-                    syl.inline_fx = inline_fx
+            last_time = syl.end_time
 
-                    if tc.text.isspace():
-                        syl.prespace, syl.text, syl.postspace = 0, tc.text, 0
-                    else:
-                        if pstxtps := re.match(r"(\s*)(.*?)(\s*)$", tc.text):
-                            prespace, syl.text, postspace = pstxtps.groups()
-                            syl.prespace, syl.postspace = len(prespace), len(postspace)
+            syl.tags = []
+            syl.inline_fx = []
+            for tagspos in ('pretags', 'posttags'):
+                for ptag in slash.split(k0.groupdict()[tagspos].replace('}{', '')):
+                    if ptag.startswith('\\-'):
+                        syl.inline_fx.append(ptag.strip('\\-'))
+                    elif ptag:
+                        syl.tags.append(ptag)
 
-                    syl.width, syl.height = font.text_extents(syl.text)
-                    syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font.metrics
+            self.syls.append(syl)
 
-                    self.syls.append(syl)
-                    break
-
-                pretags, kdur, posttags = tags_syl.groups()
-
-                # Create a Syllable object
-                syl = Syllable()
-
-                syl.start_time = last_time
-                # kdur is in centiseconds
-                # Converting in seconds...
-                syl.end_time = last_time + int(kdur) / 100
-                syl.duration = int(kdur) / 100
-
-                try:
-                    syl.style = self.style
-                except AttributeError:
-                    break
-                try:
-                    syl.meta = self.meta
-                except AttributeError:
-                    break
-                syl.tags = pretags
-
-                syl.i = si
-                if tc.word_i is not None:
-                    syl.word_i = tc.word_i
-
-                syls_in_text_chunk.append(syl)
-
-                # Update working variable
-                si += 1
-                last_time = syl.end_time
-
-        # Calculate syllables positions with all syllables data already available
         try:
-            _ = self.meta, self.style
+            style = self.style
         except AttributeError:
             return None
 
         space_width = font.text_extents(" ").width
 
-        if self.style.an_is_top() or self.style.an_is_bottom() or not vertical_kanji:
+        if style.an_is_top() or style.an_is_bottom() or not vertical_kanji:
             cur_x = self.left
             for syl in self.syls:
-                cur_x += syl.prespace * (space_width + self.style.spacing)
+                cur_x += syl.prespace * (space_width + style.spacing)
 
                 # Horizontal position
                 syl.left = cur_x
@@ -1097,22 +1058,28 @@ class Line(_AssText):
                 else:
                     syl.x = syl.right
 
-                cur_x += syl.width + syl.postspace * (space_width + self.style.spacing) + self.style.spacing
+                cur_x += syl.width + syl.postspace * (space_width + style.spacing) + style.spacing
 
                 # Vertical position
                 syl.top = self.top
                 syl.middle = self.middle
                 syl.bottom = self.bottom
                 syl.y = self.y
+            return None
+
+        try:
+            meta = self.meta
+        except AttributeError:
+            return None
 
         # Kanji vertical position
-        else:
+        if vertical_kanji:
             max_width, sum_height = 0.0, 0.0
             for syl in self.syls:
                 max_width = max(max_width, syl.width)
                 sum_height += syl.height
 
-            cur_y = self.meta.play_res_y / 2 - sum_height / 2
+            cur_y = meta.play_res_y / 2 - sum_height / 2
 
             for syl in self.syls:
                 # Horizontal position
@@ -1278,47 +1245,6 @@ class Line(_AssText):
         ]
         return ass_line + ','.join(str(el) for el in elements) + '\n'
 
-    @property
-    def _text_chunks(self) -> List[_TextChunk]:
-        # Search for dialog's text chunks, to later create syllables
-        # A text chunk is a text with one or more {tags} preceding it
-        # Tags can be some text or empty string
-
-        text_chunks = []
-        tag_pattern = re.compile(r"(\{.*?\})+")
-        tag = tag_pattern.search(self.raw_text)
-        word_i = 0
-
-        if not tag:
-            # No tags found
-            text_chunks.append(_TextChunk('', self.raw_text))
-        else:
-            # First chunk without tags?
-            if tag.start() != 0:
-                text_chunks.append(
-                    _TextChunk('', self.raw_text[0:tag.start()])
-                )
-
-            # Searching for other tags
-            while 1:
-                next_tag = tag_pattern.search(self.raw_text, tag.end())
-                chk = _TextChunk(
-                    self.raw_text[tag.start() + 1: tag.end() - 1].replace("}{", ""),
-                    self.raw_text[tag.end(): (next_tag.start() if next_tag else None)],
-                    word_i
-                )
-                text_chunks.append(chk)
-
-                # If there are some spaces after text, then we're at the end of the current word
-                if re.match(r"(.*?)(\s+)$", chk.text):
-                    word_i += 1
-
-                if not next_tag:
-                    break
-                tag = next_tag
-
-        return text_chunks
-
 
 class Word(_AssText):
     """
@@ -1337,7 +1263,7 @@ class _WordElement(Word, ABC, empty_slots=True):
     """Abstract WordElement class"""
     word_i: int
     """Word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2)"""
-    inline_fx: str
+    inline_fx: List[str]
     """Inline effect (marked as \\-EFFECT in karaoke-time)"""
 
 
@@ -1348,7 +1274,7 @@ class Syllable(_WordElement):
     A syl can be defined as some text after a karaoke tag (k, ko, kf)
     (e.g.: In ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, "Pyon" and "FX" are distinct syllables),
     """
-    tags: str
+    tags: List[str]
     """All the remaining tags before syl text apart \\k ones"""
 
 
