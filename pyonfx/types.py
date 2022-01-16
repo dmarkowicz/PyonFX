@@ -180,7 +180,8 @@ class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_
         values = ', '.join('%s=%r' % (k, self.__getattribute__(k)) for k in self.__slots__)
         return '%s(%s)' % (clsname, values)
 
-    __repr__ = __str__
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def __eq__(self, __o: object) -> bool:
         if not isinstance(__o, self.__class__):
