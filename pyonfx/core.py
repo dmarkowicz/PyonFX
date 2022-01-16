@@ -966,14 +966,21 @@ class Line(_AssText):
 
             last_time = syl.end_time
 
-            syl.tags = []
-            syl.inline_fx = []
-            for tagspos in ('pretags', 'posttags'):
-                for ptag in slash.split(k0.groupdict()[tagspos].replace('}{', '')):
-                    if ptag.startswith('\\-'):
-                        syl.inline_fx.append(ptag.strip('\\-'))
-                    elif ptag:
-                        syl.tags.append(ptag)
+            for ptag in (
+                ptag
+                for tagspos in ('pretags', 'posttags')
+                for ptag in slash.split(k0.groupdict()[tagspos].replace('}{', ''))
+            ):
+                if ptag.startswith('\\-'):
+                    try:
+                        syl.inline_fx.add(ptag.strip('\\-'))
+                    except AttributeError:
+                        syl.inline_fx = {ptag.strip('\\-')}
+                elif ptag:
+                    try:
+                        syl.tags.add(ptag.strip('\\-'))
+                    except AttributeError:
+                        syl.tags = {ptag}
 
             self.syls.append(syl)
 
@@ -1206,7 +1213,7 @@ class _WordElement(Word, ABC, empty_slots=True):
     """Abstract WordElement class"""
     word_i: int
     """Word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2)"""
-    inline_fx: List[str]
+    inline_fx: Set[str]
     """Inline effect (marked as \\-EFFECT in karaoke-time)"""
 
 
@@ -1217,7 +1224,7 @@ class Syllable(_WordElement):
     A syl can be defined as some text after a karaoke tag (k, ko, kf)
     (e.g.: In ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, "Pyon" and "FX" are distinct syllables),
     """
-    tags: List[str]
+    tags: Set[str]
     """All the remaining tags before syl text apart \\k ones"""
 
 
