@@ -45,6 +45,13 @@ class ColourSpace(NamedMutableSequence[TCV_co], ABC, empty_slots=True):
     def __deepcopy__(self: _ColourSpaceT, *args: Any) -> _ColourSpaceT:
         return self.__copy__()
 
+    def __str__(self) -> str:
+        clsname = self.__class__.__name__
+        values = ', '.join('%s=%r' % (k, self.__getattribute__(k)) for k in self.__slots__ if not k.startswith('_'))
+        return '%s(%s)' % (clsname, values)
+
+    __repr__ = NamedMutableSequence.__repr__
+
     @abstractmethod
     def interpolate(self: _ColourSpaceT, nobj: _ColourSpaceT, pct: Pct, /) -> _ColourSpaceT:
         """
