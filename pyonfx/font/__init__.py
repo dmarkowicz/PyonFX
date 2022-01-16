@@ -19,4 +19,11 @@ else:
 
 @lru_cache(maxsize=None)
 def get_font(style: Style) -> Font:
+    """
+    Get a Font object based on a Style
+    This function uses functools.lru_cache
+
+    :param style:       Style object
+    :return:            Font object
+    """
     return Font(style)

@@ -61,7 +61,9 @@ class Font(_AbstractFont):
             self.fonthack_scale = 1
 
     def __del__(self) -> None:
-        pass
+        del self.metrics
+        self.text_extents.cache_clear()
+        self.text_to_shape.cache_clear()
 
     @cached_property
     def metrics(self) -> _Metrics:

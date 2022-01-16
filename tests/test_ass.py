@@ -11,7 +11,7 @@ path_ass = os.path.join(dir_path, "Ass", "ass_core.ass")
 
 # Extract infos from ass file
 io = Ass(path_ass, vertical_kanji=True)
-meta, styles, lines = io.get_data()
+meta, styles, lines = io.data
 
 # Config
 max_deviation = 0.75

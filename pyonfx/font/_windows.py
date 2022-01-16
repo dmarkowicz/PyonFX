@@ -55,6 +55,9 @@ class Font(_AbstractFont):
     def __del__(self) -> None:
         win32gui.DeleteObject(self.pycfont.GetSafeHandle())
         win32gui.DeleteDC(self.dc)
+        del self.metrics
+        self.text_extents.cache_clear()
+        self.text_to_shape.cache_clear()
 
     @cached_property
     def metrics(self) -> _Metrics:
@@ -118,8 +121,6 @@ class Font(_AbstractFont):
                 (x1, y1), _ = next(points_types)
                 (x2, y2), _ = next(points_types)
                 cmds.append(DC(b, (x0, y0), (x1, y1), (x2, y2)))
-            else:
-                pass
 
         # Clear device context path
         win32gui.AbortPath(self.dc)

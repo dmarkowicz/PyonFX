@@ -33,7 +33,6 @@ from abc import ABC
 from collections import UserList, defaultdict
 from fractions import Fraction
 from functools import lru_cache
-from pathlib import Path
 from pprint import pformat
 from typing import (
     TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Set, Tuple,
@@ -55,12 +54,10 @@ _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
 class Ass:
     """Initialisation class containing all the information about an ASS file"""
-    fps: Fraction
 
-    meta: Meta
-    styles: List[Style]
-    lines: PList[Line]
-
+    _meta: Meta
+    _styles: List[Style]
+    _lines: PList[Line]
     _output: Optional[AnyPath]
     _output_lines: List[str]
     _sections: Dict[str, _Section]
@@ -69,14 +66,12 @@ class Ass:
     def __init__(self, input_: AnyPath, output: AnyPath | None = None, /,
                  fps: Fraction | float = Fraction(24000, 1001), extended: bool = True, vertical_kanji: bool = False) -> None:
         """
-        :param _path_input:          Input file path
-        :param _path_output:         Output file path, defaults to None
-        :param fps:                 Framerate Per Second of the ASS file, defaults to Fraction(24000, 1001)
-        :param comment_original:    Keep original lines at the beginning of the output ass and comment them, defaults to True
-        :param extended:            Calculate more informations from lines, defaults to True
+        :param input_:              Input file path
+        :param output:              Output file path
+        :param fps:                 Framerate Per Second of the video related to the .ass file
+        :param extended:            Add more info about the lines, words, syllables and chars for each line
         :param vertical_kanji:      Line text with alignment 4, 5 or 6 will be positioned vertically
                                     Additionally, ``line`` fields will be re-calculated based on the re-positioned ``line.chars``,
-                                    defaults to False
         """
         self._ptime = time.time()
 
@@ -84,7 +79,7 @@ class Ass:
             lines_file = file.read()
 
         self._output = output
-        self.fps = fps if isinstance(fps, Fraction) else Fraction(fps)
+        fps = fps if isinstance(fps, Fraction) else Fraction(fps)
         self._output_lines = []
 
         # Find section pattern
@@ -101,15 +96,15 @@ class Ass:
             sec1.text = lines_file[sec1.end:sec2.start]
 
         # Make a Meta object from both Script Info and Aegisub Project Garbage
-        self.meta = Meta.from_text(
+        self._meta = Meta.from_text(
             ''.join(
                 s.text for s in self._sections.values()
                 if s.name in {'[Script Info]', '[Aegisub Project Garbage]'}),
-            self.fps
+            fps
         )
         # Make styles based on each line inside the [V4+ Styles] section
         # We remove the first line who starts by "Format:"
-        self.styles = [
+        self._styles = [
             Style.from_text(stext)
             for s in self._sections.values()
             if s.name == '[V4+ Styles]'
@@ -117,8 +112,8 @@ class Ass:
         ]
         # Extract basic data from each line
         # We also remove the first line who starts by "Format:"
-        self.lines = PList(
-            Line.from_text(ltext, i, self.fps, self.meta, self.styles)
+        self._lines = PList(
+            Line.from_text(ltext, i, fps, self._meta, self._styles)
             for s in self._sections.values()
             if s.name == '[Events]'
             for i, ltext in enumerate(s.text.strip().splitlines()[1:])
@@ -129,7 +124,7 @@ class Ass:
 
         # Keep styles and lines linked to them for compute the leadin and leadout
         lines_by_styles: DefaultDict[str, List[Line]] = defaultdict(list)
-        for line in self.lines:
+        for line in self._lines:
             try:
                 line_style = line.style
             except AttributeError:
@@ -147,7 +142,7 @@ class Ass:
             line.add_chars(font, vertical_kanji)
 
         # Add durations between dialogs
-        default_lead = 1 / float(self.fps) * round(fps)
+        default_lead = 1 / float(fps) * round(fps)
 
         for preline, curline, postline in (
             zline
@@ -159,20 +154,41 @@ class Ass:
             curline.leadin = default_lead if not preline else curline.start_time - preline.end_time
             curline.leadout = default_lead if not postline else postline.start_time - curline.end_time
 
-    def get_data(self) -> Tuple[Meta, List[Style], PList[Line]]:
-        """
-        Utility function to easily retrieve meta, styles and lines.
+    def __del__(self) -> None:
+        get_font.cache_clear()
 
-        :return:            :attr:`meta`, :attr:`styles` and :attr:`lines`
+    @property
+    def data(self) -> Tuple[Meta, List[Style], PList[Line]]:
         """
-        return self.meta, self.styles, self.lines
+        :return:            Return data of the .ass file
+        """
+        return self._meta, self._styles, self._lines
 
-    def write_line(self, line: Line) -> None:
+    @property
+    def meta(self) -> Meta:
         """
-        Appends a line to the output list that later on will be written to the output file
-        when calling save().
-        Use it whenever you've prepared a line, it will not impact performance
-        since you will not actually write anything until :func:`save` will be called.
+        :return:            Return the Meta of the .ass file
+        """
+        return self._meta
+
+    @property
+    def styles(self) -> List[Style]:
+        """
+        :return:            Return the list of styles included in the .ass file
+        """
+        return self._styles
+
+    @property
+    def lines(self) -> PList[Line]:
+        """
+        :return:            Return the list of lines included in the .ass file
+        """
+        return self._lines
+
+    def add_line(self, line: Line) -> None:
+        """
+        Format a Line to a string suitable for writing into ASS file
+        and add it to an internal list
 
         :param line:        Line object
         """
@@ -180,10 +196,10 @@ class Ass:
 
     def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, quiet: bool = False) -> None:
         """
-        Write everything inside the output list to a file.
+        Write the lines added by :py:func:`add_line` to the output file specified in the constructor
 
         :param lines:       Additional Line objects to be written
-        :param quiet:       Don't show message, defaults to False
+        :param quiet:       True quiet experience
         """
         if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
@@ -240,43 +256,28 @@ class Ass:
 
     def open_aegisub(self) -> None:
         """
-        Open the output (specified in output during the initialisation class) with Aegisub.
+        Open the output specified in the constructor with Aegisub.
         """
         if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
         # Check if it was saved
-        if not Path(self._output).exists():
-            warnings.warn(
-                f'{self.__class__.__name__}: "_output" not found!', Warning
-            )
+        if sys.platform == 'win32':
+            os.startfile(self._output)
         else:
-            if sys.platform == "win32":
-                os.startfile(self._output)
-            else:
-                try:
-                    subprocess.call(["aegisub", self._output])
-                except FileNotFoundError:
-                    warnings.warn("Aegisub not found!", Warning)
+            subprocess.call(['aegisub', self._output])
 
-    def open_mpv(self, video_path: AnyPath | None = None,
-                 video_start: Optional[str] = None, full_screen: bool = False) -> None:
+    def open_mpv(self, video_path: AnyPath | None = None, video_start: Optional[str] = None, full_screen: bool = False) -> None:
         """
-        Open the output (specified in _path_output during the initialisation class)
-        in softsub with MPV player.
-        You should add MPV in your PATH (check https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step).
+        Open the output specified in the constructor with MPV.
+        Please add MPV in your PATH (https://pyonfx.readthedocs.io/en/latest/quick%20start.html#installation-extra-step)
 
-        :param video_path:          Video path. If not specified it will use the path in meta.video, defaults to None
+        :param video_path:          Video path. If not specified, will use the path in meta.video_file
         :param video_start:         Start time for the video (more info: https://mpv.io/manual/master/#options-start)
-                                    If not specified, 0 is automatically taken, defaults to None
-        :param full_screen:         Launch MPV in full screen, defaults to False
+                                    If not specified, 0 is automatically taken
+        :param full_screen:         Run MPV in full screen, defaults to False
         """
         if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
-        # Check if it was saved
-        if not Path(self._output).exists():
-            raise FileNotFoundError(
-                f'{self.__class__.__name__}: path output not found'
-            )
 
         # Check if mpv is usable
         if self.meta.video_file.startswith('?dummy') and not video_path:
@@ -301,14 +302,10 @@ class Ass:
         try:
             subprocess.call(cmd)
         except FileNotFoundError as file_err:
-            raise FileNotFoundError(
-                f'{self.__class__.__name__}: MPV was not found in PATH'
-            ) from file_err
+            raise FileNotFoundError(f'{self.__class__.__name__}: MPV not found') from file_err
 
 
-class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
-    """Abstract DataCore object"""
-
+class _DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
     def __iter__(self) -> Iterator[Tuple[str, Any]]:
         for name in self.__slots__:
             try:
@@ -326,10 +323,10 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
         return pformat(self._asdict())
 
     def _asdict(self) -> Dict[str, Any]:
-        return {k: v._asdict() if isinstance(v, DataCore) else v for k, v in self}
+        return {k: v._asdict() if isinstance(v, _DataCore) else v for k, v in self}
 
     @lru_cache(maxsize=None)
-    def _pretty_print(self, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
+    def _pretty_print(self, obj: _DataCore, indent: int = 0, name: Optional[str] = None) -> str:
         if not name:
             out = " " * indent + f'{obj.__class__.__name__}:\n'
         else:
@@ -337,7 +334,7 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
 
         indent += 4
         for k, v in obj:
-            if isinstance(v, DataCore):
+            if isinstance(v, _DataCore):
                 # Work recursively to print another object
                 out += self._pretty_print(v, indent, k)
             elif isinstance(v, PList):
@@ -350,7 +347,7 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
         return out
 
 
-class Meta(DataCore):
+class Meta(_DataCore):
     """
     Meta object contains informations about the Ass.
 
@@ -376,6 +373,7 @@ class Meta(DataCore):
     """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
 
     y_cb_cr_matrix: str
+    """YUV Matrix"""
 
     audio_file: str
     """Loaded audio path (absolute)"""
@@ -387,15 +385,21 @@ class Meta(DataCore):
 
     @classmethod
     def from_text(cls, text: str, fps: Fraction) -> Meta:
+        """
+        Make a Meta object from a chunk of text [Script Info] and [Aegisub Project Garbage]
+
+        :param text:        Meta text
+        :param fps:         Framerate Per Second
+        :return:            Meta object
+        """
         self = cls()
-        meta_map = {
-            m.groupdict()['name']: m.groupdict()['value']
-            for m in re.finditer(r'^(?P<name>.*): (?P<value>.*)$', text, re.MULTILINE)
-        }
         # CamelCase to snake_case
         pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
-        for k, v in meta_map.items():
+        for k, v in (
+            (m.groupdict()['name'], m.groupdict()['value'])
+            for m in re.finditer(r'^(?P<name>.*): (?P<value>.*)$', text, re.MULTILINE)
+        ):
             k = pattern.sub('_', k.replace(' ', '')).lower()
             if k in self.__slots__:
                 setattr(self, k, eval(cls.__annotations__[k])(v))
@@ -403,7 +407,7 @@ class Meta(DataCore):
         return self
 
 
-class Style(DataCore):
+class Style(_DataCore):
     """
     Style object contains a set of typographic formatting rules that is applied to dialogue lines.
 
@@ -484,6 +488,12 @@ class Style(DataCore):
 
     @classmethod
     def from_text(cls, text: str) -> Style:
+        """
+        Make a Style object from a .ass text line
+
+        :param text:        Style text
+        :return:            Style object
+        """
         self = cls()
 
         if not (style_match := re.match(r"Style: (.+?)$", text)):
@@ -533,7 +543,7 @@ class Style(DataCore):
         return self
 
 
-class _PositionedText(DataCore, ABC, empty_slots=True):
+class _PositionedText(_DataCore, ABC, empty_slots=True):
     x: float
     """Text position horizontal (depends on alignment)"""
     y: float
@@ -613,20 +623,17 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
 
     def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """
-        Converts text with given style information to an ASS shape.
-        **Tips:** *You can easily create impressive deforming effects.*
+        Convert current AssText object to shape based on its Style attribute.
 
-        Examples:
-            ..  code-block:: python
+        ::
 
-                l = line.deep_copy()
-                l.text = f"{\\\\an7\\\\pos({line.left},{line.top})\\\\p1}{line.to_shape()}"
-                io.write_line(l)
+            l = line.deep_copy()
+            l.text = f"{\\\\an7\\\\pos({line.left},{line.top})\\\\p1}{line.to_shape()}"
+            io.write_line(l)
 
-        :param fscx:        The scale_x value for the shape, defaults to None
-        :param fscy:        The scale_y value for the shape, defaults to None
-        :return:            A Shape object, representing the text with the style format values
-                            of the object
+        :param fscx:        The scale_x value for the shape, default to current scale_x object
+        :param fscy:        The scale_y value for the shape, default to current scale_y object
+        :return:            Shape object, representing the text
         """
         # Obtaining information and editing values of style if requested
         obj = self.deep_copy()
@@ -645,22 +652,19 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
 
         return shape
 
-    def to_clip(self, an: int, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
+    def to_clip(self, an: int = 7, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
         """
-        Converts text with given style information to an ASS shape, applying some translation/scaling to it
-        since it is not possible to position a shape with \\pos() once it is in a clip.
-        **Tips:** *You can easily create text masks even for growing/shrinking text without too much effort.*
+        Convert current AssText object to shape based on its Style attribute, suitable for \\clip tag
 
-        Examples:
-            ..  code-block:: python
+        ::
 
-                l = line.deep_copy()
-                l.text = f"{\\\\an5\\\\pos({line.center},{line.middle})\\\\clip({line.to_clip()})}{line.text}"
-                io.write_line(l)
+            l = line.deep_copy()
+            l.text = f"{\\\\an5\\\\pos({line.center},{line.middle})\\\\clip({line.to_clip()})}{line.text}"
+            io.write_line(l)
 
         :param an:          Alignment wanted for the shape
-        :param fscx:        The scale_x value for the shape, defaults to None
-        :param fscy:        The scale_y value for the shape, defaults to None
+        :param fscx:        The scale_x value for the shape, default to current scale_x object
+        :param fscy:        The scale_y value for the shape, default to current scale_y object
         :return:            A Shape object, representing the text with the style format values of the object
         """
         obj = self.deep_copy()
@@ -751,48 +755,62 @@ class Line(_AssText):
     """List containing objects :class:`Char` in this line (*)"""
 
     @classmethod
-    def from_text(cls, text: str | List[str], i: int, fps: Fraction,
+    def from_text(cls, text: str, i: int, fps: Fraction,
                   meta: Optional[Meta] = None, styles: Optional[Iterable[Style]] = None) -> Line:
+        """
+        Make a Line object from a .ass text line
+
+        :param text:        An .ass line starting by "Dialogue" or "Comment"
+        :param i:           Line index
+        :param fps:         FrameRate Per Second
+        :param meta:        Meta object to link to the Line
+        :param styles:      Iterable of Style, defaults to None
+        :return:            A Line object
+        """
         self = cls()
 
-        for line in (text.splitlines(False) if isinstance(text, str) else text):
-            # Analysing line
-            if not (anal_line := re.match(r"(Dialogue|Comment): (.+?)$", line)):
-                raise MatchNotFoundError
-            # Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-            self.i = i
+        # Analysing line
+        if not (anal_line := re.match(r"(Dialogue|Comment): (.+?)$", text)):
+            raise MatchNotFoundError
+        # Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        self.i = i
 
-            self.comment = anal_line[1] == "Comment"
-            linesplit = anal_line[2].split(",")
+        self.comment = anal_line[1] == "Comment"
+        linesplit = anal_line[2].split(",")
 
-            self.layer = int(linesplit[0])
+        self.layer = int(linesplit[0])
 
-            self.start_time = ConvertTime.assts2seconds(linesplit[1], fps)
-            self.start_time = ConvertTime.bound_to_frame(self.start_time, fps)
-            self.end_time = ConvertTime.assts2seconds(linesplit[2], fps)
-            self.end_time = ConvertTime.bound_to_frame(self.end_time, fps)
-            self.duration = self.end_time - self.start_time
+        self.start_time = ConvertTime.assts2seconds(linesplit[1], fps)
+        self.start_time = ConvertTime.bound_to_frame(self.start_time, fps)
+        self.end_time = ConvertTime.assts2seconds(linesplit[2], fps)
+        self.end_time = ConvertTime.bound_to_frame(self.end_time, fps)
+        self.duration = self.end_time - self.start_time
 
-            for style in (styles if styles else []):
-                if style.name == linesplit[3]:
-                    self.style = style
-                    break
-            if meta:
-                self.meta = meta
-            self.actor = linesplit[4]
+        for style in (styles if styles else []):
+            if style.name == linesplit[3]:
+                self.style = style
+                break
+        if meta:
+            self.meta = meta
+        self.actor = linesplit[4]
 
-            self.margin_l = int(linesplit[5])
-            self.margin_r = int(linesplit[6])
-            self.margin_v = int(linesplit[7])
+        self.margin_l = int(linesplit[5])
+        self.margin_r = int(linesplit[6])
+        self.margin_v = int(linesplit[7])
 
-            self.effect = linesplit[8]
+        self.effect = linesplit[8]
 
-            self.raw_text = ",".join(linesplit[9:])
-            self.text = self.raw_text
+        self.raw_text = ",".join(linesplit[9:])
+        self.text = self.raw_text
 
         return self
 
     def add_data(self, font: Font) -> None:
+        """
+        Add more data to the current object based on given Font object
+
+        :param font:        Font object
+        """
         self.text = re.sub(r"\{.*?\}", "", self.raw_text)
 
         self.width, self.height = font.text_extents(self.text)
@@ -842,6 +860,11 @@ class Line(_AssText):
             self.y = self.bottom
 
     def add_words(self, font: Font) -> None:
+        """
+        Add data on words based on a Font object
+
+        :param font:        Font object
+        """
         # Adding words
         self.words = PList()
 
@@ -939,6 +962,12 @@ class Line(_AssText):
         return None
 
     def add_syls(self, font: Font, vertical_kanji: bool = False) -> None:
+        """
+        Add data on syllables based on a Font object
+
+        :param font:            Font object
+        :param vertical_kanji:  Line text with alignment 4, 5 or 6 will be positioned vertically
+        """
         self.syls = PList()
 
         syldata = re.compile(r'{(?P<pretags>.*?)\\[kK][of]?(?P<kdur>\d+)(?P<posttags>[^}]*)}(?P<syltext>[^{]*)')
@@ -1073,6 +1102,12 @@ class Line(_AssText):
         return None
 
     def add_chars(self, font: Font, vertical_kanji: bool = False) -> None:
+        """
+        Add data on chars based on a Font object
+
+        :param font:            Font object
+        :param vertical_kanji:  Line text with alignment 4, 5 or 6 will be positioned vertically
+        """
         # Adding chars
         self.chars = PList()
 
@@ -1120,11 +1155,11 @@ class Line(_AssText):
 
         # Calculate character positions with all characters data already available
         try:
-            _ = self.meta, self.style
+            meta, style = self.meta, self.style
         except AttributeError:
             return None
 
-        if self.style.an_is_top() or self.style.an_is_bottom() or not vertical_kanji:
+        if style.an_is_top() or style.an_is_bottom() or not vertical_kanji:
             cur_x = self.left
             for char in self.chars:
                 # Horizontal position
@@ -1132,14 +1167,14 @@ class Line(_AssText):
                 char.center = char.left + char.width / 2
                 char.right = char.left + char.width
 
-                if self.style.an_is_left():
+                if style.an_is_left():
                     char.x = char.left
-                if self.style.an_is_center():
+                if style.an_is_center():
                     char.x = char.center
                 else:
                     char.x = char.right
 
-                cur_x += char.width + self.style.spacing
+                cur_x += char.width + style.spacing
 
                 # Vertical position
                 char.top = self.top
@@ -1152,18 +1187,18 @@ class Line(_AssText):
                 max_width = max(max_width, char.width)
                 sum_height += char.height
 
-            cur_y = x_fix = self.meta.play_res_y / 2 - sum_height / 2
+            cur_y = x_fix = meta.play_res_y / 2 - sum_height / 2
 
             # Fixing line positions
             self.top = cur_y
-            self.middle = self.meta.play_res_y / 2
+            self.middle = meta.play_res_y / 2
             self.bottom = self.top + sum_height
             self.width = max_width
             self.height = sum_height
-            if self.style.alignment == 4:
+            if style.alignment == 4:
                 self.center = self.left + max_width / 2
                 self.right = self.left + max_width
-            elif self.style.alignment == 5:
+            elif style.alignment == 5:
                 self.left = self.center - max_width / 2
                 self.right = self.left + max_width
             else:
@@ -1173,13 +1208,13 @@ class Line(_AssText):
             for char in self.chars:
                 # Horizontal position
                 x_fix = (max_width - char.width) / 2
-                if self.style.alignment == 4:
+                if style.alignment == 4:
                     char.left = self.left + x_fix
                     char.center = char.left + char.width / 2
                     char.right = char.left + char.width
                     char.x = char.left
-                elif self.style.alignment == 5:
-                    char.left = self.meta.play_res_x / 2 - char.width / 2
+                elif style.alignment == 5:
+                    char.left = meta.play_res_x / 2 - char.width / 2
                     char.center = char.left + char.width / 2
                     char.right = char.left + char.width
                     char.x = char.center
@@ -1197,7 +1232,9 @@ class Line(_AssText):
                 cur_y += char.height
 
     def compose_ass_line(self) -> str:
-        """Make an ASS line suitable for writing into ASS file"""
+        """
+        Make an ASS line suitable for writing into an .ass file
+        """
         ass_line = "Comment: " if self.comment else "Dialogue: "
         elements: List[Any] = [
             self.layer,
@@ -1253,7 +1290,6 @@ class Char(_WordElement):
     syl_char_i: int
     """Char invidual syl index (e.g.: In line text ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, letter "e"
     of "users will have syl_char_i=2)"""
-
 
 
 if TYPE_CHECKING:
