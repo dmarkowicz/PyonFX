@@ -186,6 +186,7 @@ class _ForceNumber(_NumBased[Nb], ABC, empty_slots=True):
     force_type: Type[Nb]
     """Forcing type"""
 
+    # TODO: Maybe yeet __setattr__ and __delattr__ since they're very slow
     def __setattr__(self, name: str, value: Any) -> None:
         if name in {'peaks', 'force_type'}:
             raise ValueError(f'Can\'t change {name}')
@@ -905,7 +906,7 @@ class HTML(_HexBased):
                 raise ValueError(f'{self.__class__.__name__}: No match found')
             # assert fmatch
             r, g, b = map(self.hex_to_int, fmatch.groups())
-            self._rgb = RGB((r, g, b))  # type: ignore[arg-type]
+            self._rgb = RGB((r, g, b))
         elif _istup3(_x, int):
             self._rgb = RGB(_x)  # type: ignore[arg-type]
             seq = ''.join(hex(x)[2:].zfill(2) for x in self._rgb)
