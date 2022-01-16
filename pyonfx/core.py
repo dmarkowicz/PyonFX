@@ -30,13 +30,14 @@ import sys
 import time
 import warnings
 from abc import ABC
-from collections import UserList
+from collections import UserList, defaultdict
 from fractions import Fraction
+from functools import lru_cache
 from pathlib import Path
 from pprint import pformat
 from typing import (
-    TYPE_CHECKING, Any, Dict, Hashable, Iterable, Iterator, List, Literal, Mapping, NamedTuple,
-    Optional, Tuple, TypeVar, Union, overload
+    TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Set, Tuple,
+    TypeVar, Union, overload
 )
 
 from more_itertools import zip_offset
@@ -58,7 +59,7 @@ class Ass:
 
     meta: Meta
     styles: List[Style]
-    lines: List[Line]
+    lines: PList[Line]
 
     _output: Optional[AnyPath]
     _output_lines: List[str]
@@ -87,37 +88,47 @@ class Ass:
         self._output_lines = []
 
         # Find section pattern
-        matches = re.finditer(r'(^\[[^\]]*])', lines_file, re.MULTILINE)
-        self._sections = {m.group(0): _Section(m.group(0), *m.span(0)) for m in matches}
+        self._sections = {
+            m.group(0): _Section(m.group(0), *m.span(0))
+            for m in re.finditer(r'(^\[[^\]]*])', lines_file, re.MULTILINE)
+        }
 
         # Slice text
-        for sec1, sec2 in zip_offset(self._sections.values(), self._sections.values(), offsets=(0, 1),
-                                     longest=True, fillvalue=_Section(start=None)):
+        for sec1, sec2 in zip_offset(
+            self._sections.values(), self._sections.values(), offsets=(0, 1),
+            longest=True, fillvalue=_Section(start=None)
+        ):
             sec1.text = lines_file[sec1.end:sec2.start]
 
+        # Make a Meta object from both Script Info and Aegisub Project Garbage
         self.meta = Meta.from_text(
             ''.join(
                 s.text for s in self._sections.values()
                 if s.name in {'[Script Info]', '[Aegisub Project Garbage]'}),
             self.fps
         )
+        # Make styles based on each line inside the [V4+ Styles] section
+        # We remove the first line who starts by "Format:"
         self.styles = [
             Style.from_text(stext)
             for s in self._sections.values()
             if s.name == '[V4+ Styles]'
             for stext in s.text.strip().splitlines()[1:]
         ]
-        self.lines = [
+        # Extract basic data from each line
+        # We also remove the first line who starts by "Format:"
+        self.lines = PList(
             Line.from_text(ltext, i, self.fps, self.meta, self.styles)
             for s in self._sections.values()
             if s.name == '[Events]'
             for i, ltext in enumerate(s.text.strip().splitlines()[1:])
-        ]
+        )
 
         if not extended:
             return None
 
-        lines_by_styles: Dict[str, List[Line]] = {style.name: [] for style in self.styles}
+        # Keep styles and lines linked to them for compute the leadin and leadout
+        lines_by_styles: DefaultDict[str, List[Line]] = defaultdict(list)
         for line in self.lines:
             try:
                 line_style = line.style
@@ -126,6 +137,8 @@ class Ass:
                 continue
             lines_by_styles[line_style.name].append(line)
 
+            # get_font uses lru_cache
+            # It really boosts performance
             font = get_font(line_style)
 
             line.add_data(font)
@@ -135,14 +148,18 @@ class Ass:
 
         # Add durations between dialogs
         default_lead = 1 / float(self.fps) * round(fps)
-        for liness in lines_by_styles.values():
-            for preline, curline, postline in zip_offset(liness, liness, liness, offsets=(-1, 0, 1), longest=True):
-                if not curline:
-                    continue
-                curline.leadin = default_lead if not preline else curline.start_time - preline.end_time
-                curline.leadout = default_lead if not postline else postline.start_time - curline.end_time
 
-    def get_data(self) -> Tuple[Meta, List[Style], List[Line]]:
+        for preline, curline, postline in (
+            zline
+            for liness in lines_by_styles.values()
+            for zline in zip_offset(liness, liness, liness, offsets=(-1, 0, 1), longest=True)
+        ):
+            if not curline:
+                continue
+            curline.leadin = default_lead if not preline else curline.start_time - preline.end_time
+            curline.leadout = default_lead if not postline else postline.start_time - curline.end_time
+
+    def get_data(self) -> Tuple[Meta, List[Style], PList[Line]]:
         """
         Utility function to easily retrieve meta, styles and lines.
 
@@ -292,31 +309,26 @@ class Ass:
 class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
     """Abstract DataCore object"""
 
-    def __hash__(self) -> int:
-        return hash(tuple(self))
-
-    def __getitem__(self, __k: str) -> Any:
-        try:
-            return self.__getattribute__(__k)
-        except AttributeError:
-            return None
-
-    def __iter__(self) -> Iterator[str]:
-        for k in self.__slots__:
-            yield k
-
-    def __len__(self) -> int:
-        return self.__slots__.__len__()
+    def __iter__(self) -> Iterator[Tuple[str, Any]]:
+        for name in self.__slots__:
+            try:
+                yield name, getattr(self, name)
+            except AttributeError:
+                pass
 
     def __str__(self) -> str:
-        return self._pretty_print(self)
+        try:
+            return self._pretty_print(self)
+        finally:
+            self._pretty_print.cache_clear()
 
     def __repr__(self) -> str:
-        return pformat(dict(self))
+        return pformat(self._asdict())
 
     def _asdict(self) -> Dict[str, Any]:
-        return {k: (dict(v) if isinstance(v, DataCore) else v) for k, v in self.items()}
+        return {k: v._asdict() if isinstance(v, DataCore) else v for k, v in self}
 
+    @lru_cache(maxsize=None)
     def _pretty_print(self, obj: DataCore, indent: int = 0, name: Optional[str] = None) -> str:
         if not name:
             out = " " * indent + f'{obj.__class__.__name__}:\n'
@@ -324,7 +336,7 @@ class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
             out = " " * indent + f'{name}: ({obj.__class__.__name__}):\n'
 
         indent += 4
-        for k, v in obj.items():
+        for k, v in obj:
             if isinstance(v, DataCore):
                 # Work recursively to print another object
                 out += self._pretty_print(v, indent, k)
@@ -571,13 +583,13 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
 
     def __copy__(self: _AssTextT) -> _AssTextT:
         obj = self.__class__()
-        for k, v in self.items():
+        for k, v in self:
             setattr(obj, k, v)
         return obj
 
     def __deepcopy__(self: _AssTextT, *args: Any) -> _AssTextT:
         obj = self.__class__()
-        for k, v in self.items():
+        for k, v in self:
             setattr(obj, k, copy.deepcopy(v))
         return obj
 
@@ -933,7 +945,7 @@ class Line(_AssText):
         slash = re.compile(r'\\\\')
         ppsyl = re.compile(r'(\s*).*?(\s*)$')
 
-        ks = list(syldata.finditer(self.raw_text.replace('}{', '').replace('\\k', '}{\\k').replace('{}', '')))
+        ks = tuple(syldata.finditer(self.raw_text.replace('}{', '').replace('\\k', '}{\\k').replace('{}', '')))
 
         last_time = 0.0
         word_i = 0
@@ -986,6 +998,7 @@ class Line(_AssText):
 
         try:
             style = self.style
+            meta = self.meta
         except AttributeError:
             return None
 
@@ -994,6 +1007,9 @@ class Line(_AssText):
         if style.an_is_top() or style.an_is_bottom() or not vertical_kanji:
             cur_x = self.left
             for syl in self.syls:
+                syl.style = style
+                syl.meta = meta
+
                 cur_x += syl.prespace * (space_width + style.spacing)
 
                 # Horizontal position
@@ -1017,11 +1033,6 @@ class Line(_AssText):
                 syl.y = self.y
             return None
 
-        try:
-            meta = self.meta
-        except AttributeError:
-            return None
-
         # Kanji vertical position
         if vertical_kanji:
             max_width, sum_height = 0.0, 0.0
@@ -1032,8 +1043,11 @@ class Line(_AssText):
             cur_y = meta.play_res_y / 2 - sum_height / 2
 
             for syl in self.syls:
+                syl.style = style
+                syl.meta = meta
                 # Horizontal position
                 x_fix = (max_width - syl.width) / 2
+                syl.style = style
                 if self.style.alignment == 4:
                     syl.left = self.left + x_fix
                     syl.center = syl.left + syl.width / 2
