@@ -13,7 +13,7 @@ __all__ = [
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, List, Tuple, Type, TypeVar, cast, overload
+from typing import Any, Tuple, Type, TypeVar, cast, overload
 
 from typing_extensions import TypeGuard
 
@@ -171,11 +171,10 @@ class _NumBased(ColourSpace[Nb], ABC, empty_slots=True):
     def interpolate(self: _NumBasedT, nobj: _NumBasedT, pct: Pct, /) -> _NumBasedT:
         if not isinstance(nobj, self.__class__):
             raise ValueError
-        vals: List[ACV] = []
-        for cs1_val, cs2_val in zip(self, nobj):  # type: ignore
-            cs1_val, cs2_val = cast(Nb, cs1_val), cast(Nb, cs2_val)
-            vals.append((1 - pct) * cs1_val + pct * cs2_val)
-        return self.__class__(tuple(vals))
+        return self.__class__(tuple(  # type: ignore[var-annotated]
+            (1 - pct) * cs1_val + pct * cs2_val
+            for cs1_val, cs2_val in zip(self, nobj)
+        ))
 
 
 class _ForceNumber(_NumBased[Nb], ABC, empty_slots=True):
