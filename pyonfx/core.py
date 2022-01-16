@@ -890,10 +890,8 @@ class Line(_AssText):
         # Adding words
         self.words = PList()
 
-        presp_txt_postsp = re.findall(r"(\s*)([^\s]+)(\s*)", self.text)
-        presp_txt_postsp = cast(List[Tuple[str, str, str]], presp_txt_postsp)
-
-        for wi, (prespace, word_text, postspace) in enumerate(presp_txt_postsp):
+        for wi, mmatch in enumerate(re.finditer(r"(\s*)([^\s]+)(\s*)", self.text)):
+            prespace, word_text, postspace = mmatch.groups()
             word = Word()
 
             word.i = wi
