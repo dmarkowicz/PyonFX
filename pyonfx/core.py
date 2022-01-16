@@ -289,64 +289,7 @@ class Ass:
             ) from file_err
 
 
-if TYPE_CHECKING:
-    BaseUserList = UserList
-else:
-    if sys.version_info < (3, 9):
-        class _UserList(UserList):
-            def __getitem__(self, item: Any) -> Any:
-                if isinstance(item, (slice, int)):
-                    return super().__getitem__(item)
-                return self.__class__
-
-        BaseUserList = _UserList()
-    else:
-        BaseUserList = UserList
-
-
-class PList(BaseUserList[_AssTextT]):
-    """PyonFX list"""
-
-    def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
-        """
-        If no argument is given, the constructor creates a new empty list.
-
-        :param iterable:            Iterable object, defaults to None
-        """
-        super().__init__(__iterable)
-
-    def __str__(self) -> str:
-        return '\n'.join(str(at) for at in self)
-
-    def __repr__(self) -> str:
-        return '\n'.join(repr(at) for at in self)
-
-    @overload
-    def strip_empty(self, return_new: Literal[False] = False) -> None:
-        """
-        Removes objects with empty text or a duration of 0
-
-        :param return_new:          If False, works on the current object, defaults to False
-        """
-        ...
-
-    @overload
-    def strip_empty(self, return_new: Literal[True]) -> PList[_AssTextT]:
-        """
-        Removes objects with empty text or a duration of 0
-
-        :param return_new:          If True, returns a new PList
-        """
-        ...
-
-    def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
-        for x in (data := self.copy() if return_new else self.data):
-            if not (x.text.strip() != '' and x.duration > 0):
-                data.remove(x)
-        return self.__class__(data) if return_new else None
-
-
-class DataCore(AutoSlots, Hashable, Mapping[str, Any], ABC, empty_slots=True):
+class DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
     """Abstract DataCore object"""
 
     def __hash__(self) -> int:
@@ -1291,10 +1234,62 @@ class Char(_WordElement):
     of "users will have syl_char_i=2)"""
 
 
-class _TextChunk(NamedTuple):
-    tags: str
-    text: str
-    word_i: Optional[int] = None
+
+if TYPE_CHECKING:
+    BaseUserList = UserList
+else:
+    if sys.version_info < (3, 9):
+        class _UserList(UserList):
+            def __getitem__(self, item: Any) -> Any:
+                if isinstance(item, (slice, int)):
+                    return super().__getitem__(item)
+                return self.__class__
+
+        BaseUserList = _UserList()
+    else:
+        BaseUserList = UserList
+
+
+class PList(BaseUserList[_AssTextT]):
+    """PyonFX list"""
+
+    def __init__(self, __iterable: Iterable[_AssTextT] | None = None, /) -> None:
+        """
+        If no argument is given, the constructor creates a new empty list.
+
+        :param iterable:            Iterable object, defaults to None
+        """
+        super().__init__(__iterable)
+
+    def __str__(self) -> str:
+        return '\n'.join(str(at) for at in self)
+
+    def __repr__(self) -> str:
+        return '\n'.join(repr(at) for at in self)
+
+    @overload
+    def strip_empty(self, return_new: Literal[False] = False) -> None:
+        """
+        Removes objects with empty text or a duration of 0
+
+        :param return_new:          If False, works on the current object, defaults to False
+        """
+        ...
+
+    @overload
+    def strip_empty(self, return_new: Literal[True]) -> PList[_AssTextT]:
+        """
+        Removes objects with empty text or a duration of 0
+
+        :param return_new:          If True, returns a new PList
+        """
+        ...
+
+    def strip_empty(self, return_new: bool = False) -> None | PList[_AssTextT]:
+        for x in (data := self.copy() if return_new else self.data):
+            if not (x.text.strip() != '' and x.duration > 0):
+                data.remove(x)
+        return self.__class__(data) if return_new else None
 
 
 class _Section(NamedMutableSequence[Any]):
