@@ -3,18 +3,21 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, ABCMeta, abstractmethod
+from collections import OrderedDict
 from functools import reduce, wraps
 from os import PathLike
 from types import FunctionType, MemberDescriptorType, MethodType
 from typing import (
-    Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, Reversible, Sequence,
-    Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
+    AbstractSet, Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, MutableSet, Reversible,
+    Sequence, Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray
 from typing_extensions import Annotated, get_type_hints
 
 T = TypeVar('T')
+_T = TypeVar('_T')
+S = TypeVar('S')
 T_co = TypeVar('T_co', covariant=True)
 F = TypeVar('F', bound=Callable[..., Any])
 TCV_co = TypeVar('TCV_co', bound=Union[float, int, str], covariant=True)  # Type Color Value covariant
@@ -212,6 +215,174 @@ class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_
 
     def _asdict(self) -> Dict[str, T_co]:
         return {k: v for k, v in zip(self.__slots__, self)}
+
+
+class OrderedSet(MutableSet[T], Generic[T], ABC):
+    __slots__ = '__odict'
+    __odict: OrderedDict[T, Any | None]
+
+    def __init__(self, __iterable: Iterable[T] | None = None, /) -> None:
+        if __iterable is not None:
+            self.__odict = OrderedDict.fromkeys(__iterable, None)  # type: ignore[assignment]
+        else:
+            self.__odict = OrderedDict()
+
+    def __str__(self) -> str:
+        return '%s(%s)' % (self.__class__.__name__, ', '.join(str(v) for v in self))
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __reversed__(self) -> reversed[T]:
+        return reversed(self.__odict)
+
+    # Abstract methods
+    def __contains__(self, x: object) -> bool:
+        return x in self.__odict
+
+    def __iter__(self) -> Iterator[T]:
+        return self.__odict.__iter__()
+
+    def __len__(self) -> int:
+        return self.__odict.__len__()
+
+    def add(self, __element: T, /) -> None:
+        """
+        Add an element to a set.
+
+        This has no effect if the element is already present.
+
+        :param __element:       Element to add
+        """
+        self.__odict[__element] = None
+
+    def discard(self, __element: T, /) -> None:
+        """
+        Remove an element from a set if it is a member.
+
+        If the element is not a member, do nothing.
+
+        :param __element:       Element to remove
+        """
+        try:
+            del self.__odict[__element]
+        except KeyError:
+            pass
+
+    # Redefining methods for return types because they're just wrong
+    def __and__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__and__(s)  # type: ignore[return-value]
+
+    def __iand__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__iand__(s)  # type: ignore[return-value]
+
+    def __or__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__or__(s)  # type: ignore[return-value]
+
+    def __ior__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__ior__(s)  # type: ignore[return-value]
+
+    def __sub__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__sub__(s)  # type: ignore[return-value]
+
+    def __isub__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__isub__(s)  # type: ignore[return-value]
+
+    def __xor__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__xor__(s)  # type: ignore[return-value]
+
+    def __ixor__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
+        return super().__ixor__(s)  # type: ignore[return-value]
+
+    # Set methods
+    def copy(self) -> OrderedSet[T]:
+        """
+        Return a shallow copy of a set
+        """
+        return OrderedSet(self.__odict.keys())
+
+    def difference(self, *s: Iterable[S]) -> OrderedSet[S | T]:
+        """
+        Return the difference of two or more sets as a new set.
+
+        (i.e. all elements that are in this set but not the others.)
+
+        :param s:               Positional argument of Iterables
+        :return:                OrderedSet of differences
+        """
+        return self - set(el for it in s for el in it)
+
+    def difference_update(self, *s: Iterable[Any]) -> None:
+        """
+        Remove all elements of another set from this set.
+
+        :param s:               Positional argument of Iterables
+        """
+        for el in set(el for it in s for el in it):
+            self.discard(el)
+
+    def intersection(self, *s: Iterable[S]) -> OrderedSet[S | T]:
+        """
+        Return the intersection of two sets as a new set.
+
+        (i.e. all elements that are in both sets.)
+
+        :param s:               Positional argument of Iterables
+        :return:                OrderedSet of intersections
+        """
+        return self & set(el for it in s for el in it)
+
+    def intersection_update(self, *s: Iterable[Any]) -> None:
+        """
+        Update a set with the intersection of itself and another.
+
+        :param s:               Positional argument of Iterables
+        """
+        other = set(el for it in s for el in it)
+        for element in self.__odict.copy():
+            if element not in other:
+                self.discard(element)
+
+    def symmetric_difference(self, __s: Iterable[T], /) -> OrderedSet[T]:
+        """
+        Return the symmetric difference of two sets as a new set.
+
+        (i.e. all elements that are in exactly one of the sets.)
+
+        :param s:               An Iterable
+        :return:                OrderedSet of symmetric differences
+        """
+        return self ^ set(__s)
+
+    def symmetric_difference_update(self, __s: Iterable[T], /) -> None:
+        """
+        Update a set with the symmetric difference of itself and another.
+
+        :param __s:             An Iterable
+        """
+        other = set(__s)
+        for element in self.__odict.copy():
+            if element in self.__odict and element in other:
+                self.remove(element)
+
+    def union(self, *s: Iterable[S]) -> OrderedSet[S | T]:
+        """
+        Return the union of sets as a new set.
+
+        (i.e. all elements that are in either set.)
+
+        :param s:               Positional argument of Iterables
+        :return:                OrderedSet of unions
+        """
+        return self | set(el for it in s for el in it)
+
+    def update(self, *s: Iterable[T]) -> None:
+        """
+        Update a set with the union of itself and others.
+
+        :param s:               Positional argument of Iterables
+        """
+        self.__odict.update((el, None) for it in s for el in it)
 
 
 @final

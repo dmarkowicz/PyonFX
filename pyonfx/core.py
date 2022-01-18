@@ -35,7 +35,7 @@ from fractions import Fraction
 from functools import lru_cache
 from pprint import pformat
 from typing import (
-    TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Set, Tuple,
+    TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Tuple,
     TypeVar, Union, overload
 )
 
@@ -47,7 +47,7 @@ from .convert import ConvertTime
 from .exception import LineNotFoundWarning, MatchNotFoundError
 from .font import Font, get_font
 from .shape import Pixel, Shape
-from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence
+from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence, OrderedSet
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
@@ -1014,12 +1014,12 @@ class Line(_AssText):
                     try:
                         syl.inline_fx.add(ptag.strip('\\-'))
                     except AttributeError:
-                        syl.inline_fx = {ptag.strip('\\-')}
+                        syl.inline_fx = OrderedSet([ptag.strip('\\-')])
                 elif ptag:
                     try:
-                        syl.tags.add(ptag.strip('\\-'))
+                        syl.tags.add(ptag)
                     except AttributeError:
-                        syl.tags = {ptag}
+                        syl.tags = OrderedSet([ptag])
 
             self.syls.append(syl)
 
@@ -1258,7 +1258,7 @@ class _WordElement(Word, ABC, empty_slots=True):
     """Abstract WordElement class"""
     word_i: int
     """Word index (e.g.: In line text ``Hello PyonFX users!``, letter "u" will have word_i=2)"""
-    inline_fx: Set[str]
+    inline_fx: OrderedSet[str]
     """Inline effect (marked as \\-EFFECT in karaoke-time)"""
 
 
@@ -1269,7 +1269,7 @@ class Syllable(_WordElement):
     A syl can be defined as some text after a karaoke tag (k, ko, kf)
     (e.g.: In ``{\\k0}Hel{\\k0}lo {\\k0}Pyon{\\k0}FX {\\k0}users!``, "Pyon" and "FX" are distinct syllables),
     """
-    tags: Set[str]
+    tags: OrderedSet[str]
     """All the remaining tags before syl text apart \\k ones"""
 
 
