@@ -586,8 +586,14 @@ class Geometry:
         v1 = cls.vector(p2, p1)
         tension = clamp_value(tension, 0., 1.)
         if degrees(cls.angle(v0, v1)) < tolerance:
-            b0 = cls.point_on_segment(p1, p0, clamp_value(deviation / v0.norm, 0., 1.))
-            b3 = cls.point_on_segment(p1, p2, clamp_value(deviation / v1.norm, 0., 1.))
+            try:
+                b0 = cls.point_on_segment(p1, p0, clamp_value(deviation / v0.norm, 0., 1.))
+            except ZeroDivisionError:
+                b0 = p1
+            try:
+                b3 = cls.point_on_segment(p1, p2, clamp_value(deviation / v1.norm, 0., 1.))
+            except ZeroDivisionError:
+                b3 = p1
             b1 = cls.point_on_segment(p1, b0, tension)
             b2 = cls.point_on_segment(p1, b3, tension)
             return [b0, b1, b2, b3]
