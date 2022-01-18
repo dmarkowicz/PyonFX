@@ -1,4 +1,3 @@
-# flake8: noqa
 __all__ = ['Font', 'get_font']
 
 import sys
@@ -16,6 +15,7 @@ if TYPE_CHECKING:
     from ..core import Style
 else:
     Style = Any
+
 
 @lru_cache(maxsize=None)
 def get_font(style: Style) -> Font:

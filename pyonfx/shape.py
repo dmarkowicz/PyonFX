@@ -31,8 +31,8 @@ from copy import deepcopy
 from enum import Enum, auto
 from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
 from typing import (
-    Callable, Dict, Iterable, List, MutableSequence, NamedTuple, Optional, Sequence, SupportsIndex,
-    Tuple, cast, overload
+    Callable, Deque, Dict, Iterable, List, MutableSequence, NamedTuple, Optional, Sequence,
+    SupportsIndex, Tuple, cast, overload
 )
 
 import numpy as np
@@ -603,20 +603,23 @@ class Shape(_AbstractShape):
         ncmds: List[DrawingCommand] = []
 
         # Work with the commands reversed
-        self.reverse()
+        self._commands.reverse()
 
-        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True, fillvalue=DrawingCommand(m, (0, 0), unsafe=True)):
+        for cmd0, cmd1 in zip_offset(
+            self._commands, self._commands, offsets=(0, 1),
+            longest=True, fillvalue=DrawingCommand(m, (0, 0), unsafe=True)
+        ):
             if cmd0._prop in {m, n, l}:
                 ncmds.append(cmd0)
             elif cmd0._prop == b:
                 # Get the previous coordinate to complete a bezier curve
-                flatten_cmds = [
+                flatten_cmds: Deque[DrawingCommand] = deque()
+                flatten_cmds.extendleft(
                     DrawingCommand(l, co, unsafe=True)
                     for co in Geometry.curve4_to_lines(
                         (cmd1[-1].to_2d(), *(c.to_2d() for c in cmd0)), tolerance  # type: ignore[arg-type]
                     )
-                ]
-                flatten_cmds.reverse()
+                )
                 ncmds.extend(flatten_cmds)
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not supported!')
@@ -641,19 +644,20 @@ class Shape(_AbstractShape):
         self.flatten(tolerance)
 
         # Work with the commands reversed
-        self.reverse()
+        self._commands.reverse()
 
-        for cmd0, cmd1 in zip_offset(self, self, offsets=(0, 1), longest=True):
+        for cmd0, cmd1 in zip_offset(self._commands, self._commands, offsets=(0, 1), longest=True):
             assert cmd0
             if cmd0._prop in {m, n}:
                 ncmds.append(cmd0)
             elif cmd0._prop == l:
                 # Get the new points
                 assert cmd1
-                splitted_cmds = [
-                    DrawingCommand(l, c) for c in Geometry.split_line(cmd1[-1].to_2d(), cmd0[0].to_2d(), max_length)
-                ]
-                splitted_cmds.reverse()
+                splitted_cmds: Deque[DrawingCommand] = deque()
+                splitted_cmds.extendleft(
+                    DrawingCommand(l, c)
+                    for c in Geometry.split_line(cmd1[-1].to_2d(), cmd0[0].to_2d(), max_length)
+                )
                 ncmds.extend(splitted_cmds)
             else:
                 raise NotImplementedError(f'{self.__class__.__name__}: drawing property not recognised!')
@@ -675,15 +679,15 @@ class Shape(_AbstractShape):
         DP = DrawingProp
         m, n, l, b = DP.MOVE, DP.MOVE_NC, DP.LINE, DP.BÉZIER
 
-        shapes = list(self.split_shape())
+        shapes = tuple(self.split_shape())
 
         for shape in shapes:
             shape.unclose()
             ncmds: List[DrawingCommand] = []
 
-            pres = list(shape)
+            pres = shape._commands.copy()
             pres.insert(0, pres.pop(-1))
-            posts = list(shape)
+            posts = shape._commands.copy()
             posts.append(posts.pop(0))
 
             for pre, curr, post in zip(pres, shape, posts):

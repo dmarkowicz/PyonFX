@@ -52,7 +52,7 @@ from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 
 
-class Ass:
+class Ass(AutoSlots):
     """Initialisation class containing all the information about an ASS file"""
 
     _meta: Meta
@@ -926,10 +926,8 @@ class Line(_AssText):
                 # Updating cur_x
                 cur_x += word.width + word.postspace * (space_width + self.style.spacing) + self.style.spacing
         else:
-            max_width, sum_height = 0.0, 0.0
-            for word in self.words:
-                max_width = max(max_width, word.width)
-                sum_height += word.height
+            max_width = max(word.width for word in self.words)
+            sum_height = sum((word.height for word in self.words), 0.)
 
             cur_y = x_fix = play_res_y / 2 - sum_height / 2
             for word in self.words:
@@ -1064,10 +1062,8 @@ class Line(_AssText):
 
         # Kanji vertical position
         if vertical_kanji:
-            max_width, sum_height = 0.0, 0.0
-            for syl in self.syls:
-                max_width = max(max_width, syl.width)
-                sum_height += syl.height
+            max_width = max(syl.width for syl in self.syls)
+            sum_height = sum((syl.height for syl in self.syls), 0.)
 
             cur_y = meta.play_res_y / 2 - sum_height / 2
 
@@ -1182,10 +1178,8 @@ class Line(_AssText):
                 char.bottom = self.bottom
                 char.y = self.y
         else:
-            max_width, sum_height = 0.0, 0.0
-            for char in self.chars:
-                max_width = max(max_width, char.width)
-                sum_height += char.height
+            max_width = max(char.width for char in self.chars)
+            sum_height = sum((char.height for char in self.chars), 0.)
 
             cur_y = x_fix = meta.play_res_y / 2 - sum_height / 2
 

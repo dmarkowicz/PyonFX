@@ -14,7 +14,6 @@ FONT_PRECISION = 64
 """Font scale for better precision output from native font system"""
 
 
-
 class _Metrics(NamedTuple):
     ascent: float
     descent: float
