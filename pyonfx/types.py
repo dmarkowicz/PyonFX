@@ -142,7 +142,7 @@ class AutoSlotsMeta(ABCMeta):
         )
 
         # __annotations__ and __slots__ from the current class
-        _slots = OrderedSet(namespace['__slots__'])
+        _slots: OrderedSet[str] = OrderedSet(namespace['__slots__'])
         _slots.update(namespace.get('__annotations__', {}))
         _all_slots = _slots_inherited | _slots
 
