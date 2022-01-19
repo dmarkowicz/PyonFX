@@ -4,12 +4,12 @@ from __future__ import annotations
 import sys
 from abc import ABC, ABCMeta, abstractmethod
 from collections import OrderedDict
-from functools import reduce, wraps
+from functools import wraps
 from os import PathLike
 from types import FunctionType, MemberDescriptorType, MethodType
 from typing import (
-    AbstractSet, Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, MutableSet, Reversible,
-    Sequence, Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
+    AbstractSet, Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, MutableSet,
+    Reversible, Sequence, Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
 )
 
 from numpy.typing import NDArray
@@ -131,19 +131,20 @@ class AutoSlotsMeta(ABCMeta):
             return super().__new__(cls, name, bases, namespace, **kwargs)
 
         # Get all base types in reverse mro
-        abases = tuple(reversed(dict.fromkeys(b for base in bases for b in base.__mro__)))
+        abases = tuple(reversed(OrderedSet(b for base in bases for b in base.__mro__)))
 
         # Get all possible values to put in __slots__
-        _slots_inherited = reduce(
-            lambda x, y: {**x, **y},
-            (base.__annotations__ for base in abases if hasattr(base, '__annotations__')),
-            cast(Dict[str, Any], {})
+        _slots_inherited = OrderedSet(
+            banno
+            for base in abases
+            if hasattr(base, '__annotations__')
+            for banno in base.__annotations__
         )
 
         # __annotations__ and __slots__ from the current class
-        _slots = dict.fromkeys(namespace['__slots__'])
+        _slots = OrderedSet(namespace['__slots__'])
         _slots.update(namespace.get('__annotations__', {}))
-        _all_slots = {**_slots_inherited, **_slots}
+        _all_slots = _slots_inherited | _slots
 
         # Get possible class variables
         attrs = {
