@@ -621,7 +621,7 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
         """
         return self.shallow_copy()
 
-    def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
+    def to_shape(self, fscx: Optional[float] = None, fscy: Optional[float] = None, copy: bool = True) -> Shape:
         """
         Convert current AssText object to shape based on its Style attribute.
 
@@ -636,7 +636,10 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
         :return:            Shape object, representing the text
         """
         # Obtaining information and editing values of style if requested
-        obj = self.deep_copy()
+        if copy:
+            obj = self.deep_copy()
+        else:
+            obj = self
 
         # Editing temporary the style to properly get the shape
         if fscx is not None:
@@ -652,7 +655,7 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
 
         return shape
 
-    def to_clip(self, an: int = 7, fscx: Optional[float] = None, fscy: Optional[float] = None) -> Shape:
+    def to_clip(self, an: int = 7, fscx: Optional[float] = None, fscy: Optional[float] = None, copy: bool = True) -> Shape:
         """
         Convert current AssText object to shape based on its Style attribute, suitable for \\clip tag
 
@@ -667,7 +670,10 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
         :param fscy:        The scale_y value for the shape, default to current scale_y object
         :return:            A Shape object, representing the text with the style format values of the object
         """
-        obj = self.deep_copy()
+        if copy:
+            obj = self.deep_copy()
+        else:
+            obj = self
 
         # Setting default values
         if fscx is None:
