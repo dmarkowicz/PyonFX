@@ -676,29 +676,8 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
             fscy = obj.style.scale_y
 
         # Obtaining text converted to shape
-        shape = obj.to_shape(fscx, fscy)
-
-        # Setting mult_x based on alignment
-        if an in {1, 4, 7}:
-            mult_x = 0.0
-        elif an in {2, 5, 8}:
-            mult_x = 1 / 2
-        else:
-            mult_x = 1.0
-
-        # Setting mult_y based on alignment
-        if an in {1, 2, 3}:
-            mult_y = 1.0
-        elif an in {4, 5, 6}:
-            mult_y = 1 / 2
-        else:
-            mult_y = 0.0
-
-        # Calculating offsets
-        cx = obj.left - obj.width * mult_x * (fscx - obj.style.scale_x) / obj.style.scale_x
-        cy = obj.top - obj.height * mult_y * (fscy - obj.style.scale_y) / obj.style.scale_y
-
-        shape.move(cx, cy)
+        shape = obj.to_shape(fscx, fscy, False)
+        shape.align(an)
 
         del obj
 
