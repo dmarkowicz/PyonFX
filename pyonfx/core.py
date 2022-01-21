@@ -28,7 +28,6 @@ import re
 import subprocess
 import sys
 import time
-import warnings
 from abc import ABC
 from collections import UserList, defaultdict
 from fractions import Fraction
@@ -41,6 +40,7 @@ from typing import (
 
 from more_itertools import zip_offset
 
+from ._logging import logger
 from ._metadata import __version__
 from .colourspace import ASSColor, Opacity
 from .convert import ConvertTime
@@ -128,7 +128,8 @@ class Ass(AutoSlots):
             try:
                 line_style = line.style
             except AttributeError:
-                warnings.warn(f'Line {line.i} is using an undefined style, skipping...', LineNotFoundWarning)
+                logger.user_warning(f'{LineNotFoundWarning()}: Line {line.i} is using an undefined style, skipping...')
+                logger.debug(f'{line.i}: {line.raw_text}')
                 continue
             lines_by_styles[line_style.name].append(line)
 
@@ -155,7 +156,9 @@ class Ass(AutoSlots):
             curline.leadout = default_lead if not postline else postline.start_time - curline.end_time
 
     def __del__(self) -> None:
+        logger.debug('Entering __del__ Ass...')
         get_font.cache_clear()
+        logger.debug('Clear cache done!')
 
     @property
     def data(self) -> Tuple[Meta, List[Style], PList[Line]]:
@@ -194,7 +197,8 @@ class Ass(AutoSlots):
         """
         self._output_lines.append(line.compose_ass_line())
 
-    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, quiet: bool = False) -> None:
+    @logger.catch
+    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True) -> None:
         """
         Write the lines added by :py:func:`add_line` to the output file specified in the constructor
 
@@ -248,12 +252,10 @@ class Ass(AutoSlots):
                     + '\n'
                 )
 
-        if not quiet:
-            print(
-                f"Produced lines: {len(self._output_lines)}\n"
-                f"Process duration (in seconds): {round(time.time() - self._ptime, ndigits=3)}"
-            )
+        logger.user_info(f"Produced lines: {len(self._output_lines)}")
+        logger.user_info(f"Process duration (in seconds): {round(time.time() - self._ptime, ndigits=3)}")
 
+    @logger.catch
     def open_aegisub(self) -> None:
         """
         Open the output specified in the constructor with Aegisub.
@@ -266,6 +268,7 @@ class Ass(AutoSlots):
         else:
             subprocess.call(['aegisub', self._output])
 
+    @logger.catch
     def open_mpv(self, video_path: AnyPath | None = None, video_start: Optional[str] = None, full_screen: bool = False) -> None:
         """
         Open the output specified in the constructor with MPV.
@@ -487,6 +490,7 @@ class Style(_DataCore):
         return self.alignment in {1, 2, 3}
 
     @classmethod
+    @logger.catch(force_exit=True)
     def from_text(cls, text: str) -> Style:
         """
         Make a Style object from a .ass text line
@@ -496,32 +500,32 @@ class Style(_DataCore):
         """
         self = cls()
 
-        if not (style_match := re.match(r"Style: (.+?)$", text)):
-            raise MatchNotFoundError
+        if not (style_match := re.match(r'Style: (.+?)$', text)):
+            raise MatchNotFoundError(f'{self.__class__.__name__}: No Style match found for this line!')
         # Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,
         # Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle,
         # BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-        style = style_match[1].split(",")
+        style = style_match[1].split(',')
 
         self.name = str(style[0])
 
         self.fontname = str(style[1])
         self.fontsize = float(style[2])
 
-        self.color1 = ASSColor(f"&H{style[3][4:]}&")
-        self.color2 = ASSColor(f"&H{style[4][4:]}&")
-        self.color3 = ASSColor(f"&H{style[5][4:]}&")
-        self.color4 = ASSColor(f"&H{style[6][4:]}&")
+        self.color1 = ASSColor(f'&H{style[3][4:]}&')
+        self.color2 = ASSColor(f'&H{style[4][4:]}&')
+        self.color3 = ASSColor(f'&H{style[5][4:]}&')
+        self.color4 = ASSColor(f'&H{style[6][4:]}&')
 
-        self.alpha1 = Opacity.from_ass_val(f"{style[3][:4]}&")
-        self.alpha2 = Opacity.from_ass_val(f"{style[4][:4]}&")
-        self.alpha3 = Opacity.from_ass_val(f"{style[5][:4]}&")
-        self.alpha4 = Opacity.from_ass_val(f"{style[6][:4]}&")
+        self.alpha1 = Opacity.from_ass_val(f'{style[3][:4]}&')
+        self.alpha2 = Opacity.from_ass_val(f'{style[4][:4]}&')
+        self.alpha3 = Opacity.from_ass_val(f'{style[5][:4]}&')
+        self.alpha4 = Opacity.from_ass_val(f'{style[6][:4]}&')
 
-        self.bold = style[7] == "-1"
-        self.italic = style[8] == "-1"
-        self.underline = style[9] == "-1"
-        self.strikeout = style[10] == "-1"
+        self.bold = style[7] == '-1'
+        self.italic = style[8] == '-1'
+        self.underline = style[9] == '-1'
+        self.strikeout = style[10] == '-1'
 
         self.scale_x = float(style[11])
         self.scale_y = float(style[12])
@@ -529,7 +533,7 @@ class Style(_DataCore):
         self.spacing = float(style[13])
         self.angle = float(style[14])
 
-        self.border_style = style[15] == "3"
+        self.border_style = style[15] == '3'
         self.outline = float(style[16])
         self.shadow = float(style[17])
 
@@ -740,6 +744,7 @@ class Line(_AssText):
     """List containing objects :class:`Char` in this line (*)"""
 
     @classmethod
+    @logger.catch(force_exit=True)
     def from_text(cls, text: str, i: int, fps: Fraction,
                   meta: Optional[Meta] = None, styles: Optional[Iterable[Style]] = None) -> Line:
         """
@@ -756,7 +761,7 @@ class Line(_AssText):
 
         # Analysing line
         if not (anal_line := re.match(r"(Dialogue|Comment): (.+?)$", text)):
-            raise MatchNotFoundError
+            raise MatchNotFoundError(f'{self.__class__.__name__}: No Line match found for this line!')
         # Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         self.i = i
 
@@ -771,10 +776,11 @@ class Line(_AssText):
         self.end_time = ConvertTime.bound_to_frame(self.end_time, fps)
         self.duration = self.end_time - self.start_time
 
-        for style in (styles if styles else []):
-            if style.name == linesplit[3]:
-                self.style = style
-                break
+        if styles:
+            for style in styles:
+                if style.name == linesplit[3]:
+                    self.style = style
+                    break
         if meta:
             self.meta = meta
         self.actor = linesplit[4]
@@ -976,9 +982,11 @@ class Line(_AssText):
             syl.width, syl.height = font.text_extents(syl.text)
             syl.ascent, syl.descent, syl.internal_leading, syl.external_leading = font.metrics
 
-            if syl.text.endswith(' '):
-                word_i += 1
-            elif k1 and k1.groupdict()['syltext'].startswith(' '):
+            if (
+                syl.text.endswith(' ')
+            ) or (
+                k1 and k1.groupdict()['syltext'].startswith(' ')
+            ):
                 word_i += 1
 
             syl.start_time = last_time
@@ -996,14 +1004,14 @@ class Line(_AssText):
                 for ptag in slash.split(k0.groupdict()[tagspos].replace('}{', ''))
             ):
                 if ptag.startswith('\\-'):
-                    try:
+                    if hasattr(syl, 'inline_fx'):
                         syl.inline_fx.add(ptag.strip('\\-'))
-                    except AttributeError:
+                    else:
                         syl.inline_fx = OrderedSet([ptag.strip('\\-')])
                 elif ptag:
-                    try:
+                    if hasattr(syl, 'tags'):
                         syl.tags.add(ptag)
-                    except AttributeError:
+                    else:
                         syl.tags = OrderedSet([ptag])
 
             self.syls.append(syl)
@@ -1214,16 +1222,16 @@ class Line(_AssText):
         """
         Make an ASS line suitable for writing into an .ass file
         """
-        ass_line = "Comment: " if self.comment else "Dialogue: "
-        elements: List[Any] = [
-            self.layer,
+        ass_line = 'Comment: ' if self.comment else 'Dialogue: '
+        elements: List[str] = [
+            str(self.layer),
             ConvertTime.seconds2assts(self.start_time, self.meta.fps),
             ConvertTime.seconds2assts(self.end_time, self.meta.fps),
             self.style.name, self.actor,
-            self.margin_l, self.margin_r, self.margin_v,
+            str(self.margin_l), str(self.margin_r), str(self.margin_v),
             self.effect, self.text
         ]
-        return ass_line + ','.join(str(el) for el in elements) + '\n'
+        return ass_line + ','.join(elements) + '\n'
 
 
 class Word(_AssText):

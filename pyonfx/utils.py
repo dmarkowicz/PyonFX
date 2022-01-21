@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List, Na
 
 from typing_extensions import TypeGuard
 
+from ._logging import logger
 from .colourspace import ColourSpace
 from .geometry import Geometry, Point, PointCartesian3D
 from .types import Nb, TCV_co
@@ -46,6 +47,7 @@ def interpolate(val1: List[Point], val2: None = ..., pct: float = 0.5, acc: floa
     ...
 
 
+@logger.catch
 def interpolate(val1: object, val2: Optional[object] = None, pct: float = 0.5, acc: float = 1.0) -> Any:
     """
     Interpolate val1 and val2 (ColourSpace objects or numbers) by percent value
@@ -111,6 +113,7 @@ class FrameUtility(Iterable[Frame]):
 
     current_time: float
 
+    @logger.catch
     def __init__(self, start_time: float, end_time: float, frame_dur: float = NTSC_24P_MS_FROM_FRAME) -> None:
         """
         Examples:
@@ -253,6 +256,7 @@ class ColorUtility:
     c3_req: bool
     c4_req: bool
 
+    @logger.catch
     def __init__(self, lines: List[Line], offset: int = 0) -> None:
         self.color_changes = []
         self.c1_req = False
@@ -355,6 +359,7 @@ class ColorUtility:
                         }
                     )
 
+    @logger.catch
     def get_color_change(self, line: Line, c1: Optional[bool] = None, c3: Optional[bool] = None, c4: Optional[bool] = None) -> str:
         """Returns all the color_changes in the object that fit (in terms of time) between line.start_time and line.end_time.
 
@@ -443,6 +448,7 @@ class ColorUtility:
 
         return transform
 
+    @logger.catch
     def get_fr_color_change(self, line: Line, c1: Optional[bool] = None, c3: Optional[bool] = None, c4: Optional[bool] = None) -> str:
         """Returns the single color(s) in the color_changes that fit the current frame (line.start_time) in your frame loop.
 

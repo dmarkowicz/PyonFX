@@ -10,6 +10,7 @@ from typing import Any, Callable, NoReturn, Optional, Tuple, TypeVar
 import numpy as np
 from numpy.typing import DTypeLike, NDArray
 
+from .._logging import logger
 from ..types import NamedMutableSequence, SomeArrayLike
 
 _CT = TypeVar('_CT', bound='Coordinates')
@@ -18,6 +19,7 @@ _CT = TypeVar('_CT', bound='Coordinates')
 class Coordinates(NamedMutableSequence[float], ABC, empty_slots=True):
     """Abstract coordinate system"""
 
+    @logger.catch
     def __contains__(self, o: object) -> NoReturn:
         raise NotImplementedError
 

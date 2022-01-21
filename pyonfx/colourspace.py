@@ -17,6 +17,7 @@ from typing import Any, Tuple, Type, TypeVar, cast, overload
 
 from typing_extensions import TypeGuard
 
+from ._logging import logger
 from .convert import ConvertColour as CC
 from .misc import clamp_value
 from .types import ACV, NamedMutableSequence, Nb, Nb8bit, Pct, TCV_co, Tup4
@@ -169,9 +170,10 @@ class ColourSpace(NamedMutableSequence[TCV_co], ABC, empty_slots=True):
 class _NumBased(ColourSpace[Nb], ABC, empty_slots=True):
     """Number based colourspace"""
 
+    @logger.catch
     def interpolate(self: _NumBasedT, nobj: _NumBasedT, pct: Pct, /) -> _NumBasedT:
         if not isinstance(nobj, self.__class__):
-            raise ValueError
+            raise ValueError(f'{self.__class__.__name__}: {nobj} is not of the same type')
         return self.__class__(tuple(  # type: ignore[var-annotated]
             (1 - pct) * cs1_val + pct * cs2_val
             for cs1_val, cs2_val in zip(self, nobj)
@@ -188,9 +190,10 @@ class _ForceNumber(_NumBased[Nb], ABC, empty_slots=True):
     """Forcing type"""
 
     # TODO: Maybe yeet __setattr__ and __delattr__ since they're very slow
+    @logger.catch
     def __setattr__(self, name: str, value: Any) -> None:
         if name in {'peaks', 'force_type'}:
-            raise ValueError(f'Can\'t change {name}')
+            raise ValueError(f'{self.__class__.__name__}: Can\'t change {name}')
         if not name.startswith('_'):
             value = clamp_value(
                 self.force_type(value),
@@ -199,9 +202,10 @@ class _ForceNumber(_NumBased[Nb], ABC, empty_slots=True):
             )
         super().__setattr__(name, value)
 
+    @logger.catch
     def __delattr__(self, name: str) -> None:
         if name in {'peaks', 'force_type'}:
-            raise ValueError(f'Can\'t delete {name}')
+            raise ValueError(f'{self.__class__.__name__}: Can\'t delete {name}')
         return super().__delattr__(name)
 
 
@@ -290,7 +294,7 @@ class _BaseRGB(ColourSpace[Nb], ABC, empty_slots=True):
     def to_ass_color(self) -> ASSColor:
         return ASSColor(
             '&H'
-            + ''.join(hex(x)[2:].zfill(2) for x in list(self.to_rgb(RGB))[::-1])
+            + ''.join(hex(x)[2:].zfill(2) for x in reversed(self.to_rgb(RGB)))
             + '&'
         )
 
@@ -705,14 +709,12 @@ class Opacity(ColourSpace[float]):
         ...
 
     @classmethod
+    @logger.catch(force_exit=True)
     def from_ass_val(cls, _x: str | Nb8bit) -> Opacity:
         if isinstance(_x, str):
-            if match := re.fullmatch(r"&H([0-9A-F]{2})&", _x):
-                x = float(int(match.group(1), 16))
-            else:
-                raise ValueError(
-                    f'Opacity: Provided ASS alpha string {_x} is not in the expected format &HXX&'
-                )
+            if not (fullmatch := re.fullmatch(r"&H([0-9A-F]{2})&", _x)):
+                raise ValueError(f'Opacity: Provided ASS alpha string {_x} is not in the expected format &HXX&')
+            x = float(int(fullmatch.group(1), 16))
         else:
             x = float(_x)
         x = (255 - x) / 255
@@ -721,36 +723,47 @@ class Opacity(ColourSpace[float]):
     def interpolate(self: _OpacityT, nobj: _OpacityT, pct: Pct, /) -> _OpacityT:
         return self.__class__(self.value * (1 - pct) + nobj.value * pct)
 
+    @logger.catch
     def to_rgb(self, rgb_type: Type[_RGB_T], /) -> _RGB_T:
         raise NotImplementedError
 
+    @logger.catch
     def to_xyz(self) -> XYZ:
         raise NotImplementedError
 
+    @logger.catch
     def to_xyy(self) -> xyY:
         raise NotImplementedError
 
+    @logger.catch
     def to_lab(self) -> Lab:
         raise NotImplementedError
 
+    @logger.catch
     def to_lch_ab(self) -> LCHab:
         raise NotImplementedError
 
+    @logger.catch
     def to_luv(self) -> Luv:
         raise NotImplementedError
 
+    @logger.catch
     def to_lch_uv(self) -> LCHuv:
         raise NotImplementedError
 
+    @logger.catch
     def to_hsl(self) -> HSL:
         raise NotImplementedError
 
+    @logger.catch
     def to_hsv(self) -> HSV:
         raise NotImplementedError
 
+    @logger.catch
     def to_html(self) -> HTML:
         raise NotImplementedError
 
+    @logger.catch
     def to_ass_color(self) -> ASSColor:
         raise NotImplementedError
 
@@ -810,7 +823,6 @@ class _HexBased(ColourSpace[str], ABC, empty_slots=True):
 
 def _istup3(tup: Tuple[_T1, _T1, _T1], t: Type[_T2]) -> TypeGuard[Tuple[_T2, _T2, _T2]]:
     return all(isinstance(x, t) for x in tup)
-
 
 
 class HTML(_HexBased):
@@ -894,6 +906,7 @@ class HTML(_HexBased):
         """
         ...
 
+    @logger.catch
     def __init__(self, _x: str | Tuple[str, str, str] | Tuple[int, int, int] | ColourSpace[TCV_co]) -> None:
         super().__init__()
 
@@ -1001,13 +1014,14 @@ class ASSColor(_HexBased):
         """
         ...
 
+    @logger.catch
     def __init__(self, _x: str | Tuple[str, str, str] | Tuple[int, int, int] | ColourSpace[TCV_co]) -> None:
         super().__init__()
         if isinstance(_x, ColourSpace):
             return None
         if isinstance(_x, str):
             if not (fmatch := re.fullmatch(r"&H([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})&", _x.upper())):
-                raise ValueError('No match found')
+                raise ValueError(f'{self.__class__.__name__}: No match found')
             seq = _x[2:-1]
             r, g, b = map(self.hex_to_int, fmatch.groups()[::-1])
             self._rgb = RGB((r, g, b))
@@ -1057,7 +1071,7 @@ class XYZ(XYZBased):
     z: float
     """Quasi-equal to blue value"""
 
-    peaks: Tuple[float, float] = (0, 1.)
+    peaks: Tuple[float, float] = (0., 1.)
 
     @overload
     def __new__(cls, _x: ColourSpace[TCV_co], /) -> XYZ:

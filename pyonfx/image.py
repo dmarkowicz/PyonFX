@@ -7,6 +7,7 @@ from typing import List, NoReturn
 
 import cv2  # type: ignore
 
+from ._logging import logger
 from .colourspace import ASSColor, Opacity
 from .geometry import PointCartesian2D
 from .shape import Pixel
@@ -19,6 +20,7 @@ class Image:
     def __init__(self, image: AnyPath) -> None:
         self.path = Path(image)
 
+    @logger.catch
     def to_ass(self) -> NoReturn:
         raise NotImplementedError
 

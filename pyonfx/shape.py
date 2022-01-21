@@ -40,6 +40,7 @@ from more_itertools import flatten, sliced, unzip, zip_offset
 from skimage.draw import polygon as skimage_polygon  # type: ignore
 from skimage.transform import rescale as skimage_rescale  # type: ignore
 
+from ._logging import logger
 from .colourspace import ASSColor, Opacity
 from .geometry import CartesianAxis, Geometry, Point, PointCartesian2D, PointsView, VectorCartesian2D, VectorCartesian3D
 from .misc import chunk, frange
@@ -239,6 +240,7 @@ class DrawingCommand(_AbstractDrawingCommand):
             self.check_integrity()
         super().__init__()
 
+    @logger.catch
     def check_integrity(self) -> None:
         """Check if the current coordinates are valid"""
         DP = DrawingProp
@@ -323,6 +325,7 @@ class _AbstractShape(MutableSequence[DrawingCommand], ABC):
     def __setitem__(self, index: slice, value: Iterable[DrawingCommand]) -> None:
         ...
 
+    @logger.catch
     def __setitem__(self, index: SupportsIndex | slice, value: DrawingCommand | Iterable[DrawingCommand]) -> None:
         if isinstance(index, SupportsIndex) and isinstance(value, DrawingCommand):
             self._commands[index] = value
@@ -402,6 +405,7 @@ class Shape(_AbstractShape):
             self._commands = list(cmds)
         super().__init__()
 
+    @logger.catch
     def to_str(self, round_digits: int = 3, optimise: bool = True) -> str:
         """
         Return the current shape in ASS format
@@ -438,6 +442,7 @@ class Shape(_AbstractShape):
         for cmd in self:
             cmd.round(ndigits)
 
+    @logger.catch
     def map(self, func: Callable[[Point], Point | Tuple[float, float]], /, *, unsafe: bool = False) -> None:
         """
         Sends every point of a shape through given transformation function to change them.
@@ -504,6 +509,7 @@ class Shape(_AbstractShape):
         ]
         return PointCartesian2D(min(all_x), min(all_y)), PointCartesian2D(max(all_x), max(all_y))
 
+    @logger.catch
     def align(self, an: Alignment = 7) -> None:
         """
         Automatically align the shape to a given alignment
@@ -588,6 +594,7 @@ class Shape(_AbstractShape):
         """
         return cls(flatten((shape._commands for shape in shapes)), copy_cmds=False)
 
+    @logger.catch
     def flatten(self, tolerance: float = 1.) -> None:
         """
         Flatten shape's bezier curves into lines.
@@ -627,6 +634,7 @@ class Shape(_AbstractShape):
         ncmds.reverse()
         self._commands = ncmds
 
+    @logger.catch
     def split_lines(self, max_length: float = 16., tolerance: float = 1.) -> None:
         """
         Flatten Shape bezier curves into lines and split the latter into shorter segments
@@ -705,6 +713,7 @@ class Shape(_AbstractShape):
         self._commands = list(flatten(shapes))
 
     @classmethod
+    @logger.catch(force_exit=True)
     def ring(cls, out_rad: float, in_rad: float, c_xy: Tuple[float, float] = (0., 0.), /) -> Shape:
         """
         Make a ring Shape object with given inner and outer radius, centered around (c_xy)
@@ -992,6 +1001,7 @@ class Shape(_AbstractShape):
         return cls.stellation(edges, inner_size, outer_size, DrawingProp.BÉZIER, c_xy)
 
     @classmethod
+    @logger.catch(force_exit=True)
     def stellation(cls, edges: int, inner_size: float, outer_size: float,
                    prop: DrawingProp, c_xy: Tuple[float, float] = (0., 0.)) -> Shape:
         """
@@ -1035,6 +1045,7 @@ class Shape(_AbstractShape):
         return shape
 
     @classmethod
+    @logger.catch(force_exit=True)
     def from_ass_string(cls, drawing_cmds: str, unsafe: bool = False) -> Shape:
         """
         Make a Shape object from a drawing command string in ASS format
@@ -1080,8 +1091,7 @@ class Shape(_AbstractShape):
                 )
             elif sdraw[0].startswith('s') and (lendraw - 1) % 2 == 0.0:
                 sdraw.remove('s')
-                coords = list(chunk(map(float, sdraw), 2))
-                cmds.append(DC(DP.CUBIC_BSPLINE, *coords, unsafe=unsafe))
+                cmds.append(DC(DP.CUBIC_BSPLINE, *chunk(map(float, sdraw), 2), unsafe=unsafe))
             elif sdraw[0].startswith('c') and lendraw == 1:
                 cmds.append(DC(DP.CLOSE_BSPLINE, unsafe=unsafe))
             else:
@@ -1110,6 +1120,7 @@ class Shape(_AbstractShape):
         #                 raise ValueError(f'{cls.__name__}: unexpected shape "{draw}"!')
         #     return cls(cmds, copy_cmds=False)
 
+    @logger.catch
     def to_pixels(self, supersampling: int = 4, anti_aliasing: bool = True) -> List[Pixel]:
         """
         Convert current Shape to a list of Pixel
@@ -1168,6 +1179,7 @@ class Shape(_AbstractShape):
             if alpha > 0
         ]
 
+    @logger.catch
     def to_outline(self, bord_xy: float, bord_y: Optional[float] = None,
                    mode: OutlineMode = OutlineMode.ROUND, *,
                    miter_limit: float = 200., max_circumference: float = 2.) -> None:

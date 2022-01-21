@@ -6,6 +6,7 @@ from itertools import chain
 from math import asin, ceil, comb, cos, degrees, dist, fsum, inf, radians, sin, sqrt
 from typing import Any, Iterable, List, Optional, Sequence, Tuple, TypeVar, overload
 
+from .._logging import logger
 from ..misc import chunk, clamp_value, frange
 from .cartesian import Cartesian2D, Cartesian3D, CartesianAxis
 from .coordinates import Axis, Coordinates
@@ -112,6 +113,7 @@ class Geometry:
         ...
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def rotate(_o: Any, rot: float, axis: Any, zp: Any) -> Any:
         """Implementaton"""
         if isinstance(_o, Cartesian3D):
@@ -192,6 +194,7 @@ class Geometry:
         ...
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def vector(p0: Any, p1: Any) -> Any:
         """Implementaton"""
         return p0.__vector__(p1)
@@ -257,6 +260,7 @@ class Geometry:
         ...
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def angle(v0: Any, v1: Any) -> Any:
         """Implementaton"""
         return v0.__angle__(v1)
@@ -322,6 +326,7 @@ class Geometry:
         ...
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def orthogonal(v0: Any, v1: Any) -> Any:
         """Implementaton"""
         return v0.__orthogonal__(v1)
@@ -387,11 +392,13 @@ class Geometry:
         ...
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def stretch(v: Any, length: float) -> Any:
         """Implementation"""
         return v.__stretch__(length)
 
     @classmethod
+    @logger.catch(force_exit=True)
     def line_intersect(
         cls,
         p0: PointCartesian2D, p1: PointCartesian2D,
@@ -679,6 +686,7 @@ class Geometry:
         )
 
     @classmethod
+    @logger.catch(force_exit=True)
     def make_triangle(
         cls,
         side: float | Tuple[float, float], angle: Tuple[float, float] | float,

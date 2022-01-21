@@ -27,6 +27,7 @@ from typing import Final, Tuple
 
 import numpy as np
 
+from ._logging import logger
 from .misc import clamp_value
 from .types import Tup3
 
@@ -89,6 +90,7 @@ class ConvertTime:
         return s
 
     @staticmethod
+    @logger.catch(force_exit=True)
     def composets(h: float, m: float, s: float, /, *, precision: int = 3) -> str:
         if precision == 0:
             out = f"{h:02.0f}:{m:02.0f}:{round(s):02}"

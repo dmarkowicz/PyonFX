@@ -12,6 +12,7 @@ import cv2  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
 
+from .._logging import logger
 from ..types import View
 from .cartesian import Cartesian2D, Cartesian3D
 from .coordinates import Coordinates
@@ -105,6 +106,7 @@ class PointCartesian3D(Cartesian3D, Point):
     def as_vector(self, *, cast: bool = False) -> VectorCartesian3D:
         return typing_cast(VectorCartesian3D, self) if cast else VectorCartesian3D(*self)
 
+    @logger.catch
     def project_2d(self) -> PointCartesian2D:
         """
         Project on two dimensions
