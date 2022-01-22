@@ -4,7 +4,7 @@ from typing import Any, Dict
 from setuptools import setup
 
 meta: Dict[str, Any] = {}
-with open(convert_path('pyonfx/__init.py'), encoding='utf-8') as f:
+with open(convert_path('pyonfx/_metadata.py'), encoding='utf-8') as f:
     exec(f.read(), meta)
 
 with open('requirements.txt', encoding='utf-8') as fh:
@@ -17,35 +17,35 @@ with open('README.md', encoding='utf-8') as fh:
     long_description = fh.read()
 
 setup(
-    name="pyonfx",
-    url="https://github.com/CoffeeStraw/PyonFX/",
+    name='pyonfx',
+    url='https://github.com/CoffeeStraw/PyonFX/',
     project_urls={
-        "Documentation": "http://pyonfx.rtfd.io/",
-        "Source": "https://github.com/CoffeeStraw/PyonFX/",
-        "Tracker": "https://github.com/CoffeeStraw/PyonFX/issues/",
+        'Documentation': 'http://pyonfx.rtfd.io/',
+        'Source': 'https://github.com/CoffeeStraw/PyonFX/',
+        'Tracker': 'https://github.com/CoffeeStraw/PyonFX/issues/',
     },
-    author="Antonio Strippoli",
-    author_email="clarantonio98@gmail.com",
-    description="An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).",
+    author='Antonio Strippoli',
+    author_email='clarantonio98@gmail.com',
+    description='An easy way to create KFX (Karaoke Effects) and complex typesetting using the ASS format (Advanced Substation Alpha).',
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type='text/markdown',
     version=meta['__version__'],
-    packages=["pyonfx", "pyonfx.geometry"],
+    packages=['pyonfx', 'pyonfx.geometry', 'pyonfx.font'],
     package_data={
         'pyonfx': ['py.typed'],
     },
-    python_requires=">=3.8",
+    python_requires='>=3.8',
     install_requires=reqs,
-    extras_require={"dev": reqs_dev},
-    keywords="typesetting ass subtitle aegisub karaoke kfx advanced-substation-alpha karaoke-effect",
+    extras_require={'dev': reqs_dev},
+    keywords='typesetting ass subtitle aegisub karaoke kfx advanced-substation-alpha karaoke-effect',
     classifiers=[
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Developers",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Developers',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
     ],
-    license="GNU LGPL 3.0 or later",
+    license='GNU LGPL 3.0 or later',
 )
