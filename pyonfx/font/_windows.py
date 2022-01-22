@@ -5,7 +5,10 @@ from typing import TYPE_CHECKING, Any, Dict, List
 import win32con
 import win32gui
 import win32ui
-from win32helper.win32typing import PyCFont  # type: ignore
+if TYPE_CHECKING:
+    from win32helper.win32typing import PyCFont  # type: ignore
+else:
+    PyCFont = Any
 
 from .._logging import logger
 from ..shape import DrawingCommand, DrawingProp, Shape
