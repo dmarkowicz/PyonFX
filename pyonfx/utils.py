@@ -24,9 +24,9 @@ from typing import TYPE_CHECKING, Any, Dict, Final, Iterable, Iterator, List, Na
 from typing_extensions import TypeGuard
 
 from ._logging import logger
-from .colourspace import ColourSpace
+from .colourspace import ColourSpace, _ColourSpaceT
 from .geometry import Geometry, Point, PointCartesian3D
-from .types import Nb, TCV_co
+from .types import Nb
 
 if TYPE_CHECKING:
     from .core import Line
@@ -38,7 +38,7 @@ def interpolate(val1: Nb, val2: Nb, pct: float = 0.5, acc: float = 1.0) -> Nb:
 
 
 @overload
-def interpolate(val1: ColourSpace[TCV_co], val2: ColourSpace[TCV_co], pct: float = 0.5, acc: float = 1.0) -> ColourSpace[TCV_co]:
+def interpolate(val1: _ColourSpaceT, val2: _ColourSpaceT, pct: float = 0.5, acc: float = 1.0) -> _ColourSpaceT:
     ...
 
 

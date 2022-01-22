@@ -11,6 +11,7 @@ gi.require_version("PangoCairo", "1.0")
 
 from gi.repository import Pango, PangoCairo  # type: ignore # noqa E402
 
+from .._logging import logger  # noqa E402
 from ..shape import DrawingCommand, DrawingProp, Shape  # noqa E402
 
 if TYPE_CHECKING:
@@ -93,9 +94,7 @@ class Font(_AbstractFont):
             )
             return self.layout.get_pixel_extents()[1]
 
-        width = 0
-        for char in text:
-            width += get_rect(char).width
+        width = sum(get_rect(char).width for char in text)
 
         return _TextExtents(
             (
@@ -110,6 +109,7 @@ class Font(_AbstractFont):
         )
 
     @lru_cache(maxsize=256)
+    @logger.catch
     def text_to_shape(self, text: str) -> Shape:
         if not text:
             raise ValueError(f'{self.__class__.__name__}: Text is empty!')

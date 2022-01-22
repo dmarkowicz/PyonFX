@@ -1,5 +1,5 @@
 # flake8: noqa
-from ._logging import logger
+from ._logging import logger, LogLevel
 from ._metadata import version
 from .colourspace import *
 from .convert import *

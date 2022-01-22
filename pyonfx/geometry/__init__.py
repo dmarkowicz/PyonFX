@@ -36,12 +36,13 @@ _PolarT = TypeVar('_PolarT', bound=Polar)
 _CylindricalT = TypeVar('_CylindricalT', bound=Cylindrical)
 _SphericalT = TypeVar('_SphericalT', bound=Spherical)
 
-BézierCurve = Tuple[PointCartesian2D, PointCartesian2D, PointCartesian2D, PointCartesian2D]
-AssBézierCurve = Tuple[PointCartesian2D, PointCartesian2D, PointCartesian2D]
+_BézierCurve = Tuple[PointCartesian2D, PointCartesian2D, PointCartesian2D, PointCartesian2D]
+_AssBézierCurve = Tuple[PointCartesian2D, PointCartesian2D, PointCartesian2D]
 
 
 class Geometry:
     """Collection of geometric methods for Point and Vectors"""
+    __slots__ = ()
 
     @overload
     @staticmethod
@@ -420,7 +421,7 @@ class Geometry:
         if v0.norm * v1.norm == 0:
             raise ValueError(f'{cls.__name__}: lines mustn\'t have zero length')
 
-        det = Geometry.orthogonal(v0, v1)
+        det = cls.orthogonal(v0, v1)
 
         if det == 0:
             return PointCartesian2D(inf, inf)
@@ -466,7 +467,7 @@ class Geometry:
         return ncoord
 
     @classmethod
-    def curve4_to_lines(cls, b_coord: BézierCurve, tolerance: float, /) -> List[PointCartesian2D]:
+    def curve4_to_lines(cls, b_coord: _BézierCurve, tolerance: float, /) -> List[PointCartesian2D]:
         """
         Convert 4th degree curve to line points
 
@@ -480,7 +481,7 @@ class Geometry:
         ncoord: List[PointCartesian2D] = []
         tolerance = radians(tolerance)
 
-        def _curve4_subdivide(b_coord: BézierCurve, /) -> Tuple[BézierCurve, BézierCurve]:
+        def _curve4_subdivide(b_coord: _BézierCurve, /) -> Tuple[_BézierCurve, _BézierCurve]:
             """4th degree curve subdivider (De Casteljau)"""
             # Calculate points on curve vectors
             lcoord = list(chain.from_iterable(b_coord))
@@ -493,7 +494,7 @@ class Geometry:
             b1 = P(subx1, suby1), P(sub2[-2], sub2[-1]), P(sub3[-2], sub3[-1]), b_coord[-1]
             return b0, b1
 
-        def _curve4_is_flat(b_coord: BézierCurve, /) -> bool:
+        def _curve4_is_flat(b_coord: _BézierCurve, /) -> bool:
             """Check flatness of 4th degree curve with angles"""
             lcoord = list(chain.from_iterable(b_coord))
             # Pack curve vectors (only ones non zero)
@@ -518,7 +519,7 @@ class Geometry:
                     return False
             return True
 
-        def _convert_recursive(b_coord: BézierCurve, /) -> None:
+        def _convert_recursive(b_coord: _BézierCurve, /) -> None:
             """Conversion in recursive processing"""
             if _curve4_is_flat(b_coord):
                 ncoord.append(b_coord[-1])
@@ -612,7 +613,7 @@ class Geometry:
         c_xy: Tuple[float, float] = (0., 0.), /, clockwise: bool = True
     ) -> Tuple[
         PointCartesian2D,
-        AssBézierCurve, AssBézierCurve, AssBézierCurve, AssBézierCurve
+        _AssBézierCurve, _AssBézierCurve, _AssBézierCurve, _AssBézierCurve
     ]:
         """
         Make ellipse coordinates with given width and height, centered around (c_xy)

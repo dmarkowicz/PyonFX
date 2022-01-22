@@ -7,6 +7,7 @@ import win32gui
 import win32ui
 from win32helper.win32typing import PyCFont  # type: ignore
 
+from .._logging import logger
 from ..shape import DrawingCommand, DrawingProp, Shape
 
 if TYPE_CHECKING:
@@ -55,7 +56,6 @@ class Font(_AbstractFont):
     def __del__(self) -> None:
         win32gui.DeleteObject(self.pycfont.GetSafeHandle())
         win32gui.DeleteDC(self.dc)
-        del self.metrics
         self.text_extents.cache_clear()
         self.text_to_shape.cache_clear()
 
@@ -80,6 +80,7 @@ class Font(_AbstractFont):
         )
 
     @lru_cache(maxsize=256)
+    @logger.catch
     def text_to_shape(self, text: str) -> Shape:
         if not text:
             raise ValueError(f'{self.__class__.__name__}: Text is empty!')
