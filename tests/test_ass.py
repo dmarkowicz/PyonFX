@@ -20,9 +20,8 @@ fps = Fraction(23.976)
 
 def time_convert(ts: str) -> float:
     s = ConvertTime.assts2seconds(ts, fps)
-    s = round(s, 3)
-    s = ConvertTime.bound_to_frame(s, fps)
-    return round(s, 3)
+    s = ConvertTime.bound2assframe(s, fps)
+    return round(s, 4)
 
 
 def test_meta_values():
@@ -63,8 +62,8 @@ def test_line_values():
     check.equal(lines[1].margin_v, 50)
 
     check.equal(lines[1].start_time, time_convert("0:00:00.00"))
-    check.equal(lines[1].end_time, time_convert("0:00:09.99"))
-    check.equal(lines[1].duration, time_convert("0:00:09.99") - time_convert("0:00:00.00"))
+    check.almost_equal(lines[1].end_time, time_convert("0:00:09.99"), abs=1e-3)
+    check.almost_equal(lines[1].duration, time_convert("0:00:09.99") - time_convert("0:00:00.00"), abs=1e-3)
 
     check.equal(
         lines[11].raw_text,

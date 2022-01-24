@@ -771,9 +771,9 @@ class Line(_AssText):
         self.layer = int(linesplit[0])
 
         self.start_time = ConvertTime.assts2seconds(linesplit[1], fps)
-        self.start_time = ConvertTime.bound_to_frame(self.start_time, fps)
+        self.start_time = ConvertTime.bound2assframe(self.start_time, fps)
         self.end_time = ConvertTime.assts2seconds(linesplit[2], fps)
-        self.end_time = ConvertTime.bound_to_frame(self.end_time, fps)
+        self.end_time = ConvertTime.bound2assframe(self.end_time, fps)
         self.duration = self.end_time - self.start_time
 
         if styles:

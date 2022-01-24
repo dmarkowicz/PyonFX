@@ -105,8 +105,16 @@ class ConvertTime:
         return out
 
     @classmethod
-    def bound_to_frame(cls, s: float, fps: Fraction, /) -> float:
+    def bound2frame(cls, s: float, fps: Fraction, /) -> float:
         return cls.f2seconds(cls.seconds2f(s, fps), fps)
+
+    @classmethod
+    def bound2assframe(cls, s: float, fps: Fraction, /) -> float:
+        if s == 0.0:
+            return 0.0
+        # Seems to work fine lol
+        f = cls.seconds2f(s + 0.0002, fps)
+        return cls.f2seconds(f, fps) + 0.000105
 
 
 class ConvertColour:
