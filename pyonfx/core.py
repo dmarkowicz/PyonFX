@@ -230,12 +230,11 @@ class Ass(AutoSlots):
             # Write lines
             try:
                 events_txt = self._sections['[Events]'].text.strip()
-                f.write(
-                    '[Events]\n'
-                    + re.sub(r'^Dialogue:|Comment:', 'Comment:', events_txt, 0, re.MULTILINE)
-                    if comment_original else events_txt
-                    + '\n\n'
-                )
+                f.write('[Events]\n')
+                if comment_original:
+                    f.write(re.sub(r'^Dialogue:|Comment:', 'Comment:', events_txt, 0, re.MULTILINE))
+                else:
+                    f.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
             except KeyError:
                 pass
 
