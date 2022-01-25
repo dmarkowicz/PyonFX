@@ -367,7 +367,7 @@ class _AbstractShape(MutableSequence[DrawingCommand], ABC):
         return self.__add__(x)
 
     def __str__(self) -> str:
-        return ' '.join(map(str, self._commands))
+        return self.to_str()
 
     def __repr__(self) -> str:
         return repr(self._commands)
