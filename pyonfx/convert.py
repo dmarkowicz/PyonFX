@@ -22,6 +22,7 @@ __all__ = [
 
 import colorsys
 import math
+from bisect import bisect_left
 from fractions import Fraction
 from typing import Final, Tuple
 
@@ -80,6 +81,8 @@ class ConvertTime:
     def seconds2assts(cls, s: float, fps: Fraction, /) -> str:
         s -= fps ** -1 * 0.5
         ts = cls.seconds2ts(max(0, s), precision=3)
+        # The ts has a precision of 1e-2 and sometimes it's not exactly the same ts than Aegisub one
+        # but it reports the same frame, so we're all good
         return ts[:-1]
 
     @classmethod
@@ -110,11 +113,31 @@ class ConvertTime:
 
     @classmethod
     def bound2assframe(cls, s: float, fps: Fraction, /) -> float:
-        if s == 0.0:
+        if s <= 0.0:
             return 0.0
         # Seems to work fine lol
-        f = cls.seconds2f(s + 0.0002, fps)
-        return cls.f2seconds(f, fps) + 0.000105
+        halff = fps ** -1 * 0.5
+        # Get the previous and next frame
+        fbef = math.floor(s * fps - halff)
+        faft = math.ceil(s * fps + halff)
+
+        # Means that s is a median of the previous and next frames
+        # n - 1, n, n + 1
+        if faft - fbef > 1:
+            return s
+
+        sbef = cls.f2seconds(fbef, fps)
+        saft = cls.f2seconds(faft, fps)
+        # Get the "median" of previous and next
+        # By using trunc, we're introducing more truncature errors
+        times = [sbef, math.trunc((saft + sbef) * 1000) // 2 / 1000, saft]
+
+        # I'm not sure why Aegisub is like that
+        if times[1] + 1e-13 == times[1]:
+            times[1] = round(times[1], 3) + 0.001
+
+        i = bisect_left(times, s) - 1
+        return [sbef, saft][i]
 
 
 class ConvertColour:
