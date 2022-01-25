@@ -23,6 +23,7 @@ __all__ = [
     'DrawingCommand',
     'OutlineMode'
 ]
+import inspect
 import re
 # import sys
 from abc import ABC, abstractmethod
@@ -31,7 +32,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from math import atan, ceil, cos, degrees, isfinite, radians, sqrt
 from typing import (
-    Callable, Deque, Dict, Iterable, List, MutableSequence, NamedTuple, Optional, Sequence,
+    Any, Callable, Deque, Dict, Iterable, List, MutableSequence, NamedTuple, Optional, Sequence,
     SupportsIndex, Tuple, cast, overload
 )
 
@@ -42,7 +43,10 @@ from skimage.transform import rescale as skimage_rescale  # type: ignore
 
 from ._logging import logger
 from .colourspace import ASSColor, Opacity
-from .geometry import CartesianAxis, Geometry, Point, PointCartesian2D, PointsView, VectorCartesian2D, VectorCartesian3D
+from .geometry import (
+    CartesianAxis, Geometry, Point, PointCartesian2D, PointCartesian3D, PointsView,
+    VectorCartesian2D, VectorCartesian3D
+)
 from .misc import chunk, frange
 from .types import Alignment, View
 
@@ -442,20 +446,60 @@ class Shape(_AbstractShape):
         for cmd in self:
             cmd.round(ndigits)
 
+    @overload
+    def map(self, func: Callable[[float, float], Tuple[float, float]], /, *, unsafe: bool = False) -> None:
+        ...
+
+    @overload
+    def map(self, func: Callable[[float, float], Point], /, *, unsafe: bool = False) -> None:
+        ...
+
+    @overload
+    def map(self, func: Callable[[float, float, float], Tuple[float, float, float]], /, *, unsafe: bool = False) -> None:
+        ...
+
+    @overload
+    def map(self, func: Callable[[float, float, float], Point], /, *, unsafe: bool = False) -> None:
+        ...
+
+    @overload
+    def map(self, func: Callable[[Point], Point], /, *, unsafe: bool = False) -> None:
+        ...
+
+    @overload
+    def map(self, func: Callable[[Point], Tuple[float, float]], /, *, unsafe: bool = False) -> None:
+        ...
+
     @logger.catch
-    def map(self, func: Callable[[Point], Point | Tuple[float, float]], /, *, unsafe: bool = False) -> None:
+    def map(self, func: Callable[..., Any], /, *, unsafe: bool = False) -> None:
         """
         Sends every point of a shape through given transformation function to change them.
 
         **Tips:** *Working with outline points can be used to deform the whole shape and make f.e. a wobble effect.*
 
-        :param func:            A function with two parameters representing the x and y coordinates of each point.
-                                It will define how each coordinate will be changed.
+        :param func:            A function with one Point parameter or two parameters or three parameters
+                                representing the x, y (and z) coordinates of each point.
         :param func:            Deactivate integrity's checks
         """
+        def _wraps(p: Point, f: Callable[..., Any]) -> Point | Tuple[float, float]:
+            signature = inspect.signature(f)
+            # 3 float parameters
+            if len(signature.parameters) == 3:
+                result = f(*p.to_3d())
+                # Return types can be a tuple of 3 floats
+                # or a PointCartesian3D
+                if isinstance(result, tuple):
+                    return PointCartesian3D(*result)
+                return result
+            # 2 floats parameters
+            if len(signature.parameters) == 2:
+                return f(*p.to_2d())
+            # a basic Point
+            return f(p)
+
         self._commands = [
-            DrawingCommand(cmd.prop, *[func(p) for p in cmd._coordinates], unsafe=unsafe)
-            for cmd in self
+            DrawingCommand(cmd.prop, *[_wraps(p, func) for p in cmd._coordinates], unsafe=unsafe)
+            for cmd in self.__iter__()
         ]
 
     def move(self, _x: float = 0., _y: float = 0., /) -> None:
