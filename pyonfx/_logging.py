@@ -77,30 +77,30 @@ class Logger(Singleton):
         self.__level = level
         loguru.logger.add(sys.stderr, level=level, format=_loguru_format, backtrace=True, diagnose=True)
 
-    def trace(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).trace(message)
+    def trace(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).trace(str(message))
 
-    def debug(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).debug(message)
+    def debug(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).debug(str(message))
 
-    def info(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).info(message)
+    def info(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).info(str(message))
 
-    def success(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).success(message)
+    def success(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).success(str(message))
 
-    def warning(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).warning(message)
+    def warning(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=False, level=self.__level).warning(str(message))
 
-    def error(self, message: str, /) -> NoReturn:
-        loguru.logger.exception(message)
+    def error(self, message: Any, /) -> NoReturn:
+        loguru.logger.exception(str(message))
         sys.exit(1)
 
-    def user_warning(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=True, level=self.__level).log('USER WARNING', message)
+    def user_warning(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=True, level=self.__level).log('USER WARNING', str(message))
 
-    def user_info(self, message: str, /, depth: int = 1) -> None:
-        loguru.logger.opt(depth=depth).bind(user=True, level=self.__level).log('USER INFO', message)
+    def user_info(self, message: Any, /, depth: int = 1) -> None:
+        loguru.logger.opt(depth=depth).bind(user=True, level=self.__level).log('USER INFO', str(message))
 
     @overload
     def catch(self, func: F, /) -> F:
