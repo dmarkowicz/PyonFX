@@ -185,11 +185,32 @@ def test_convert_time4() -> None:
             abs=0.01001,
             msg='End line n°' + str(i) + ' | ' + oend + ' == ' + tend
         )
+
+
+def test_convert_time5() -> None:
+    originals = _Process(folder / 'moi_test_expected.ass').originals
+    transformeds = [
+        line.compose_ass_line()
+        for line in _Process(folder / 'moi_test.ass').io.lines
+    ]
+    for i, (origin, transformed) in enumerate(zip(originals, transformeds), start=1):
+
+        _, ostart, oend, *_ = origin.split(',')
+        _, tstart, tend, *_ = transformed.split(',')
+        logger.trace(ostart + ' | ' + oend)
+        logger.trace(tstart + ' | ' + tend)
+
+        check.almost_equal(
+            ConvertTime.ts2seconds(ostart),
+            ConvertTime.ts2seconds(tstart),
+            abs=0.01001,
+            msg='Start line n°' + str(i) + ' | ' + ostart + ' == ' + tstart
         )
-        check.equal(
-            ConvertTime.ts2seconds(origin.split(',')[2]),
-            ConvertTime.ts2seconds(transformed.split(',')[2]),
-            msg='End line n°' + str(i)
+        check.almost_equal(
+            ConvertTime.ts2seconds(oend),
+            ConvertTime.ts2seconds(tend),
+            abs=0.01001,
+            msg='End line n°' + str(i) + ' | ' + oend + ' == ' + tend
         )
 
 
