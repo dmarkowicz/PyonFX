@@ -281,7 +281,7 @@ class OrderedSet(MutableSet[T], Generic[T], ABC):
         return super().__or__(s)  # type: ignore[return-value]
 
     def __ior__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
-        return super().__ior__(s)  # type: ignore[return-value]
+        return super().__ior__(s)  # type: ignore
 
     def __sub__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
         return super().__sub__(s)  # type: ignore[return-value]
@@ -293,7 +293,7 @@ class OrderedSet(MutableSet[T], Generic[T], ABC):
         return super().__xor__(s)  # type: ignore[return-value]
 
     def __ixor__(self, s: AbstractSet[_T]) -> OrderedSet[_T | T]:
-        return super().__ixor__(s)  # type: ignore[return-value]
+        return super().__ixor__(s)  # type: ignore
 
     # Set methods
     def copy(self) -> OrderedSet[T]:

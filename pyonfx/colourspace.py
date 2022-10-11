@@ -308,7 +308,7 @@ class _RGBNoAlpha(_BaseRGB[Nb], ABC, empty_slots=True):
 
         :param _x:          Colourspace object or tuple of three numbers R, G and B values
         """
-        return super().__new__(cls, _x)
+        return super().__new__(cls, _x)  # type: ignore[arg-type]
 
     def __init__(self, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb]) -> None:
         """
@@ -333,7 +333,7 @@ class _RGBAlpha(_BaseRGB[Nb], ABC, empty_slots=True):
                             or tuple of three numbers R, G and B values
                             or tuple of four numbers R, G, B and Alpha values
         """
-        return super().__new__(cls, _x)
+        return super().__new__(cls, _x)  # type: ignore[arg-type]
 
     def __init__(self, _x: ColourSpace[ACV] | Tuple[Nb, Nb, Nb] | Tuple[Nb, Nb, Nb, Nb]) -> None:
         """
@@ -1027,7 +1027,7 @@ class ASSColor(_HexBased):
             self._rgb = RGB((r, g, b))
         elif _istup3(_x, int):
             self._rgb = RGB(_x[::-1])  # type: ignore[arg-type]
-            seq = ''.join(hex(cast(int, x))[2:].zfill(2) for x in _x)
+            seq = ''.join(hex(x)[2:].zfill(2) for x in _x)
         elif _istup3(_x, str):
             r, g, b = map(self.hex_to_int, _x)  # type: ignore[arg-type]
             self._rgb = RGB((r, g, b))
