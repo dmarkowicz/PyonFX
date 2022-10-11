@@ -18,9 +18,8 @@ max_deviation = 0.75
 fps = Fraction(23.976)
 
 
-def time_convert(ts: str) -> float:
-    s = ConvertTime.assts2seconds(ts, fps)
-    s = ConvertTime.bound2assframe(s, fps)
+def time_convert(ts: str, is_start: bool) -> float:
+    s = ConvertTime.assts2seconds(ts, fps, is_start)
     return round(s, 4)
 
 
@@ -61,9 +60,9 @@ def test_line_values():
     check.equal(lines[0].margin_v, 3)
     check.equal(lines[1].margin_v, 50)
 
-    check.equal(lines[1].start_time, time_convert("0:00:00.00"))
-    check.almost_equal(lines[1].end_time, time_convert("0:00:09.99"), abs=1e-3)
-    check.almost_equal(lines[1].duration, time_convert("0:00:09.99") - time_convert("0:00:00.00"), abs=1e-3)
+    check.equal(lines[1].start_time, time_convert("0:00:00.00", True))
+    check.almost_equal(lines[1].end_time, time_convert("0:00:09.99", False), abs=1e-3)
+    check.almost_equal(lines[1].duration, time_convert("0:00:09.99", True) - time_convert("0:00:00.00", True), abs=1e-3)
 
     check.equal(
         lines[11].raw_text,

@@ -63,15 +63,21 @@ class Ass(AutoSlots):
     _sections: Dict[str, _Section]
     _ptime: float
 
-    def __init__(self, input_: AnyPath, output: AnyPath | None = None, /,
-                 fps: Fraction | float = Fraction(24000, 1001), extended: bool = True, vertical_kanji: bool = False) -> None:
+    def __init__(
+        self, input_: AnyPath, output: AnyPath | None = None, /,
+        fps: Fraction | float = Fraction(24000, 1001),
+        extended: bool = True, vertical_kanji: bool = False,
+        fix_timestamps: bool = True
+    ) -> None:
         """
         :param input_:              Input file path
         :param output:              Output file path
         :param fps:                 Framerate Per Second of the video related to the .ass file
         :param extended:            Add more info about the lines, words, syllables and chars for each line
         :param vertical_kanji:      Line text with alignment 4, 5 or 6 will be positioned vertically
-                                    Additionally, ``line`` fields will be re-calculated based on the re-positioned ``line.chars``,
+                                    Additionally, ``line`` fields will be re-calculated based on the re-positioned ``line.chars``.
+        :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
         """
         self._ptime = time.time()
 
@@ -113,7 +119,7 @@ class Ass(AutoSlots):
         # Extract basic data from each line
         # We also remove the first line who starts by "Format:"
         self._lines = PList(
-            Line.from_text(ltext, i, fps, self._meta, self._styles)
+            Line.from_text(ltext, i, fps, self._meta, self._styles, fix_timestamps)
             for s in self._sections.values()
             if s.name == '[Events]'
             for i, ltext in enumerate(s.text.strip().splitlines()[1:])
@@ -188,22 +194,26 @@ class Ass(AutoSlots):
         """
         return self._lines
 
-    def add_line(self, line: Line) -> None:
+    def add_line(self, line: Line, fix_timestamps: bool = True) -> None:
         """
         Format a Line to a string suitable for writing into ASS file
         and add it to an internal list
 
-        :param line:        Line object
+        :param line:                Line object
+        :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
         """
-        self._output_lines.append(line.compose_ass_line())
+        self._output_lines.append(line.compose_ass_line(fix_timestamps=fix_timestamps))
 
     @logger.catch
-    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True) -> None:
+    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, fix_timestamps: bool = True) -> None:
         """
         Write the lines added by :py:func:`add_line` to the output file specified in the constructor
 
-        :param lines:       Additional Line objects to be written
-        :param quiet:       True quiet experience
+        :param lines:               Additional Line objects to be written
+        :param comment_original:    If True, will comment the original lines
+        :param fix_timestamps:      If True, will fix the timestamps of the additional lines on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
         """
         if not self._output:
             raise ValueError('path_output hasn\'t been specified in the constructor')
@@ -240,7 +250,7 @@ class Ass(AutoSlots):
 
             f.writelines(self._output_lines)
             if lines:
-                f.writelines(line.compose_ass_line() for line in lines)
+                f.writelines(line.compose_ass_line(fix_timestamps=fix_timestamps) for line in lines)
             f.write('\n\n')
 
             # Extra data
@@ -745,15 +755,18 @@ class Line(_AssText):
     @classmethod
     @logger.catch(force_exit=True)
     def from_text(cls, text: str, i: int, fps: Fraction,
-                  meta: Optional[Meta] = None, styles: Optional[Iterable[Style]] = None) -> Line:
+                  meta: Optional[Meta] = None, styles: Optional[Iterable[Style]] = None,
+                  fix_timestamps: bool = True) -> Line:
         """
         Make a Line object from a .ass text line
 
-        :param text:        An .ass line starting by "Dialogue" or "Comment"
-        :param i:           Line index
-        :param fps:         FrameRate Per Second
-        :param meta:        Meta object to link to the Line
-        :param styles:      Iterable of Style, defaults to None
+        :param text:            An .ass line starting by "Dialogue" or "Comment"
+        :param i:               Line index
+        :param fps:             FrameRate Per Second
+        :param meta:            Meta object to link to the Line
+        :param styles:          Iterable of Style, defaults to None
+        :param fix_timestamps:  If True, will fix the timestamps on their real start and end time.
+                                If False, start and end times will just be the raw timestamps.
         :return:            A Line object
         """
         self = cls()
@@ -769,10 +782,12 @@ class Line(_AssText):
 
         self.layer = int(linesplit[0])
 
-        self.start_time = ConvertTime.assts2seconds(linesplit[1], fps)
-        self.start_time = ConvertTime.bound2assframe(self.start_time, fps)
-        self.end_time = ConvertTime.assts2seconds(linesplit[2], fps)
-        self.end_time = ConvertTime.bound2assframe(self.end_time, fps)
+        if fix_timestamps:
+            self.start_time = ConvertTime.assts2seconds(linesplit[1], fps, is_start=True)
+            self.end_time = ConvertTime.assts2seconds(linesplit[2], fps, is_start=False)
+        else:
+            self.start_time = ConvertTime.ts2seconds(linesplit[1])
+            self.end_time = ConvertTime.ts2seconds(linesplit[2])
         self.duration = self.end_time - self.start_time
 
         if styles:
@@ -1217,15 +1232,22 @@ class Line(_AssText):
                 char.y = char.middle
                 cur_y += char.height
 
-    def compose_ass_line(self) -> str:
+    def compose_ass_line(self, *, fix_timestamps: bool = True) -> str:
         """
         Make an ASS line suitable for writing into an .ass file
+
+        :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
         """
         ass_line = 'Comment: ' if self.comment else 'Dialogue: '
+        if fix_timestamps:
+            start = ConvertTime.seconds2assts(self.start_time, self.meta.fps, is_start=True)
+            end = ConvertTime.seconds2assts(self.end_time, self.meta.fps, is_start=False)
+        else:
+            start, end = [ConvertTime.seconds2ts(t, precision=3)[:-1] for t in [self.start_time, self.end_time]]
         elements: List[str] = [
             str(self.layer),
-            ConvertTime.seconds2assts(self.start_time, self.meta.fps),
-            ConvertTime.seconds2assts(self.end_time, self.meta.fps),
+            start, end,
             self.style.name, self.actor,
             str(self.margin_l), str(self.margin_r), str(self.margin_v),
             self.effect, self.text
