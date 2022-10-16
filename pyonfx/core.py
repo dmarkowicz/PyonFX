@@ -62,6 +62,7 @@ class Ass(AutoSlots):
     _output_lines: List[str]
     _sections: Dict[str, _Section]
     _ptime: float
+    _fix_timestamps: bool
 
     def __init__(
         self, input_: AnyPath, output: AnyPath | None = None, /,
@@ -124,6 +125,7 @@ class Ass(AutoSlots):
             if s.name == '[Events]'
             for i, ltext in enumerate(s.text.strip().splitlines()[1:])
         )
+        self._fix_timestamps = fix_timestamps
 
         if not extended:
             return None
@@ -194,7 +196,7 @@ class Ass(AutoSlots):
         """
         return self._lines
 
-    def add_line(self, line: Line, fix_timestamps: bool = True) -> None:
+    def add_line(self, line: Line, fix_timestamps: Optional[bool] = None) -> None:
         """
         Format a Line to a string suitable for writing into ASS file
         and add it to an internal list
@@ -203,7 +205,11 @@ class Ass(AutoSlots):
         :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
                                     If False, start and end times will just be the raw timestamps.
         """
-        self._output_lines.append(line.compose_ass_line(fix_timestamps=fix_timestamps))
+        self._output_lines.append(
+            line.compose_ass_line(
+                fix_timestamps=fix_timestamps if fix_timestamps is not None else self._fix_timestamps
+            )
+        )
 
     @logger.catch
     def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, fix_timestamps: bool = True) -> None:
@@ -250,7 +256,10 @@ class Ass(AutoSlots):
 
             f.writelines(self._output_lines)
             if lines:
-                f.writelines(line.compose_ass_line(fix_timestamps=fix_timestamps) for line in lines)
+                f.writelines(
+                    line.compose_ass_line(fix_timestamps=fix_timestamps if fix_timestamps is not None else self._fix_timestamps)
+                    for line in lines
+                )
             f.write('\n\n')
 
             # Extra data
@@ -1244,7 +1253,7 @@ class Line(_AssText):
             start = ConvertTime.seconds2assts(self.start_time, self.meta.fps, is_start=True)
             end = ConvertTime.seconds2assts(self.end_time, self.meta.fps, is_start=False)
         else:
-            start, end = [ConvertTime.seconds2ts(t, precision=3)[:-1] for t in [self.start_time, self.end_time]]
+            start, end = [ConvertTime.seconds2ts(t, precision=3)[1:-1] for t in [self.start_time, self.end_time]]
         elements: List[str] = [
             str(self.layer),
             start, end,
