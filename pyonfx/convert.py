@@ -101,8 +101,8 @@ class ConvertTime:
     def seconds2assts(cls, s: float, fps: Fraction, /, is_start: bool) -> str:
         s -= fps ** -1 * 0.5
         s = cls.bound2assframe(s, fps, is_start, shifted=True)
-        ts = cls.seconds2ts(max(0, s), precision=3)
-        return ts[:-1]
+        ts = cls.seconds2ts(min(max(0, s), 35999.999), precision=3)
+        return ts[1:-1]
 
     @classmethod
     def assts2seconds(cls, assts: str, fps: Fraction, /, is_start: bool) -> float:
