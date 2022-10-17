@@ -30,7 +30,6 @@ import sys
 import time
 from abc import ABC
 from collections import UserList, defaultdict
-from fractions import Fraction
 from functools import lru_cache
 from pprint import pformat
 from typing import (
@@ -66,7 +65,7 @@ class Ass(AutoSlots):
 
     def __init__(
         self, input_: AnyPath, output: AnyPath | None = None, /,
-        fps: Fraction | float = Fraction(24000, 1001),
+        fps: float = 24000 / 1001,
         extended: bool = True, vertical_kanji: bool = False,
         fix_timestamps: bool = True
     ) -> None:
@@ -86,7 +85,6 @@ class Ass(AutoSlots):
             lines_file = file.read()
 
         self._output = output
-        fps = fps if isinstance(fps, Fraction) else Fraction(fps)
         self._output_lines = []
 
         # Find section pattern
@@ -401,11 +399,11 @@ class Meta(_DataCore):
     video_file: str
     """Loaded video path (absolute)"""
 
-    fps: Fraction
+    fps: float
     """FrameRate per Second"""
 
     @classmethod
-    def from_text(cls, text: str, fps: Fraction) -> Meta:
+    def from_text(cls, text: str, fps: float) -> Meta:
         """
         Make a Meta object from a chunk of text [Script Info] and [Aegisub Project Garbage]
 
@@ -763,7 +761,7 @@ class Line(_AssText):
 
     @classmethod
     @logger.catch(force_exit=True)
-    def from_text(cls, text: str, i: int, fps: Fraction,
+    def from_text(cls, text: str, i: int, fps: float,
                   meta: Optional[Meta] = None, styles: Optional[Iterable[Style]] = None,
                   fix_timestamps: bool = True) -> Line:
         """

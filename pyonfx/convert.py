@@ -22,7 +22,6 @@ __all__ = [
 
 import colorsys
 import math
-from fractions import Fraction
 from typing import Final, Tuple
 
 import numpy as np
@@ -50,11 +49,11 @@ class ConvertTime:
 
     # Seconds | Frame
     @staticmethod
-    def seconds2f(s: float, fps: Fraction, /) -> int:
+    def seconds2f(s: float, fps: float, /) -> int:
         return round(s * fps)
 
     @staticmethod
-    def f2seconds(f: int, fps: Fraction, /) -> float:
+    def f2seconds(f: int, fps: float, /) -> float:
         if f == 0:
             return 0.0
 
@@ -65,11 +64,11 @@ class ConvertTime:
     # Seconds | ASS frame
     # Heavily inspired from https://github.com/CoffeeStraw/PyonFX/pull/37
     @staticmethod
-    def seconds2assf(s: float, fps: Fraction, /, is_start: bool) -> int:
+    def seconds2assf(s: float, fps: float, /, is_start: bool) -> int:
         return math.ceil((s - 0.0005) * fps) - (0 if is_start else 1)
 
     @classmethod
-    def assf2seconds(cls, f: int, fps: Fraction, /, is_start: bool) -> float:
+    def assf2seconds(cls, f: int, fps: float, /, is_start: bool) -> float:
         if is_start and f == 0:
             return 0.0
 
@@ -85,27 +84,27 @@ class ConvertTime:
 
     # Frame | Timestamp
     @classmethod
-    def f2ts(cls, f: int, fps: Fraction, /, *, precision: int = 3) -> str:
+    def f2ts(cls, f: int, fps: float, /, *, precision: int = 3) -> str:
         s = cls.f2seconds(f, fps)
         ts = cls.seconds2ts(s, precision=precision)
         return ts
 
     @classmethod
-    def ts2f(cls, ts: str, fps: Fraction, /) -> int:
+    def ts2f(cls, ts: str, fps: float, /) -> int:
         s = cls.ts2seconds(ts)
         f = cls.seconds2f(s, fps)
         return f
 
     # Ass Timestamp | Seconds
     @classmethod
-    def seconds2assts(cls, s: float, fps: Fraction, /, is_start: bool) -> str:
+    def seconds2assts(cls, s: float, fps: float, /, is_start: bool) -> str:
         s -= fps ** -1 * 0.5
         s = cls.bound2assframe(s, fps, is_start, shifted=True)
         ts = cls.seconds2ts(min(max(0, s), 35999.999), precision=3)
         return ts[1:-1]
 
     @classmethod
-    def assts2seconds(cls, assts: str, fps: Fraction, /, is_start: bool) -> float:
+    def assts2seconds(cls, assts: str, fps: float, /, is_start: bool) -> float:
         s = cls.ts2seconds(assts)
         if s == 0.0:
             return s
@@ -129,11 +128,11 @@ class ConvertTime:
         return out
 
     @classmethod
-    def bound2frame(cls, s: float, fps: Fraction, /) -> float:
+    def bound2frame(cls, s: float, fps: float, /) -> float:
         return cls.f2seconds(cls.seconds2f(s, fps), fps)
 
     @classmethod
-    def bound2assframe(cls, s: float, fps: Fraction, /, is_start: bool, shifted: bool = False) -> float:
+    def bound2assframe(cls, s: float, fps: float, /, is_start: bool, shifted: bool = False) -> float:
         if s == 0.0:
             return s
         if not shifted:
