@@ -283,10 +283,10 @@ class DrawingCommand(_AbstractDrawingCommand):
             po = po if isinstance(po, PointCartesian2D) else po.to_3d().project_2d()
             po.round(round_digits)
             # Optimise by removing ".0" if the float can be interpreted as an integer
-            if (intx := int(po.x)) == po.x:
-                po.x = intx
-            if (inty := int(po.y)) == po.y:
-                po.y = inty
+            if po.x.is_integer():
+                po.x = po.x.as_integer_ratio()[0]
+            if po.y.is_integer():
+                po.y = po.y.as_integer_ratio()[0]
             points.append(po)
         return self._prop.value + ' ' + ' '.join(f'{p.x} {p.y}' for p in points)
 
