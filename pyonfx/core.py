@@ -42,10 +42,10 @@ from more_itertools import zip_offset
 from ._logging import logger
 from ._metadata import __version__
 from .colourspace import ASSColor, Opacity
-from .convert import ConvertTime
 from .exception import LineNotFoundWarning, MatchNotFoundError
 from .font import Font, get_font
 from .shape import Pixel, Shape
+from .time import Time
 from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence, OrderedSet
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
@@ -586,10 +586,28 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
     """Abstract AssText object"""
     i: int
     """Index number"""
-    start_time: float
-    """Start time (in seconds)"""
-    end_time: float
-    """End time (in seconds)"""
+
+    _start_time: Time
+    _end_time: Time
+
+    @property
+    def start_time(self) -> Time:
+        """Start time (in seconds)"""
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, x: Time | float) -> None:
+        self._start_time = Time(x) if not isinstance(x, Time) else x
+
+    @property
+    def end_time(self) -> Time:
+        """End time (in seconds)"""
+        return self._end_time
+
+    @end_time.setter
+    def end_time(self, x: Time | float) -> None:
+        self._end_time = Time(x) if not isinstance(x, Time) else x
+
     duration: float
     """Duration (in seconds)"""
     text: str
@@ -790,11 +808,11 @@ class Line(_AssText):
         self.layer = int(linesplit[0])
 
         if fix_timestamps:
-            self.start_time = ConvertTime.assts2seconds(linesplit[1], fps, is_start=True)
-            self.end_time = ConvertTime.assts2seconds(linesplit[2], fps, is_start=False)
+            self.start_time = Time.from_assts(linesplit[1], fps, is_start=True)
+            self.end_time = Time.from_assts(linesplit[2], fps, is_start=False)
         else:
-            self.start_time = ConvertTime.ts2seconds(linesplit[1])
-            self.end_time = ConvertTime.ts2seconds(linesplit[2])
+            self.start_time = Time.from_ts(linesplit[1])
+            self.end_time = Time.from_ts(linesplit[2])
         self.duration = self.end_time - self.start_time
 
         if styles:
@@ -986,7 +1004,7 @@ class Line(_AssText):
 
         ks = tuple(syldata.finditer(self.raw_text.replace('}{', '').replace('\\k', '}{\\k').replace('{}', '')))
 
-        last_time = 0.0
+        last_time = Time(0.0)
         word_i = 0
         for si, (k0, k1) in enumerate(zip_offset(ks, ks, offsets=(0, 1), longest=True)):
             assert k0
@@ -1248,10 +1266,11 @@ class Line(_AssText):
         """
         ass_line = 'Comment: ' if self.comment else 'Dialogue: '
         if fix_timestamps:
-            start = ConvertTime.seconds2assts(self.start_time, self.meta.fps, is_start=True)
-            end = ConvertTime.seconds2assts(self.end_time, self.meta.fps, is_start=False)
+            start = self.start_time.assts(self.meta.fps, True)
+            end = self.end_time.assts(self.meta.fps, False)
         else:
-            start, end = [ConvertTime.seconds2ts(t, precision=3)[1:-1] for t in [self.start_time, self.end_time]]
+            start = self.start_time.ts()[1:-1]
+            end = self.end_time.ts()[1:-1]
         elements: List[str] = [
             str(self.layer),
             start, end,
