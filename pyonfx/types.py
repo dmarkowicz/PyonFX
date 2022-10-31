@@ -125,8 +125,10 @@ class AutoSlotsMeta(ABCMeta):
     def __prepare__(cls, __name: str, __bases: Tuple[type, ...], **kwargs: Any) -> Mapping[str, object]:
         return {'__slots__': (), '__slots_ex__': ()}
 
-    def __new__(cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
-                empty_slots: bool = False, slots_ex: bool = False, **kwargs: Any) -> AutoSlotsMeta:
+    def __new__(
+        cls, name: str, bases: Tuple[type, ...], namespace: Dict[str, Any],
+        empty_slots: bool = False, slots_ex: bool = False, **kwargs: Any
+    ) -> AutoSlotsMeta:
         if empty_slots:
             return super().__new__(cls, name, bases, namespace, **kwargs)
 
@@ -146,15 +148,16 @@ class AutoSlotsMeta(ABCMeta):
         _slots.update(namespace.get('__annotations__', {}))
         _all_slots = _slots_inherited | _slots
 
-        # Get possible class variables
+        # Get possible class variables & properties
         attrs = {
-            attr: val for abase in abases for attr in dir(abase)
-            if not attr.startswith('__') and not attr.endswith('__')
-            and not isinstance(
-                val := getattr(abase, attr),
-                (FunctionType, classmethod, staticmethod, property, MethodType, MemberDescriptorType)
-            )
-            and attr not in {'_abc_impl', '_is_protocol'}
+            attr: getattr(abase, attr) for abase in abases for attr in dir(abase)
+        }
+        attrs.update(namespace)
+        attrs = {
+            k: v for k, v in attrs.items()
+            if not k.startswith('__') and not k.endswith('__')
+            and not isinstance(v, (FunctionType, classmethod, staticmethod, MethodType, MemberDescriptorType, _lru_cache_wrapper))
+            and k not in {'_abc_impl', '_is_protocol'}
         }
 
         namespace = {**attrs, **namespace}
