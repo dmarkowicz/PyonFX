@@ -33,7 +33,7 @@ from collections import UserList, defaultdict
 from functools import lru_cache
 from pprint import pformat
 from typing import (
-    TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Tuple,
+    TYPE_CHECKING, Any, DefaultDict, Dict, Iterable, Iterator, List, Literal, Optional, Tuple, Type,
     TypeVar, Union, overload
 )
 
@@ -46,16 +46,19 @@ from .exception import LineNotFoundWarning, MatchNotFoundError
 from .font import Font, get_font
 from .shape import Pixel, Shape
 from .time import Time
-from .types import AnyPath, AssBool, AutoSlots, NamedMutableSequence, OrderedSet
+from .types import AnyPath, AssBool, AutoSlots, BorderStyleBool, CustomBool, NamedMutableSequence, OrderedSet, StyleBool
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
+_MetaDataT = TypeVar('_MetaDataT', bound='_MetaData')
 
 
 class Ass(AutoSlots):
     """Initialisation class containing all the information about an ASS file"""
 
-    _meta: Meta
-    _styles: List[Style]
+    meta: Meta
+    """Meta of the .ass file"""
+    styles: List[Style]
+    """List of styles included in the .ass file"""
     _lines: PList[Line]
     _output: Optional[AnyPath]
     _output_lines: List[str]
@@ -64,8 +67,8 @@ class Ass(AutoSlots):
     _fix_timestamps: bool
 
     def __init__(
-        self, input_: AnyPath, output: AnyPath | None = None, /,
-        fps: float = 24000 / 1001,
+        self, input_: AnyPath | None, output: AnyPath | None = None, /,
+        fps: float | None = 24000 / 1001,
         extended: bool = True, vertical_kanji: bool = False,
         fix_timestamps: bool = True
     ) -> None:
@@ -79,13 +82,17 @@ class Ass(AutoSlots):
         :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
                                     If False, start and end times will just be the raw timestamps.
         """
+        self._output = output
+        self._output_lines = []
+        self._sections = {}
         self._ptime = time.time()
+        self._fix_timestamps = fix_timestamps
+
+        if input_ is None:
+            return
 
         with open(input_, 'r', encoding='utf-8-sig') as file:
             lines_file = file.read()
-
-        self._output = output
-        self._output_lines = []
 
         # Find section pattern
         self._sections = {
@@ -101,29 +108,46 @@ class Ass(AutoSlots):
             sec1.text = lines_file[sec1.end:sec2.start]
 
         # Make a Meta object from both Script Info and Aegisub Project Garbage
-        self._meta = Meta.from_text(
-            ''.join(
-                s.text for s in self._sections.values()
-                if s.name in {'[Script Info]', '[Aegisub Project Garbage]'}),
-            fps
-        )
+        self.meta = Meta()
+        if fps is None:
+            raise ValueError(f'{self.__class__.__name__}: FPS is required!')
+        self.meta.fps = fps
+        # Script Info
+        try:
+            sec = self._sections['[Script Info]']
+        except AttributeError:
+            logger.user_warning('There is no [Script Info] section in this file')
+        else:
+            self.meta.script_info = ScriptInfo.from_text(sec.text)
+        # Aegisub Project Garbage
+        try:
+            sec = self._sections['[Aegisub Project Garbage]']
+        except AttributeError:
+            logger.user_warning('There is no [Aegisub Project Garbage] section in this file')
+        else:
+            self.meta.project_garbage = ProjectGarbage.from_text(sec.text)
+
         # Make styles based on each line inside the [V4+ Styles] section
         # We remove the first line who starts by "Format:"
-        self._styles = [
-            Style.from_text(stext)
-            for s in self._sections.values()
-            if s.name == '[V4+ Styles]'
-            for stext in s.text.strip().splitlines()[1:]
-        ]
-        # Extract basic data from each line
-        # We also remove the first line who starts by "Format:"
-        self._lines = PList(
-            Line.from_text(ltext, i, fps, self._meta, self._styles, fix_timestamps)
-            for s in self._sections.values()
-            if s.name == '[Events]'
-            for i, ltext in enumerate(s.text.strip().splitlines()[1:])
-        )
-        self._fix_timestamps = fix_timestamps
+        self.styles = []
+        try:
+            sec = self._sections['[V4+ Styles]']
+        except AttributeError:
+            logger.user_warning('There is no [V4+ Styles] section in this file')
+        else:
+            self.styles.extend(Style.from_text(txt) for txt in sec.text.strip().splitlines()[1:])
+
+        # We remove the first line who starts by "Format:"
+        self._lines = PList()
+        try:
+            sec = self._sections['[Events]']
+        except AttributeError:
+            logger.user_warning('There is no [Events] section in this file')
+        else:
+            self._lines.extend(
+                Line.from_text(ltext, i, fps, self.meta, self.styles, fix_timestamps)
+                for i, ltext in enumerate(sec.text.strip().splitlines()[1:])
+            )
 
         if not extended:
             return None
@@ -171,27 +195,11 @@ class Ass(AutoSlots):
         """
         :return:            Return data of the .ass file
         """
-        return self._meta, self._styles, self._lines
-
-    @property
-    def meta(self) -> Meta:
-        """
-        :return:            Return the Meta of the .ass file
-        """
-        return self._meta
-
-    @property
-    def styles(self) -> List[Style]:
-        """
-        :return:            Return the list of styles included in the .ass file
-        """
-        return self._styles
+        return self.meta, self.styles, self._lines
 
     @property
     def lines(self) -> PList[Line]:
-        """
-        :return:            Return the list of lines included in the .ass file
-        """
+        """PList of lines included in the .ass file"""
         return self._lines
 
     def add_line(self, line: Line, fix_timestamps: Optional[bool] = None) -> None:
@@ -204,13 +212,18 @@ class Ass(AutoSlots):
                                     If False, start and end times will just be the raw timestamps.
         """
         self._output_lines.append(
-            line.compose_ass_line(
+            line.as_text(
                 fix_timestamps=fix_timestamps if fix_timestamps is not None else self._fix_timestamps
             )
         )
 
     @logger.catch
-    def save(self, lines: Optional[Iterable[Line]] = None, comment_original: bool = True, fix_timestamps: bool = True) -> None:
+    def save(
+        self,
+        lines: Optional[Iterable[Line]] = None,
+        comment_original: bool = True, fix_timestamps: bool = True,
+        keep_extradata: bool = True
+    ) -> None:
         """
         Write the lines added by :py:func:`add_line` to the output file specified in the constructor
 
@@ -223,45 +236,56 @@ class Ass(AutoSlots):
             raise ValueError('path_output hasn\'t been specified in the constructor')
 
         with open(self._output, 'w', encoding='utf-8-sig') as f:
-            # Write header
+            # Write script info section
+            f.write('[Script Info]\n')
             try:
-                txt = re.sub(r'^; .*\r?\n', '', self._sections['[Script Info]'].text, 0, re.MULTILINE)
-            except KeyError:
-                txt = ''
+                si_txt = self.meta.script_info.as_text(
+                    [f'; Script generated by Pyonfx {__version__}\n; https://github.com/Ichunjo/PyonFX']
+                )
+            except AttributeError:
+                si_txt = ''
+            f.write(si_txt + '\n')
 
-            header_pyon = f'; Script generated by Pyonfx {__version__}\n; https://github.com/Ichunjo/PyonFX\n'
-            f.write('[Script Info]\n' + header_pyon + txt.strip() + '\n\n')
+            # Write aegisub project garbage section
+            f.write('[Aegisub Project Garbage]\n')
+            try:
+                apg_txt = self.meta.project_garbage.as_text()
+            except AttributeError:
+                apg_txt = ''
+            f.write(apg_txt + '\n')
 
-            # Write garbage and styles
-            for name in ('[Aegisub Project Garbage]', '[V4+ Styles]'):
+            # Write styles
+            f.write('[V4+ Styles]\n')
+            f.write(
+                'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, '
+                'Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, '
+                'MarginV, Encoding\n'
+            )
+            f.writelines(s.as_text() for s in self.styles)
+            f.write('\n')
+
+            # Write lines
+            f.write('[Events]\n')
+            f.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
+            if comment_original:
                 try:
-                    section = self._sections[name]
+                    events_txt = ''.join(self._sections['[Events]'].text.strip().splitlines()[1:])
                 except KeyError:
                     pass
                 else:
-                    f.write(name + '\n' + section.text.strip() + '\n\n')
-
-            # Write lines
-            try:
-                events_txt = self._sections['[Events]'].text.strip()
-                f.write('[Events]\n')
-                if comment_original:
                     f.write(re.sub(r'^Dialogue:|Comment:', 'Comment:', events_txt, 0, re.MULTILINE))
-                else:
-                    f.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
-            except KeyError:
-                pass
-
             f.writelines(self._output_lines)
             if lines:
                 f.writelines(
-                    line.compose_ass_line(fix_timestamps=fix_timestamps if fix_timestamps is not None else self._fix_timestamps)
+                    line.as_text(fix_timestamps=fix_timestamps
+                                 if fix_timestamps is not None
+                                 else self._fix_timestamps)
                     for line in lines
                 )
-            f.write('\n\n')
+            f.write('\n')
 
-            # Extra data
-            if '[Aegisub Extradata]' in self._sections:
+            # Write extradata
+            if keep_extradata and '[Aegisub Extradata]' in self._sections:
                 f.write(
                     '[Aegisub Extradata]\n'
                     + self._sections['[Aegisub Extradata]'].text.strip()
@@ -299,7 +323,7 @@ class Ass(AutoSlots):
             raise ValueError('path_output hasn\'t been specified in the constructor')
 
         # Check if mpv is usable
-        if self.meta.video_file.startswith('?dummy') and not video_path:
+        if self.meta.project_garbage.video__file.startswith('?dummy') and not video_path:
             raise FileNotFoundError(
                 f'{self.__class__.__name__}: Cannot use MPV; dummy video detected'
             )
@@ -310,7 +334,7 @@ class Ass(AutoSlots):
         if video_path:
             cmd.append(str(video_path))
         else:
-            cmd.append(self.meta.video_file)
+            cmd.append(self.meta.project_garbage.video__file)
         if video_start:
             cmd.append('--start=' + video_start)
         if full_screen:
@@ -324,9 +348,51 @@ class Ass(AutoSlots):
             raise FileNotFoundError(f'{self.__class__.__name__}: MPV not found') from file_err
 
 
+class AssUntitled(Ass):
+    def __init__(
+        self, output: AnyPath | None = None, /, fps: float | None = 24000 / 1001, fix_timestamps: bool = True
+    ) -> None:
+        """
+        :param output:              Output file path
+        :param fps:                 Framerate Per Second of the video related to the .ass file
+                                    If False, start and end times will just be the raw timestamps.
+        :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
+        """
+        super().__init__(None, output, fps, False, False, fix_timestamps)
+        self.meta = Meta.get_default()
+        if fps is not None:
+            self.meta.fps = fps
+        style = Style.get_default()
+        self.styles = [style]
+        self._lines = PList()
+        self._lines.append(Line.get_default(style))
+
+
+class AssVoid(Ass):
+    def __init__(
+        self, output: AnyPath | None = None, /, fps: float | None = None, fix_timestamps: bool = True
+    ) -> None:
+        """
+        :param output:              Output file path
+        :param fps:                 Framerate Per Second of the video related to the .ass file
+                                    If False, start and end times will just be the raw timestamps.
+        :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
+                                    If False, start and end times will just be the raw timestamps.
+        """
+        super().__init__(None, output, fps, False, False, fix_timestamps)
+        self.meta = Meta()
+        self.meta.script_info = ScriptInfo()
+        self.meta.project_garbage = ProjectGarbage()
+        if fps is not None:
+            self.meta.fps = fps
+        self.styles = []
+        self._lines = PList()
+
+
 class _DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
     def __iter__(self) -> Iterator[Tuple[str, Any]]:
-        for name in self.__slots__:
+        for name in self.__all_slots__:
             try:
                 yield name, getattr(self, name)
             except AttributeError:
@@ -353,6 +419,8 @@ class _DataCore(AutoSlots, Iterable[Tuple[str, Any]], ABC, empty_slots=True):
 
         indent += 4
         for k, v in obj:
+            if k.startswith('_'):
+                continue
             if isinstance(v, _DataCore):
                 # Work recursively to print another object
                 out += self._pretty_print(v, indent, k)
@@ -372,43 +440,27 @@ class Meta(_DataCore):
 
     More info about each of them can be found on http://docs.aegisub.org/manual/Styles
     """
-    play_res_x: int
-    """Video width"""
-    play_res_y: int
-    """Video height"""
-
-    title: str
-    original_script: str
-    original_translation: str
-    original_editing: str
-    original_timing: str
-    synch_point: str
-    script_updated_by: str
-    update_details: str
-
-    wrap_style: int
-    """Determines how line breaking is applied to the subtitle line"""
-    scaled_border_and_shadow: AssBool
-    """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
-
-    y_cb_cr_matrix: str
-    """YUV Matrix"""
-
-    audio_file: str
-    """Loaded audio path (absolute)"""
-    video_file: str
-    """Loaded video path (absolute)"""
+    script_info: ScriptInfo
+    project_garbage: ProjectGarbage
 
     fps: float
     """FrameRate per Second"""
 
     @classmethod
-    def from_text(cls, text: str, fps: float) -> Meta:
-        """
-        Make a Meta object from a chunk of text [Script Info] and [Aegisub Project Garbage]
+    def get_default(cls) -> Meta:
+        meta = cls()
+        meta.script_info = ScriptInfo.get_default()
+        meta.project_garbage = ProjectGarbage.get_default()
+        return meta
 
-        :param text:        Meta text
-        :param fps:         Framerate Per Second
+
+class _MetaData(_DataCore, empty_slots=True):
+    @classmethod
+    def from_text(cls: Type[_MetaDataT], text: str) -> _MetaDataT:
+        """
+        Make a Meta object from a chunk of text [Script Info] or [Aegisub Project Garbage]
+
+        :param text:        Script Info or Aegisub Project Garbage text
         :return:            Meta object
         """
         self = cls()
@@ -419,11 +471,93 @@ class Meta(_DataCore):
             (m.groupdict()['name'], m.groupdict()['value'])
             for m in re.finditer(r'^(?P<name>.*): (?P<value>.*)$', text, re.MULTILINE)
         ):
-            k = pattern.sub('_', k.replace(' ', '')).lower()
+            k = pattern.sub('_', k.replace(' ', '_')).lower()
             if k in self.__slots__:
                 setattr(self, k, eval(cls.__annotations__[k])(v))
-        self.fps = fps
+            elif k in self.__slots_ex__ and k not in self.__slots__:
+                setattr(self, k, eval(cls.__annotations__['_' + k])(v))
         return self
+
+    def as_text(self, comment: Iterable[str] | None = None) -> str:
+        section = ''
+        if comment:
+            section += '; '.join(comment) + '\n'
+        for k, v in self:
+            if k.startswith('_'):
+                continue
+            if isinstance(v, CustomBool):
+                v = repr(v)
+            for w in k.split('_'):
+                if not w:
+                    w = ' '
+                section += f'{w.title()}'
+            section += f': {v}\n'
+        return section
+
+
+class ScriptInfo(_MetaData, slots_ex=True):
+    title: str
+    script_type: str
+
+    wrap_style: int
+    """Determines how line breaking is applied to the subtitle line"""
+
+    _scaled_border_and_shadow: AssBool
+
+    @property
+    def scaled_border_and_shadow(self) -> AssBool:
+        """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
+        return self._scaled_border_and_shadow
+
+    @scaled_border_and_shadow.setter
+    def scaled_border_and_shadow(self, x: AssBool | bool) -> None:
+        self._scaled_border_and_shadow = AssBool('yes' if x else 'no') if isinstance(x, bool) else x
+
+    y_cb_cr__matrix: str
+    """YUV Matrix"""
+    play_res_x: int
+    """Video width"""
+    play_res_y: int
+    """Video height"""
+
+    original__script: str
+    original__translation: str
+    original__editing: str
+    original__timing: str
+    synch__point: str
+    script__updated__by: str
+    update__details: str
+
+    @classmethod
+    def get_default(cls) -> ScriptInfo:
+        """
+        Get the default ScriptInfo section from Aegisub
+
+        :return: Default ScriptInfo
+        """
+        si = cls()
+        si.title = 'Default Aegisub file'
+        si.script_type = 'v4.00+'
+        si.wrap_style = 0
+        si.scaled_border_and_shadow = True
+        si.y_cb_cr__matrix = 'None'
+        return si
+
+
+class ProjectGarbage(_MetaData):
+    audio__file: str
+    """Loaded audio path (absolute)"""
+    video__file: str
+    """Loaded video path (absolute)"""
+    video__a_r__mode: int
+    video__a_r__value: float
+    video__zoom__percent: float
+    video__position: int
+    active__line: int
+
+    @classmethod
+    def get_default(cls) -> ProjectGarbage:
+        return cls()
 
 
 class Style(_DataCore):
@@ -454,14 +588,47 @@ class Style(_DataCore):
     """Shadow color"""
     alpha4: Opacity
     """Transparency of color4"""
-    bold: bool
-    """Font with bold"""
-    italic: bool
-    """Font with italic"""
-    underline: bool
-    """Font with underline"""
-    strikeout: bool
-    """Font with strikeout"""
+    _bold: StyleBool
+    _italic: StyleBool
+    _underline: StyleBool
+    _strikeout: StyleBool
+
+    @property
+    def bold(self) -> StyleBool:
+        """Font with bold"""
+        return self._bold
+
+    @bold.setter
+    def bold(self, x: StyleBool | bool) -> None:
+        self._bold = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
+
+    @property
+    def italic(self) -> StyleBool:
+        """Font with italic"""
+        return self._italic
+
+    @italic.setter
+    def italic(self, x: StyleBool | bool) -> None:
+        self._italic = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
+
+    @property
+    def underline(self) -> StyleBool:
+        """Font with underline"""
+        return self._underline
+
+    @underline.setter
+    def underline(self, x: StyleBool | bool) -> None:
+        self._underline = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
+
+    @property
+    def strikeout(self) -> StyleBool:
+        """Font with strikeout"""
+        return self._strikeout
+
+    @strikeout.setter
+    def strikeout(self, x: StyleBool | bool) -> None:
+        self._strikeout = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
+
     scale_x: float
     """Text stretching in the horizontal direction"""
     scale_y: float
@@ -470,8 +637,17 @@ class Style(_DataCore):
     """Horizontal spacing between letters"""
     angle: float
     """Rotation of the text"""
-    border_style: bool
-    """*True* for opaque box, *False* for standard outline"""
+    _border_style: BorderStyleBool
+
+    @property
+    def border_style(self) -> BorderStyleBool:
+        """*True* for opaque box, *False* for standard outline"""
+        return self._border_style
+
+    @border_style.setter
+    def border_style(self, x: BorderStyleBool | bool) -> None:
+        self._border_style = BorderStyleBool(3 if x else 1) if isinstance(x, bool) else x
+
     outline: float
     """Border thickness value"""
     shadow: float
@@ -505,11 +681,27 @@ class Style(_DataCore):
     def an_is_bottom(self) -> bool:
         return self.alignment in {1, 2, 3}
 
+    @property
+    def alpha_color1(self) -> str:
+        return self.color1.data[:2] + self.alpha1.ass_hex[2:-1] + self.color1.data[2:-1]
+
+    @property
+    def alpha_color2(self) -> str:
+        return self.color2.data[:2] + self.alpha2.ass_hex[2:-1] + self.color2.data[2:-1]
+
+    @property
+    def alpha_color3(self) -> str:
+        return self.color3.data[:2] + self.alpha3.ass_hex[2:-1] + self.color3.data[2:-1]
+
+    @property
+    def alpha_color4(self) -> str:
+        return self.color4.data[:2] + self.alpha4.ass_hex[2:-1] + self.color4.data[2:-1]
+
     @classmethod
     @logger.catch(force_exit=True)
     def from_text(cls, text: str) -> Style:
         """
-        Make a Style object from a .ass text line
+        Make a Style object from an .ass text line
 
         :param text:        Style text
         :return:            Style object
@@ -538,10 +730,10 @@ class Style(_DataCore):
         self.alpha3 = Opacity.from_ass_val(f'{style[5][:4]}&')
         self.alpha4 = Opacity.from_ass_val(f'{style[6][:4]}&')
 
-        self.bold = style[7] == '-1'
-        self.italic = style[8] == '-1'
-        self.underline = style[9] == '-1'
-        self.strikeout = style[10] == '-1'
+        self.bold = StyleBool(int(style[7]))
+        self.italic = StyleBool(int(style[8]))
+        self.underline = StyleBool(int(style[9]))
+        self.strikeout = StyleBool(int(style[10]))
 
         self.scale_x = float(style[11])
         self.scale_y = float(style[12])
@@ -549,7 +741,7 @@ class Style(_DataCore):
         self.spacing = float(style[13])
         self.angle = float(style[14])
 
-        self.border_style = style[15] == '3'
+        self.border_style = BorderStyleBool(int(style[15]))
         self.outline = float(style[16])
         self.shadow = float(style[17])
 
@@ -561,6 +753,33 @@ class Style(_DataCore):
         self.encoding = int(style[22])
 
         return self
+
+    @classmethod
+    def get_default(cls) -> Style:
+        return cls.from_text('Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1')
+
+    def as_text(self) -> str:
+        """
+        Get the current Style as ASS text
+
+        :return: ASS string
+        """
+        def fstr(v: float) -> str:
+            if v.is_integer():
+                return str(int(v))
+            return str(v)
+        style = 'Style: '
+        style += ','.join([
+            self.name, self.fontname, fstr(self.fontsize),
+            self.alpha_color1, self.alpha_color2, self.alpha_color3, self.alpha_color4,
+            repr(self.bold), repr(self.italic), repr(self.underline), repr(self.strikeout),
+            fstr(self.scale_x), fstr(self.scale_y),
+            fstr(self.spacing), fstr(self.angle),
+            repr(self.border_style), fstr(self.outline), fstr(self.shadow),
+            str(self.alignment), str(self.margin_l), str(self.margin_r), str(self.margin_v),
+            str(self.encoding)
+        ])
+        return style + '\n'
 
 
 class _PositionedText(_DataCore, ABC, empty_slots=True):
@@ -743,7 +962,7 @@ class _AssText(_PositionedText, ABC, empty_slots=True):
         return self.to_shape().to_pixels(supersampling, anti_aliasing)
 
 
-class Line(_AssText):
+class Line(_AssText, slots_ex=True):
     """
     Line object contains informations about a single line in the Ass.
 
@@ -835,6 +1054,21 @@ class Line(_AssText):
 
         return self
 
+    @classmethod
+    def get_default(cls, style: Style) -> Line:
+        line = Line()
+        line.layer = 0
+        line.start_time = Time.from_ts('0:00:00.00')
+        line.end_time = Time.from_ts('0:00:05.00')
+        line.style = style
+        line.actor = ''
+        line.margin_l = 0
+        line.margin_r = 0
+        line.margin_v = 0
+        line.effect = ''
+        line.text = ''
+        return line
+
     def add_data(self, font: Font) -> None:
         """
         Add more data to the current object based on given Font object
@@ -847,8 +1081,8 @@ class Line(_AssText):
         self.ascent, self.descent, self.internal_leading, self.external_leading = font.metrics
 
         try:
-            play_res_x = self.meta.play_res_x
-            play_res_y = self.meta.play_res_y
+            play_res_x = self.meta.script_info.play_res_x
+            play_res_y = self.meta.script_info.play_res_y
             style = self.style
         except AttributeError:
             return None
@@ -922,8 +1156,8 @@ class Line(_AssText):
 
         # Calculate word positions with all words data already available
         try:
-            play_res_x = self.meta.play_res_x
-            play_res_y = self.meta.play_res_y
+            play_res_x = self.meta.script_info.play_res_x
+            play_res_y = self.meta.script_info.play_res_y
             style = self.style
         except AttributeError:
             return None
@@ -1097,7 +1331,7 @@ class Line(_AssText):
             max_width = max(syl.width for syl in self.syls)
             sum_height = sum((syl.height for syl in self.syls), 0.)
 
-            cur_y = meta.play_res_y / 2 - sum_height / 2
+            cur_y = meta.script_info.play_res_y / 2 - sum_height / 2
 
             for syl in self.syls:
                 syl.style = style
@@ -1213,11 +1447,11 @@ class Line(_AssText):
             max_width = max(char.width for char in self.chars)
             sum_height = sum((char.height for char in self.chars), 0.)
 
-            cur_y = x_fix = meta.play_res_y / 2 - sum_height / 2
+            cur_y = x_fix = meta.script_info.play_res_y / 2 - sum_height / 2
 
             # Fixing line positions
             self.top = cur_y
-            self.middle = meta.play_res_y / 2
+            self.middle = meta.script_info.play_res_y / 2
             self.bottom = self.top + sum_height
             self.width = max_width
             self.height = sum_height
@@ -1240,7 +1474,7 @@ class Line(_AssText):
                     char.right = char.left + char.width
                     char.x = char.left
                 elif style.alignment == 5:
-                    char.left = meta.play_res_x / 2 - char.width / 2
+                    char.left = meta.script_info.play_res_x / 2 - char.width / 2
                     char.center = char.left + char.width / 2
                     char.right = char.left + char.width
                     char.x = char.center
@@ -1257,9 +1491,9 @@ class Line(_AssText):
                 char.y = char.middle
                 cur_y += char.height
 
-    def compose_ass_line(self, *, fix_timestamps: bool = True) -> str:
+    def as_text(self, *, fix_timestamps: bool = True) -> str:
         """
-        Make an ASS line suitable for writing into an .ass file
+        Get the current Line as ASS text
 
         :param fix_timestamps:      If True, will fix the timestamps on their real start and end time.
                                     If False, start and end times will just be the raw timestamps.
@@ -1271,17 +1505,17 @@ class Line(_AssText):
         else:
             start = self.start_time.ts()[1:-1]
             end = self.end_time.ts()[1:-1]
-        elements: List[str] = [
+        ass_line += ','.join([
             str(self.layer),
             start, end,
             self.style.name, self.actor,
             str(self.margin_l), str(self.margin_r), str(self.margin_v),
             self.effect, self.text
-        ]
-        return ass_line + ','.join(elements) + '\n'
+        ])
+        return ass_line + '\n'
 
 
-class Word(_AssText):
+class Word(_AssText, slots_ex=True):
     """
     Word object contains informations about a single word of a line in the Ass.
 
@@ -1302,7 +1536,7 @@ class _WordElement(Word, ABC, empty_slots=True):
     """Inline effect (marked as \\-EFFECT in karaoke-time)"""
 
 
-class Syllable(_WordElement):
+class Syllable(_WordElement, slots_ex=True):
     """
     Syllable object contains informations about a single syl of a line in the Ass.
 
@@ -1313,7 +1547,7 @@ class Syllable(_WordElement):
     """All the remaining tags before syl text apart \\k ones"""
 
 
-class Char(_WordElement):
+class Char(_WordElement, slots_ex=True):
     """
     Char object contains informations about a single char of a line in the Ass.
 

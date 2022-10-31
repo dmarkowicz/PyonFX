@@ -36,7 +36,7 @@ class _Process:
 def test_convert_time0() -> None:
     p = _Process(folder / 'originals_lines.ass')
     originals = p.originals
-    transformeds = [line.compose_ass_line() for line in p.io.lines]
+    transformeds = [line.as_text() for line in p.io.lines]
 
     for i, (origin, transformed) in enumerate(zip(originals, transformeds), start=1):
 
@@ -60,7 +60,7 @@ def test_convert_time0() -> None:
 def test_convert_time1() -> None:
     originals = _Process(folder / 'originals_lines.ass').originals
     transformeds = [
-        line.compose_ass_line()
+        line.as_text()
         for line in _Process(folder / 'originals_lines+0.01.ass').io.lines
     ]
 
@@ -91,7 +91,7 @@ def test_convert_time1() -> None:
 def test_convert_time2() -> None:
     originals = _Process(folder / 'originals_lines.ass').originals
     transformeds = [
-        line.compose_ass_line()
+        line.as_text()
         for line in _Process(folder / 'originals_lines+0.02.ass').io.lines
     ]
 
@@ -123,7 +123,7 @@ def test_convert_time2() -> None:
 def test_convert_time3() -> None:
     originals = _Process(folder / 'originals_lines+1frame.ass').originals
     transformeds = [
-        line.compose_ass_line()
+        line.as_text()
         for line in _Process(folder / 'originals_lines+0.03.ass').io.lines
     ]
 
@@ -160,7 +160,7 @@ def test_convert_time3() -> None:
 def test_convert_time4() -> None:
     originals = _Process(folder / 'originals_lines+1frame.ass').originals
     transformeds = [
-        line.compose_ass_line()
+        line.as_text()
         for line in _Process(folder / 'originals_lines+0.04.ass').io.lines
     ]
     # p = _Process(folder / 'originals_lines+0.04.ass')
@@ -190,7 +190,7 @@ def test_convert_time4() -> None:
 def test_convert_time5() -> None:
     originals = _Process(folder / 'moi_test_expected.ass').originals
     transformeds = [
-        line.compose_ass_line()
+        line.as_text()
         for line in _Process(folder / 'moi_test.ass').io.lines
     ]
     for i, (origin, transformed) in enumerate(zip(originals, transformeds), start=1):

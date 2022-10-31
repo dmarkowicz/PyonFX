@@ -15,7 +15,7 @@ meta, styles, lines = io.data
 
 # Config
 max_deviation = 0.75
-fps = Fraction(23.976)
+fps = 24000 / 1001
 
 
 def time_convert(ts: str, is_start: bool) -> float:
@@ -27,10 +27,10 @@ def test_meta_values():
     # Tests if all the meta values are taken correctly
     # check.equal(meta.wrap_style, 0)                     # -> not in this .ass, so let's comment this
     # check.equal(meta.scaled_border_and_shadow, True)  # -> not in this .ass, so let's comment this
-    check.equal(meta.play_res_x, 1280)
-    check.equal(meta.play_res_y, 720)
+    check.equal(meta.script_info.play_res_x, 1280)
+    check.equal(meta.script_info.play_res_y, 720)
     # check.equal(meta.audio, "")                         # -> not in this .ass, so let's comment this
-    check.equal(meta.video_file, "?dummy:23.976000:2250:1920:1080:11:135:226:c")
+    check.equal(meta.project_garbage.video__file, "?dummy:23.976000:2250:1920:1080:11:135:226:c")
 
 
 def test_line_values():
