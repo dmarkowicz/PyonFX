@@ -4,12 +4,13 @@ from __future__ import annotations
 import sys
 from abc import ABC, ABCMeta, abstractmethod
 from collections import OrderedDict
-from functools import wraps
+from functools import _lru_cache_wrapper, wraps
 from os import PathLike
 from types import FunctionType, MemberDescriptorType, MethodType
 from typing import (
-    AbstractSet, Any, Callable, Collection, Dict, Generic, Iterable, Iterator, Mapping, MutableSet,
-    Reversible, Sequence, Tuple, TypeVar, Union, cast, final, get_args, get_origin, overload
+    AbstractSet, Any, Callable, Collection, Dict, Generic, Iterable, Iterator,
+    Mapping, MutableSet, Reversible, Sequence, Tuple, TypeVar, Union, cast, final, get_args,
+    get_origin, overload
 )
 
 from numpy.typing import NDArray
@@ -400,7 +401,42 @@ class OrderedSet(MutableSet[T], Generic[T], ABC):
         self.__odict.update((el, None) for it in s for el in it)
 
 
+_CustomBoolT = TypeVar('_CustomBoolT', bound='CustomBool')
+
+
+class CustomBool(int):
+    def __copy__(self: _CustomBoolT) -> _CustomBoolT:
+        return self.__class__(self.__repr__())
+
+    def __deepcopy__(self: _CustomBoolT, *args: Any) -> _CustomBoolT:
+        return self.__copy__()
+
+
 @final
-class AssBool(int):
-    def __new__(cls, __o: str = 'no') -> bool:  # type: ignore[misc]
-        return bool(__o == 'yes')
+class AssBool(CustomBool):
+    def __new__(cls, __o: str = 'no') -> AssBool:
+        return super().__new__(cls, bool(__o == 'yes'))
+
+    def __str__(self) -> str:
+        return {1: 'True', 0: 'False'}[self]
+
+    def __repr__(self) -> str:
+        return {1: 'yes', 0: 'no'}[self]
+
+
+@final
+class StyleBool(CustomBool):
+    def __new__(cls, __o: int | str = 0) -> StyleBool:
+        return super().__new__(cls, __o)
+
+    def __str__(self) -> str:
+        return {-1: 'True', 0: 'False'}[self]
+
+
+@final
+class BorderStyleBool(CustomBool):
+    def __new__(cls, __o: int | str = 1) -> BorderStyleBool:
+        return super().__new__(cls, __o)
+
+    def __str__(self) -> str:
+        return {3: 'True', 1: 'False'}[self]
