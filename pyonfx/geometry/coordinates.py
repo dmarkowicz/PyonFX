@@ -28,7 +28,7 @@ class Coordinates(NamedMutableSequence[float], ABC, empty_slots=True):
         return self
 
     def __add__(self: _CT, _p: Tuple[float, ...]) -> _CT:
-        return self.__class__(*[sum(r, start=0.0) for r in zip(self.__self_proxy, _p)])
+        return self.__class__(*[sum(r, 0.0) for r in zip(self.__self_proxy, _p)])
 
     def __radd__(self: _CT, _p: Tuple[float, ...]) -> _CT:
         return self.__add__(_p)
