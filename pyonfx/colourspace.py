@@ -671,9 +671,6 @@ class Opacity(ColourSpace[float]):
     value: float
     """Value in floating format in the range 0.0 - 1.0"""
 
-    _data: str
-    """ASS value, hexadecimal inversed"""
-
     def __init__(self, _x: Pct) -> None:
         """
         Make an Opacity colourspace object
@@ -684,7 +681,11 @@ class Opacity(ColourSpace[float]):
         """
         super().__init__()
         self.value = clamp_value(_x, 0., 1.0)
-        self._data = f'&H{round(abs(self.value * 255 - 255)):02X}&'
+
+    @property
+    def ass_hex(self) -> str:
+        """ASS value, hexadecimal inversed"""
+        return f'&H{round(abs(self.value * 255 - 255)):02X}&'
 
     @overload
     @classmethod
