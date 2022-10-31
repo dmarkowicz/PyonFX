@@ -505,7 +505,7 @@ class ScriptInfo(_MetaData, slots_ex=True):
     _scaled_border_and_shadow: AssBool
 
     @property
-    def scaled_border_and_shadow(self) -> AssBool:
+    def scaled_border_and_shadow(self) -> AssBool | bool:
         """Determines if it has to be used script resolution (*True*) or video resolution (*False*) to scale border and shadow"""
         return self._scaled_border_and_shadow
 
@@ -594,7 +594,7 @@ class Style(_DataCore):
     _strikeout: StyleBool
 
     @property
-    def bold(self) -> StyleBool:
+    def bold(self) -> StyleBool | bool:
         """Font with bold"""
         return self._bold
 
@@ -603,7 +603,7 @@ class Style(_DataCore):
         self._bold = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
 
     @property
-    def italic(self) -> StyleBool:
+    def italic(self) -> StyleBool | bool:
         """Font with italic"""
         return self._italic
 
@@ -612,7 +612,7 @@ class Style(_DataCore):
         self._italic = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
 
     @property
-    def underline(self) -> StyleBool:
+    def underline(self) -> StyleBool | bool:
         """Font with underline"""
         return self._underline
 
@@ -621,7 +621,7 @@ class Style(_DataCore):
         self._underline = StyleBool(-1 if x else 0) if isinstance(x, bool) else x
 
     @property
-    def strikeout(self) -> StyleBool:
+    def strikeout(self) -> StyleBool | bool:
         """Font with strikeout"""
         return self._strikeout
 
@@ -640,7 +640,7 @@ class Style(_DataCore):
     _border_style: BorderStyleBool
 
     @property
-    def border_style(self) -> BorderStyleBool:
+    def border_style(self) -> BorderStyleBool | bool:
         """*True* for opaque box, *False* for standard outline"""
         return self._border_style
 
