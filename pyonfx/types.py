@@ -173,6 +173,17 @@ class AutoSlots(ABC, empty_slots=True, metaclass=AutoSlotsMeta):
     __slots__: Tuple[str, ...]
     __slots_ex__: Tuple[str, ...]
 
+    @property
+    def __all_slots__(self) -> Tuple[str, ...]:
+        return tuple(OrderedSet(self.__slots__ + self.__slots_ex__))
+
+    def __delattrs__(self) -> None:
+        for k in self.__all_slots__:
+            try:
+                super().__delattr__(k)
+            except AttributeError:
+                pass
+
 
 class NamedMutableSequence(AutoSlots, Sequence[T_co], Generic[T_co], ABC, empty_slots=True):
     def __init__(self, *args: T_co, **kwargs: T_co) -> None:
