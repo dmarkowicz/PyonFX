@@ -5,6 +5,7 @@ __all__ = ['clamp_value', 'chunk']
 from itertools import islice
 from typing import Iterable, Iterator, Literal, Tuple, overload
 
+import math
 import numpy as np
 
 from .types import Nb, T_co
@@ -59,3 +60,7 @@ def frange(start: float, stop: float, step: float) -> Iterator[float]:
     # return iter(numeric_range(start, stop, step))
     return iter(map(lambda x: float(x), np.linspace(start, stop, round((stop - start) / step),
                                                     endpoint=False, dtype=np.float64)))
+
+
+def cround(x: float) -> int:
+    return math.floor(x + 0.5) if x > 0 else math.ceil(x - 0.5)

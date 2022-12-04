@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+__all__ = ['Time']
+
 import math
 from fractions import Fraction
 from functools import lru_cache
 from typing import Literal, TypeVar
 
 from ._logging import logger
+from .misc import cround
 
 _TimeT = TypeVar('_TimeT', bound='Time')
 
@@ -108,7 +111,7 @@ class Time(float):
         :param is_start:        Whether the time is a start time or not.
         :return:                ASS frame.
         """
-        return math.ceil((self.__float__() - 0.0005) * fps) - (0 if is_start else 1)
+        return math.ceil(self.__float__() * fps) - (0 if is_start else 1)
 
     @classmethod
     def from_ts(cls, ts: str, /) -> Time:
@@ -167,13 +170,13 @@ class Time(float):
         if is_start and f == 0:
             return cls(0.0)
 
-        curr_ms = Time.from_frame(f, fps) * 1000
+        curr_ms = cround(Time.from_frame(f, fps) * 1000 + 1e-6)
         if is_start:
-            prev_ms = Time.from_frame(f - 1, fps) * 1000
-            ms = math.floor(prev_ms + int((curr_ms - prev_ms + 1) / 2) + 1e-6)
+            prev_ms = cround(Time.from_frame(f - 1, fps) * 1000 + 1e-6)
+            ms = prev_ms + int((curr_ms - prev_ms + 1) / 2)
         else:
-            next_ms = Time.from_frame(f + 1, fps) * 1000
-            ms = math.floor(curr_ms + int((next_ms - curr_ms + 1) / 2) + 1e-6)
+            next_ms = cround(Time.from_frame(f + 1, fps) * 1000 + 1e-6)
+            ms = curr_ms + int((next_ms - curr_ms + 1) / 2)
         s = ms / 1000
         return cls(s)
 
