@@ -17,9 +17,11 @@
 from __future__ import annotations
 
 __all__ = [
-    'Meta', 'Style',
+    'Ass', 'AssUntitled', 'AssVoid',
+    'Meta', 'ScriptInfo', 'ProjectGarbage',
+    'Style',
     'Line', 'Word', 'Syllable', 'Char',
-    'Ass'
+    'PList'
 ]
 
 import copy
@@ -67,7 +69,7 @@ class Ass(AutoSlots):
     _fix_timestamps: bool
 
     def __init__(
-        self, input_: AnyPath | None, output: AnyPath | None = None, /,
+        self, input_: AnyPath | None, output: AnyPath | None = None,
         fps: float | None = 24000 / 1001,
         extended: bool = True, vertical_kanji: bool = False,
         fix_timestamps: bool = True
@@ -274,6 +276,7 @@ class Ass(AutoSlots):
                     pass
                 else:
                     f.write(re.sub(r'^Dialogue:|Comment:', 'Comment:', events_txt, 0, re.MULTILINE))
+                    f.write('\n')
             f.writelines(self._output_lines)
             if lines:
                 f.writelines(
