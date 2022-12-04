@@ -20,7 +20,7 @@ from typing_extensions import TypeGuard
 from ._logging import logger
 from .convert import ConvertColour as CC
 from .misc import clamp_value
-from .types import ACV, NamedMutableSequence, Nb, Nb8bit, Pct, TCV_co, Tup4
+from .ptypes import ACV, NamedMutableSequence, Nb, Nb8bit, Pct, TCV_co, Tup4
 
 _T1 = TypeVar('_T1')
 _T2 = TypeVar('_T2')

@@ -13,7 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .._logging import logger
-from ..types import View
+from ..ptypes import View
 from .cartesian import Cartesian2D, Cartesian3D
 from .coordinates import Coordinates
 from .polar import Cylindrical, Polar, Spherical

@@ -11,7 +11,7 @@ from ._logging import logger
 from .colourspace import ASSColor, Opacity
 from .geometry import PointCartesian2D
 from .shape import Pixel
-from .types import AnyPath
+from .ptypes import AnyPath
 
 
 class Image:

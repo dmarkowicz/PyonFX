@@ -28,7 +28,7 @@ import numpy as np
 
 from ._logging import logger
 from .misc import clamp_value
-from .types import Tup3
+from .ptypes import Tup3
 
 
 class ConvertTime:

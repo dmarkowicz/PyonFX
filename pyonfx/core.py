@@ -47,8 +47,8 @@ from .colourspace import ASSColor, Opacity
 from .exception import LineNotFoundWarning, MatchNotFoundError
 from .font import Font, get_font
 from .shape import Pixel, Shape
-from .time import Time
-from .types import AnyPath, AssBool, AutoSlots, BorderStyleBool, CustomBool, NamedMutableSequence, OrderedSet, StyleBool
+from .ptime import Time
+from .ptypes import AnyPath, AssBool, AutoSlots, BorderStyleBool, CustomBool, NamedMutableSequence, OrderedSet, StyleBool
 
 _AssTextT = TypeVar('_AssTextT', bound='_AssText')
 _MetaDataT = TypeVar('_MetaDataT', bound='_MetaData')

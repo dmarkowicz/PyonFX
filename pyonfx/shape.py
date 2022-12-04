@@ -48,7 +48,7 @@ from .geometry import (
     VectorCartesian2D, VectorCartesian3D
 )
 from .misc import chunk, frange
-from .types import Alignment, View
+from .ptypes import Alignment, View
 
 
 class Pixel(NamedTuple):

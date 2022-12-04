@@ -7,7 +7,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from ..types import NamedMutableSequence
+from ..ptypes import NamedMutableSequence
 from .coordinates import Axis, Coordinates
 
 

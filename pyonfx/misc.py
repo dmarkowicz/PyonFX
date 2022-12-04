@@ -8,7 +8,7 @@ from typing import Iterable, Iterator, Literal, Tuple, overload
 import math
 import numpy as np
 
-from .types import Nb, T_co
+from .ptypes import Nb, T_co
 
 
 def clamp_value(val: Nb, min_val: Nb, max_val: Nb) -> Nb:

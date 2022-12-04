@@ -11,7 +11,7 @@ import numpy as np
 from numpy.typing import DTypeLike, NDArray
 
 from .._logging import logger
-from ..types import NamedMutableSequence, SomeArrayLike
+from ..ptypes import NamedMutableSequence, SomeArrayLike
 
 _CT = TypeVar('_CT', bound='Coordinates')
 

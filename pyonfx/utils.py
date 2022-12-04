@@ -26,7 +26,7 @@ from typing_extensions import TypeGuard
 from ._logging import logger
 from .colourspace import ColourSpace, _ColourSpaceT
 from .geometry import Geometry, Point, PointCartesian3D
-from .types import Nb
+from .ptypes import Nb
 
 if TYPE_CHECKING:
     from .core import Line
