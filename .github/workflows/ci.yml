@@ -85,7 +85,7 @@ jobs:
       - name: Install fonts (non-Windows)
         if: matrix.os != 'windows-2022'
         run: |
-          GO111MODULE=on GOBIN=$HOME/.local/bin go get github.com/Crosse/font-install@v1.4.1
+          GO111MODULE=on GOBIN=$HOME/.local/bin go install github.com/Crosse/font-install@v1.4.1
           $HOME/.local/bin/font-install "https://osdn.net/frs/redir.php?m=gigenet&f=mix-mplus-ipa%2F58720%2Fmigu-1p-20130430.zip"
 
         shell: bash
