@@ -117,14 +117,14 @@ class Ass(AutoSlots):
         # Script Info
         try:
             sec = self._sections['[Script Info]']
-        except AttributeError:
+        except KeyError:
             logger.user_warning('There is no [Script Info] section in this file')
         else:
             self.meta.script_info = ScriptInfo.from_text(sec.text)
         # Aegisub Project Garbage
         try:
             sec = self._sections['[Aegisub Project Garbage]']
-        except AttributeError:
+        except KeyError:
             logger.user_warning('There is no [Aegisub Project Garbage] section in this file')
         else:
             self.meta.project_garbage = ProjectGarbage.from_text(sec.text)
@@ -134,7 +134,7 @@ class Ass(AutoSlots):
         self.styles = []
         try:
             sec = self._sections['[V4+ Styles]']
-        except AttributeError:
+        except KeyError:
             logger.user_warning('There is no [V4+ Styles] section in this file')
         else:
             self.styles.extend(Style.from_text(txt) for txt in sec.text.strip().splitlines()[1:])
@@ -143,7 +143,7 @@ class Ass(AutoSlots):
         self._lines = PList()
         try:
             sec = self._sections['[Events]']
-        except AttributeError:
+        except KeyError:
             logger.user_warning('There is no [Events] section in this file')
         else:
             self._lines.extend(
