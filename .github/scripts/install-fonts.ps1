@@ -1,3 +1,4 @@
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 $clnt = new-object System.Net.WebClient
 $clnt.DownloadFile($args[0], "tmp.zip")
 
