@@ -1,11 +1,11 @@
-from distutils.util import convert_path
+from pathlib import Path
 from typing import Any, Dict
 
 from setuptools import setup
 
 meta: Dict[str, Any] = {}
-with open(convert_path('pyonfx/_metadata.py'), encoding='utf-8') as f:
-    exec(f.read(), meta)
+
+exec(Path('pyonfx/_metadata.py').read_text(), meta := dict[str, str]())
 
 with open('requirements.txt', encoding='utf-8') as fh:
     reqs = fh.readlines()
