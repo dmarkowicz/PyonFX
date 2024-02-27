@@ -1,5 +1,5 @@
 __all__ = ['version']
-__version__ = "0.10.0b"
+__version__ = "0.11.0b"
 
 
 def version() -> str:
