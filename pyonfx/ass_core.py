@@ -712,7 +712,11 @@ class Ass:
 
                 # Calculate word positions with all words data already available
                 if line.words and self.meta.play_res_x > 0 and self.meta.play_res_y > 0:
-                    if line.styleref.alignment > 6 or line.styleref.alignment < 4:
+                    if (
+                        line.styleref.alignment > 6
+                        or line.styleref.alignment < 4
+                        or not vertical_kanji
+                    ):
                         cur_x = line.left
                         for word in line.words:
                             # Horizontal position
