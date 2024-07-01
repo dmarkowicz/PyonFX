@@ -185,6 +185,7 @@ class Font:
                     width * self.downscale * self.fonthack_scale
                     + self.hspace * (len(text) - 1)
                 )
+                * 0.8845  # Fix strange width calculation bug on linux
                 * self.xscale,
                 get_rect(text).height
                 * self.downscale
